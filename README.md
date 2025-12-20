@@ -10,6 +10,12 @@ hints = "/*=quack_lab= card(t #42) card(mi #24) */"  # this comment will be embe
 db.sql(f"explain {hints} select count(*) from title t join movie_info mi on t.id = mi.movie_id where t.production_year < 2010")
 ```
 
+## Repo Layout
+
+The `quacklab-patches` branch is used to track our changes to upstream DuckDB. It should not be used directly.
+For the DuckDB versions that we support, dedicated `quacklab-[DuckDB release]` branches exist, such as `quacklab-v1.4-andium`.
+These branches are used to apply our quacklab patches to the specific DuckDB release. Use these branches to build quacklab.
+
 ## Installation
 
 See the [quacklab repository](https://github.com/rbergm/quacklab.git) for information on the required software to compile
@@ -22,6 +28,7 @@ The ***TLDR** is
 git clone --recurse-submodules https://github.com/rbergm/quacklab-python.git
 cd quacklab-python
 git fetch --tags
+git switch quacklab-v1.4-andium
 cd external/duckdb && git fetch --tags
 cd third_party/antlr4
 java -jar antlr-runtime-4.13.2.jar ../../src/hinting/grammar/HintBlock.g4
@@ -34,6 +41,8 @@ Or to explain the individual steps:
 1. Initialize the quacklab submodule: `git submodule update --init --recursive` (or clone with `--recurse-submodules`)
 2. Make sure you have tags available in the repository: `git fetch --tags`. Tags are used for versioning by the DuckDB build
    process.
+3. Select the package version you want to build by checking out the corresponding branch, e.g.,
+   `git switch quacklab-v1.4-andium`
 3. Make sure you have tags available in the quacklab submodule: `cd external/duckdb && git fetch --tags`
 4. Currently, you need to manually generate the parser for the hinting grammar. Change into the following directory:
    `external/duckdb/third_party/antlr4` and run the ANTLR generator:
