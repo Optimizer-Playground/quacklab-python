@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from packaging.version import Version
 
-import duckdb
+import quacklab
 
 pd = pytest.importorskip("pandas")
 pa = pytest.importorskip("pyarrow")
@@ -57,7 +57,7 @@ class TestNativeTimeZone:
 
     def test_pandas_timestamp_time(self, duckdb_cursor):
         with pytest.raises(
-            duckdb.NotImplementedException, match='Not implemented Error: Unsupported type "TIME WITH TIME ZONE"'
+            quacklab.NotImplementedException, match='Not implemented Error: Unsupported type "TIME WITH TIME ZONE"'
         ):
             duckdb_cursor.execute(f"select TimeRecStart::TIMETZ  as tz  from '{filename}'").df()
 

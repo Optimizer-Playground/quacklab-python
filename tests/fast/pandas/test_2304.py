@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from conftest import ArrowPandas, NumpyPandas
 
-import duckdb
+import quacklab
 
 
 class TestPandasMergeSameName:
@@ -27,7 +27,7 @@ class TestPandasMergeSameName:
             }
         )
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("df1", df1)
         con.register("df2", df2)
         query = """SELECT * from df1
@@ -77,7 +77,7 @@ class TestPandasMergeSameName:
             }
         )
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("df1", df1)
         con.register("df2", df2)
         query = """SELECT * from df1
@@ -108,7 +108,7 @@ class TestPandasMergeSameName:
             }
         )
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("df1", df1)
         con.register("df2", df2)
 

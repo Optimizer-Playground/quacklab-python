@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 
@@ -24,7 +24,7 @@ def test_5547():
         )
     )
 
-    con = duckdb.connect()
+    con = quacklab.connect()
     expected = tbl.to_pandas()
     result = con.execute(
         """

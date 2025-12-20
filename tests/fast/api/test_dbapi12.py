@@ -1,6 +1,6 @@
 import pandas as pd
 
-import duckdb
+import quacklab
 
 
 class TestRelationApi:
@@ -58,7 +58,7 @@ class TestRelationApi:
         test_rel(rel_df, duckdb_cursor)
 
     def test_fromquery(self, duckdb_cursor):
-        assert duckdb.from_query("select 42").fetchone()[0] == 42
+        assert quacklab.from_query("select 42").fetchone()[0] == 42
         assert duckdb_cursor.query("select 43").fetchone()[0] == 43
 
         # assert duckdb_cursor.from_query('select 44').execute().fetchone()[0] == 44

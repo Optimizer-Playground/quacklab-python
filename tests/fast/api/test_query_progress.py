@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 class TestQueryProgress:
@@ -14,14 +14,14 @@ class TestQueryProgress:
         reason="threads not allowed on Emscripten",
     )
     def test_query_progress(self, reraise):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.sql("set enable_progress_bar_print=false")
         conn.sql("set progress_bar_time=0")
         conn.sql("create table t as (select range as n from range(10000000))")
 
         def thread_target() -> None:
             # run a very slow query which hopefully isn't too memory intensive.
-            with reraise, contextlib.suppress(duckdb.InterruptException):
+            with reraise, contextlib.suppress(quacklab.InterruptException):
                 conn.execute("select max(sha1(n::varchar)) from t").fetchall()
 
         thread = threading.Thread(target=thread_target)
@@ -57,7 +57,7 @@ class TestQueryProgress:
         thread.join()
 
     def test_query_progress_closed_connection(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.close()
-        with pytest.raises(duckdb.ConnectionException):
+        with pytest.raises(quacklab.ConnectionException):
             conn.query_progress()

@@ -1,7 +1,7 @@
 import warnings  # noqa: D100
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union, overload
 
-from duckdb import (
+from quacklab import (
     CaseExpression,
     CoalesceOperator,
     ColumnExpression,

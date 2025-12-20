@@ -2,7 +2,7 @@
 
 import warnings
 
-from duckdb.sqltypes import (
+from quacklab.sqltypes import (
     BIGINT,
     BIT,
     BLOB,

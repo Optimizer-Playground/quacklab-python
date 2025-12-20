@@ -6,7 +6,7 @@ from typing import Any, Union
 
 import pytest
 
-import duckdb
+import quacklab
 
 try:
     # need to ignore warnings that might be thrown deep inside pandas's import tree (from dateutil in this case)
@@ -64,7 +64,7 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture
 def duckdb_empty_cursor(request):
-    connection = duckdb.connect("")
+    connection = quacklab.connect("")
     cursor = connection.cursor()
     return cursor
 
@@ -187,7 +187,7 @@ class ArrowPandas:
 
 @pytest.fixture
 def require():
-    def _require(extension_name, db_name="") -> Union[duckdb.DuckDBPyConnection, None]:
+    def _require(extension_name, db_name="") -> Union[quacklab.DuckDBPyConnection, None]:
         # Paths to search for extensions
 
         build = Path(__file__).parent.parent / "build"
@@ -212,7 +212,7 @@ def require():
         for path in extension_paths_found:
             print(path)
             if path.endswith(extension_name + ".duckdb_extension"):
-                conn = duckdb.connect(db_name, config={"allow_unsigned_extensions": "true"})
+                conn = quacklab.connect(db_name, config={"allow_unsigned_extensions": "true"})
                 conn.execute(f"LOAD '{path}'")
                 return conn
         pytest.skip(f"could not load {extension_name}")
@@ -234,7 +234,7 @@ def spark():
 
 @pytest.fixture
 def duckdb_cursor():
-    connection = duckdb.connect("")
+    connection = quacklab.connect("")
     yield connection
     connection.close()
 

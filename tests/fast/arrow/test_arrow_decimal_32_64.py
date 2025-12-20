@@ -2,14 +2,14 @@ from decimal import Decimal
 
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 
 
 class TestArrowDecimalTypes:
     def test_decimal_32(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
         duckdb_cursor.execute("SET arrow_output_version = 1.5")
         decimal_32 = pa.Table.from_pylist(
             [
@@ -38,7 +38,7 @@ class TestArrowDecimalTypes:
         assert arrow_table.equals(decimal_32)
 
     def test_decimal_64(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
         duckdb_cursor.execute("SET arrow_output_version = 1.5")
         decimal_64 = pa.Table.from_pylist(
             [

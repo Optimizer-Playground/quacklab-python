@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 
 class Test3324:
@@ -27,5 +27,5 @@ class Test3324:
                     column1 = $1"""
         ).fetch_df()
 
-        with pytest.raises(duckdb.BinderException, match="Unexpected prepared parameter"):
+        with pytest.raises(quacklab.BinderException, match="Unexpected prepared parameter"):
             duckdb_cursor.execute("""execute v1(?)""", ("test1",)).fetch_df()

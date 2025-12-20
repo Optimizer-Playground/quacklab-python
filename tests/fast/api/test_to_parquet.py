@@ -6,7 +6,7 @@ import tempfile
 import pytest
 from conftest import ArrowPandas, NumpyPandas
 
-import duckdb
+import quacklab
 
 
 class TestToParquet:
@@ -14,36 +14,36 @@ class TestToParquet:
     def test_basic_to_parquet(self, pd):
         temp_file_name = os.path.join(tempfile.mkdtemp(), next(tempfile._get_candidate_names()))  # noqa: PTH118
         df = pd.DataFrame({"a": [5, 3, 23, 2], "b": [45, 234, 234, 2]})
-        rel = duckdb.from_df(df)
+        rel = quacklab.from_df(df)
 
         rel.to_parquet(temp_file_name)
 
-        csv_rel = duckdb.read_parquet(temp_file_name)
+        csv_rel = quacklab.read_parquet(temp_file_name)
         assert rel.execute().fetchall() == csv_rel.execute().fetchall()
 
     @pytest.mark.parametrize("pd", [NumpyPandas(), ArrowPandas()])
     def test_compression_gzip(self, pd):
         temp_file_name = os.path.join(tempfile.mkdtemp(), next(tempfile._get_candidate_names()))  # noqa: PTH118
         df = pd.DataFrame({"a": ["string1", "string2", "string3"]})
-        rel = duckdb.from_df(df)
+        rel = quacklab.from_df(df)
         rel.to_parquet(temp_file_name, compression="gzip")
-        csv_rel = duckdb.read_parquet(temp_file_name, compression="gzip")
+        csv_rel = quacklab.read_parquet(temp_file_name, compression="gzip")
         assert rel.execute().fetchall() == csv_rel.execute().fetchall()
 
     def test_field_ids_auto(self):
         temp_file_name = os.path.join(tempfile.mkdtemp(), next(tempfile._get_candidate_names()))  # noqa: PTH118
-        rel = duckdb.sql("""SELECT {i: 128} AS my_struct""")
+        rel = quacklab.sql("""SELECT {i: 128} AS my_struct""")
         rel.to_parquet(temp_file_name, field_ids="auto")
-        parquet_rel = duckdb.read_parquet(temp_file_name)
+        parquet_rel = quacklab.read_parquet(temp_file_name)
         assert rel.execute().fetchall() == parquet_rel.execute().fetchall()
 
     def test_field_ids(self):
         temp_file_name = os.path.join(tempfile.mkdtemp(), next(tempfile._get_candidate_names()))  # noqa: PTH118
-        rel = duckdb.sql("""SELECT 1 as i, {j: 128} AS my_struct""")
+        rel = quacklab.sql("""SELECT 1 as i, {j: 128} AS my_struct""")
         rel.to_parquet(temp_file_name, field_ids={"i": 42, "my_struct": {"__duckdb_field_id": 43, "j": 44}})
-        parquet_rel = duckdb.read_parquet(temp_file_name)
+        parquet_rel = quacklab.read_parquet(temp_file_name)
         assert rel.execute().fetchall() == parquet_rel.execute().fetchall()
-        assert duckdb.sql(
+        assert quacklab.sql(
             f"""
             select name,field_id
             from parquet_schema('{temp_file_name}')
@@ -53,7 +53,7 @@ class TestToParquet:
     @pytest.mark.parametrize("pd", [NumpyPandas(), ArrowPandas()])
     @pytest.mark.parametrize("row_group_size_bytes", [122880 * 1024, "2MB"])
     def test_row_group_size_bytes(self, pd, row_group_size_bytes):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("SET preserve_insertion_order=false;")
 
         temp_file_name = os.path.join(tempfile.mkdtemp(), next(tempfile._get_candidate_names()))  # noqa: PTH118
@@ -67,9 +67,9 @@ class TestToParquet:
     def test_row_group_size(self, pd):
         temp_file_name = os.path.join(tempfile.mkdtemp(), next(tempfile._get_candidate_names()))  # noqa: PTH118
         df = pd.DataFrame({"a": ["string1", "string2", "string3"]})
-        rel = duckdb.from_df(df)
+        rel = quacklab.from_df(df)
         rel.to_parquet(temp_file_name, row_group_size=122880)
-        parquet_rel = duckdb.read_parquet(temp_file_name)
+        parquet_rel = quacklab.read_parquet(temp_file_name)
         assert rel.execute().fetchall() == parquet_rel.execute().fetchall()
 
     @pytest.mark.parametrize("pd", [NumpyPandas(), ArrowPandas()])
@@ -83,9 +83,9 @@ class TestToParquet:
                 "category": ["a", "a", "b", "c"],
             }
         )
-        rel = duckdb.from_df(df)
+        rel = quacklab.from_df(df)
         rel.to_parquet(temp_file_name, partition_by=["category"], write_partition_columns=write_columns)
-        result = duckdb.sql(f"FROM read_parquet('{temp_file_name}/*/*.parquet', hive_partitioning=TRUE)")
+        result = quacklab.sql(f"FROM read_parquet('{temp_file_name}/*/*.parquet', hive_partitioning=TRUE)")
         expected = [("rei", 321.0, "a"), ("shinji", 123.0, "a"), ("asuka", 23.0, "b"), ("kaworu", 340.0, "c")]
         assert result.execute().fetchall() == expected
 
@@ -100,10 +100,10 @@ class TestToParquet:
                 "category": ["a", "a", "b", "c"],
             }
         )
-        rel = duckdb.from_df(df)
+        rel = quacklab.from_df(df)
         rel.to_parquet(temp_file_name, partition_by=["category"], write_partition_columns=write_columns)
         rel.to_parquet(temp_file_name, partition_by=["category"], overwrite=True, write_partition_columns=write_columns)
-        result = duckdb.sql(f"FROM read_parquet('{temp_file_name}/*/*.parquet', hive_partitioning=TRUE)")
+        result = quacklab.sql(f"FROM read_parquet('{temp_file_name}/*/*.parquet', hive_partitioning=TRUE)")
         expected = [("rei", 321.0, "a"), ("shinji", 123.0, "a"), ("asuka", 23.0, "b"), ("kaworu", 340.0, "c")]
 
         assert result.execute().fetchall() == expected
@@ -118,16 +118,16 @@ class TestToParquet:
                 "category": ["a", "a", "b", "c"],
             }
         )
-        rel = duckdb.from_df(df)
+        rel = quacklab.from_df(df)
         rel.to_parquet(temp_file_name)
         rel.to_parquet(temp_file_name, use_tmp_file=True)
-        result = duckdb.read_parquet(temp_file_name)
+        result = quacklab.read_parquet(temp_file_name)
         assert rel.execute().fetchall() == result.execute().fetchall()
 
     @pytest.mark.parametrize("pd", [NumpyPandas(), ArrowPandas()])
     def test_per_thread_output(self, pd):
         temp_file_name = os.path.join(tempfile.mkdtemp(), next(tempfile._get_candidate_names()))  # noqa: PTH118
-        num_threads = duckdb.sql("select current_setting('threads')").fetchone()[0]
+        num_threads = quacklab.sql("select current_setting('threads')").fetchone()[0]
         print("threads:", num_threads)
         df = pd.DataFrame(
             {
@@ -136,9 +136,9 @@ class TestToParquet:
                 "category": ["a", "a", "b", "c"],
             }
         )
-        rel = duckdb.from_df(df)
+        rel = quacklab.from_df(df)
         rel.to_parquet(temp_file_name, per_thread_output=True)
-        result = duckdb.read_parquet(f"{temp_file_name}/*.parquet")
+        result = quacklab.read_parquet(f"{temp_file_name}/*.parquet")
         assert rel.execute().fetchall() == result.execute().fetchall()
 
     @pytest.mark.parametrize("pd", [NumpyPandas(), ArrowPandas()])
@@ -151,7 +151,7 @@ class TestToParquet:
                 "category": ["a", "a", "b", "c"],
             }
         )
-        rel = duckdb.from_df(df)
+        rel = quacklab.from_df(df)
         rel.to_parquet(temp_file_name, partition_by=["category"])
         df_to_append = pd.DataFrame(
             {
@@ -160,9 +160,9 @@ class TestToParquet:
                 "category": ["a"],
             }
         )
-        rel_to_append = duckdb.from_df(df_to_append)
+        rel_to_append = quacklab.from_df(df_to_append)
         rel_to_append.to_parquet(temp_file_name, partition_by=["category"], append=True)
-        result = duckdb.sql(f"FROM read_parquet('{temp_file_name}/*/*.parquet', hive_partitioning=TRUE) ORDER BY name")
+        result = quacklab.sql(f"FROM read_parquet('{temp_file_name}/*/*.parquet', hive_partitioning=TRUE) ORDER BY name")
         result.show()
         expected = [
             ("asuka", 23.0, "b"),
@@ -183,7 +183,7 @@ class TestToParquet:
                 "category": ["a", "a", "b", "c"],
             }
         )
-        rel = duckdb.from_df(df)
+        rel = quacklab.from_df(df)
         rel.to_parquet(temp_file_name, partition_by=["category"], filename_pattern="orders_{i}")
         # Check that files follow the pattern with {i}
         files_a = list(pathlib.Path(f"{temp_file_name}/category=a").iterdir())
@@ -195,7 +195,7 @@ class TestToParquet:
         assert all(filename_pattern.search(str(f.name)) for f in files_c)
 
         # Verify data integrity
-        result = duckdb.sql(f"FROM read_parquet('{temp_file_name}/*/*.parquet', hive_partitioning=TRUE)")
+        result = quacklab.sql(f"FROM read_parquet('{temp_file_name}/*/*.parquet', hive_partitioning=TRUE)")
         expected = [("rei", 321.0, "a"), ("shinji", 123.0, "a"), ("asuka", 23.0, "b"), ("kaworu", 340.0, "c")]
         assert result.execute().fetchall() == expected
 
@@ -209,7 +209,7 @@ class TestToParquet:
                 "category": ["a", "a", "b", "c"],
             }
         )
-        rel = duckdb.from_df(df)
+        rel = quacklab.from_df(df)
         rel.to_parquet(temp_file_name, partition_by=["category"], filename_pattern="file_{uuid}")
         # Check that files follow the pattern with {uuid}
         files_a = list(pathlib.Path(f"{temp_file_name}/category=a").iterdir())
@@ -222,7 +222,7 @@ class TestToParquet:
         assert all(filename_pattern.search(str(f.name)) for f in files_c)
 
         # Verify data integrity
-        result = duckdb.sql(f"FROM read_parquet('{temp_file_name}/*/*.parquet', hive_partitioning=TRUE)")
+        result = quacklab.sql(f"FROM read_parquet('{temp_file_name}/*/*.parquet', hive_partitioning=TRUE)")
         expected = [("rei", 321.0, "a"), ("shinji", 123.0, "a"), ("asuka", 23.0, "b"), ("kaworu", 340.0, "c")]
         assert result.execute().fetchall() == expected
 
@@ -231,7 +231,7 @@ class TestToParquet:
         temp_file_name = os.path.join(tempfile.mkdtemp(), next(tempfile._get_candidate_names()))  # noqa: PTH118
 
         # use same test data as external/duckdb/test/sql/copy/file_size_bytes.test
-        rel = duckdb.from_query("SELECT i AS col_a, i AS col_b FROM range(0,10000) tbl(i);")
+        rel = quacklab.from_query("SELECT i AS col_a, i AS col_b FROM range(0,10000) tbl(i);")
         rel.to_parquet(temp_file_name, file_size_bytes=file_size_bytes, row_group_size=2000)
 
         # Check that multiple files were created
@@ -239,7 +239,7 @@ class TestToParquet:
         assert len(files) > 1, f"Expected multiple files, got {len(files)}"
 
         # Verify data integrity
-        result = duckdb.read_parquet(f"{temp_file_name}/*.parquet")
+        result = quacklab.read_parquet(f"{temp_file_name}/*.parquet")
         assert len(result.execute().fetchall()) == 10000
 
     @pytest.mark.parametrize("pd", [NumpyPandas(), ArrowPandas()])
@@ -253,9 +253,9 @@ class TestToParquet:
                 "category": ["a", "a", "b", "c"],
             }
         )
-        rel = duckdb.from_df(df)
+        rel = quacklab.from_df(df)
         rel.to_parquet(temp_file_name, file_size_bytes=file_size_bytes)
 
         # With large file size limits, should create just one file
-        parquet_rel = duckdb.read_parquet(temp_file_name)
+        parquet_rel = quacklab.read_parquet(temp_file_name)
         assert rel.execute().fetchall() == parquet_rel.execute().fetchall()

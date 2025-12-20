@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import duckdb
+import quacklab
 
 try:
     import pyarrow
@@ -18,6 +18,6 @@ class TestArrowReads:
         parquet_filename = str(Path(__file__).parent / "data" / "userdata1.parquet")
         userdata_parquet_table = pyarrow.parquet.read_table(parquet_filename)
         userdata_parquet_table.validate(full=True)
-        rel = duckdb.from_arrow(userdata_parquet_table)
+        rel = quacklab.from_arrow(userdata_parquet_table)
         assert rel.aggregate("(avg(salary))::INT").execute().fetchone()[0] == 149005
         assert rel.aggregate("(avg(salary))::INT").execute().fetchone()[0] == 149005

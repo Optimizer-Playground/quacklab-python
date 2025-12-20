@@ -3,7 +3,7 @@ import datetime
 import numpy as np
 import pandas as pd
 
-import duckdb
+import quacklab
 
 
 class TestPandasObject:
@@ -11,7 +11,7 @@ class TestPandasObject:
         # Test mostly null column
         data = [None] + [1] + [None] * 10000  # Last element is 1, others are None
         pandas_df = pd.DataFrame(data, columns=["c"], dtype=object)  # noqa: F841
-        con = duckdb.connect()
+        con = quacklab.connect()
         assert con.execute("FROM pandas_df where c is not null").fetchall() == [(1.0,)]
 
         # Test all nulls, should return varchar
@@ -21,7 +21,7 @@ class TestPandasObject:
         assert con.execute("select typeof(c) FROM pandas_df_2 limit 1").fetchall() == [('"NULL"',)]
 
     def test_object_to_string(self, duckdb_cursor):
-        con = duckdb.connect(database=":memory:", read_only=False)
+        con = quacklab.connect(database=":memory:", read_only=False)
         x = pd.DataFrame([[1, "a", 2], [1, None, 2], [1, 1.1, 2], [1, 1.1, 2], [1, 1.1, 2]])
         x = x.iloc[1:].copy()  # middle col now entirely native float items
         con.register("view2", x)
@@ -103,6 +103,6 @@ class TestPandasObject:
             columns=["col"],
         )
 
-        con = duckdb.connect(database=":memory:", read_only=False)
+        con = quacklab.connect(database=":memory:", read_only=False)
         con.register("df", df)
         assert con.execute("select count(*) from df").fetchone() == (3,)

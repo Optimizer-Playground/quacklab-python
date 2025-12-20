@@ -1,7 +1,7 @@
 import pytest
 from conftest import ArrowPandas, NumpyPandas
 
-import duckdb
+import quacklab
 
 
 class TestInsert:
@@ -9,7 +9,7 @@ class TestInsert:
     def test_insert(self, pandas):
         test_df = pandas.DataFrame({"i": [1, 2, 3], "j": ["one", "two", "three"]})
         # connect to an in-memory temporary database
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         # get a cursor
         cursor = conn.cursor()
         conn.execute("CREATE TABLE test (i INTEGER, j STRING)")

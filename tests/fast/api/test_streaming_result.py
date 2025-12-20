@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 
 class TestStreamingResult:
@@ -17,7 +17,7 @@ class TestStreamingResult:
         res = duckdb_cursor.sql(
             "SELECT CASE WHEN i < 10000 THEN i ELSE concat('hello', i::VARCHAR)::INT END FROM range(100000) t(i)"
         )
-        with pytest.raises(duckdb.ConversionException):
+        with pytest.raises(quacklab.ConversionException):
             res.fetchone()
 
     def test_fetch_many(self, duckdb_cursor):
@@ -33,7 +33,7 @@ class TestStreamingResult:
         res = duckdb_cursor.sql(
             "SELECT CASE WHEN i < 10000 THEN i ELSE concat('hello', i::VARCHAR)::INT END FROM range(100000) t(i)"
         )
-        with pytest.raises(duckdb.ConversionException):
+        with pytest.raises(quacklab.ConversionException):
             res.fetchmany(10)
 
     def test_record_batch_reader(self, duckdb_cursor):
@@ -51,7 +51,7 @@ class TestStreamingResult:
         res = duckdb_cursor.sql(
             "SELECT CASE WHEN i < 10000 THEN i ELSE concat('hello', i::VARCHAR)::INT END FROM range(100000) t(i)"
         )
-        with pytest.raises(duckdb.ConversionException, match="Could not convert string 'hello10000' to INT32"):
+        with pytest.raises(quacklab.ConversionException, match="Could not convert string 'hello10000' to INT32"):
             reader = res.fetch_arrow_reader(batch_size=16_384)
 
     def test_9801(self, duckdb_cursor):

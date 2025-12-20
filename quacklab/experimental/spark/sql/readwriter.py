@@ -8,8 +8,8 @@ PrimitiveType = Union[bool, float, int, str]
 OptionalPrimitiveType = Optional[PrimitiveType]
 
 if TYPE_CHECKING:
-    from duckdb.experimental.spark.sql.dataframe import DataFrame
-    from duckdb.experimental.spark.sql.session import SparkSession
+    from quacklab.experimental.spark.sql.dataframe import DataFrame
+    from quacklab.experimental.spark.sql.session import SparkSession
 
 
 class DataFrameWriter:  # noqa: D101
@@ -97,7 +97,7 @@ class DataFrameReader:  # noqa: D101
         schema: Optional[Union[StructType, str]] = None,
         **options: OptionalPrimitiveType,
     ) -> "DataFrame":
-        from duckdb.experimental.spark.sql.dataframe import DataFrame
+        from quacklab.experimental.spark.sql.dataframe import DataFrame
 
         if not isinstance(path, str):
             raise TypeError

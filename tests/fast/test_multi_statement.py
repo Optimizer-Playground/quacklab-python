@@ -2,12 +2,12 @@ import contextlib
 import shutil
 from pathlib import Path
 
-import duckdb
+import quacklab
 
 
 class TestMultiStatement:
     def test_multi_statement(self, duckdb_cursor):
-        con = duckdb.connect(":memory:")
+        con = quacklab.connect(":memory:")
 
         # test empty statement
         con.execute("")
@@ -31,7 +31,7 @@ class TestMultiStatement:
         con.execute("INSERT INTO integers2 VALUES (1), (5), (7), (1928)")
         con.execute(f"EXPORT DATABASE '{export_location}'")
         # reset connection
-        con = duckdb.connect(":memory:")
+        con = quacklab.connect(":memory:")
         con.execute(f"IMPORT DATABASE '{export_location}'")
         integers = [x[0] for x in con.execute("SELECT * FROM integers").fetchall()]
         integers2 = [x[0] for x in con.execute("SELECT * FROM integers2").fetchall()]

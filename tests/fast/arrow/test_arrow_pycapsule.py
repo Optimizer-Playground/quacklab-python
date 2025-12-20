@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 pl = pytest.importorskip("polars")
 
@@ -47,7 +47,7 @@ class TestArrowPyCapsule:
 
     def test_capsule_roundtrip(self, duckdb_cursor):
         def create_capsule():
-            conn = duckdb.connect()
+            conn = quacklab.connect()
             rel = conn.sql("select i, i+1, -i from range(100) t(i)")
 
             capsule = rel.__arrow_c_stream__()
@@ -78,7 +78,7 @@ class TestArrowPyCapsule:
                 def __arrow_c_stream__(self, requested_schema=None) -> object:
                     return self.rel.__arrow_c_stream__(requested_schema=requested_schema)
 
-            conn = duckdb.connect()
+            conn = quacklab.connect()
             rel = conn.sql("select i, i+1, -i from range(100) t(i)")
             return MyTable(rel, conn)
 

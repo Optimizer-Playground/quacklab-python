@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 pq = pytest.importorskip("pyarrow.parquet")
@@ -19,7 +19,7 @@ class TestArrowIntegration:
 
         userdata_parquet_table = pq.read_table(parquet_filename)
         userdata_parquet_table.validate(full=True)
-        rel_from_arrow = duckdb.arrow(userdata_parquet_table).project(cols).fetch_arrow_table()
+        rel_from_arrow = quacklab.arrow(userdata_parquet_table).project(cols).fetch_arrow_table()
         rel_from_arrow.validate(full=True)
 
         rel_from_duckdb = duckdb_cursor.from_parquet(parquet_filename).project(cols).fetch_arrow_table()
@@ -30,7 +30,7 @@ class TestArrowIntegration:
             userdata_parquet_table2 = pa.Table.from_batches(userdata_parquet_table.to_batches(i))
             assert userdata_parquet_table.equals(userdata_parquet_table2, check_metadata=True)
 
-            rel_from_arrow2 = duckdb.arrow(userdata_parquet_table2).project(cols).fetch_arrow_table()
+            rel_from_arrow2 = quacklab.arrow(userdata_parquet_table2).project(cols).fetch_arrow_table()
             rel_from_arrow2.validate(full=True)
 
             assert rel_from_arrow.equals(rel_from_arrow2, check_metadata=True)
@@ -42,7 +42,7 @@ class TestArrowIntegration:
 
         unsigned_parquet_table = pq.read_table(parquet_filename)
         unsigned_parquet_table.validate(full=True)
-        rel_from_arrow = duckdb.arrow(unsigned_parquet_table).project(cols).fetch_arrow_table()
+        rel_from_arrow = quacklab.arrow(unsigned_parquet_table).project(cols).fetch_arrow_table()
         rel_from_arrow.validate(full=True)
 
         rel_from_duckdb = duckdb_cursor.from_parquet(parquet_filename).project(cols).fetch_arrow_table()
@@ -58,7 +58,7 @@ class TestArrowIntegration:
         arrow_result.combine_chunks()
         arrow_result.validate(full=True)
 
-        round_tripping = duckdb.from_arrow(arrow_result).to_arrow_table()
+        round_tripping = quacklab.from_arrow(arrow_result).to_arrow_table()
         round_tripping.validate(full=True)
 
         assert round_tripping.equals(arrow_result, check_metadata=True)

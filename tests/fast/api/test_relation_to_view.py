@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 
 class TestRelationToView:
@@ -30,10 +30,10 @@ class TestRelationToView:
     def test_registered_relation(self, duckdb_cursor):
         rel = duckdb_cursor.sql("select 'test', 'this is a long string'")
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         # Register on a different connection is not allowed
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match="was created by another Connection and can therefore not be used by this Connection",
         ):
             con.register("cross_connection", rel)

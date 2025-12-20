@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 pytest.importorskip("adbc_driver_manager")
@@ -26,7 +26,7 @@ class TestADBCConnectionGetInfo:
         expected_result = pa.array(
             [
                 "duckdb",
-                "v" + duckdb.__duckdb_version__,  # don't hardcode this, as it will change every version
+                "v" + quacklab.__duckdb_version__,  # don't hardcode this, as it will change every version
                 "ADBC DuckDB Driver",
                 "(unknown)",
                 "(unknown)",

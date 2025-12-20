@@ -4,13 +4,13 @@ import pandas
 import pytest
 from conftest import pandas_2_or_higher
 
-import duckdb
+import quacklab
 
 
 @pytest.mark.parametrize("timezone", ["UTC", "CET", "Asia/Kathmandu"])
 @pytest.mark.skipif(not pandas_2_or_higher(), reason="Pandas <2.0.0 does not support timezones in the metadata string")
 def test_run_pandas_with_tz(timezone):
-    con = duckdb.connect()
+    con = quacklab.connect()
     con.execute(f"SET TimeZone = '{timezone}'")
     df = pandas.DataFrame(
         {

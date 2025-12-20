@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 ds = pytest.importorskip("pyarrow.dataset")
@@ -12,7 +12,7 @@ class TestArrowTypes:
         inputs = [pa.array([None, None, None], type=pa.null())]
         arrow_table = pa.Table.from_arrays(inputs, schema=schema)
         duckdb_cursor.register("testarrow", arrow_table)
-        rel = duckdb.from_arrow(arrow_table).fetch_arrow_table()
+        rel = quacklab.from_arrow(arrow_table).fetch_arrow_table()
         # We turn it to an array of int32 nulls
         schema = pa.schema([("data", pa.int32())])
         inputs = [pa.array([None, None, None], type=pa.null())]
@@ -27,7 +27,7 @@ class TestArrowTypes:
         empty_array = pa.array([], type=empty_struct_type)
         arrow_table = pa.Table.from_arrays([empty_array], schema=pa.schema([("data", empty_struct_type)]))  # noqa: F841
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match="Attempted to convert a STRUCT with no fields to DuckDB which is not supported",
         ):
             duckdb_cursor.sql("select * from arrow_table").fetchall()
@@ -39,7 +39,7 @@ class TestArrowTypes:
 
         arrow_table = pa.Table.from_arrays([sparse_union_array], schema=pa.schema([("data", sparse_union_array.type)]))
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match="Attempted to convert a UNION with no fields to DuckDB which is not supported",
         ):
             duckdb_cursor.register("invalid_union", arrow_table)

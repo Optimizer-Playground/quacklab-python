@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-import duckdb
+import quacklab
 
 pyarrow = pytest.importorskip("pyarrow")
 pyarrow.parquet = pytest.importorskip("pyarrow.parquet")
@@ -12,7 +12,7 @@ np = pytest.importorskip("numpy")
 
 class TestArrowRecordBatchReader:
     def test_parallel_reader(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("PRAGMA threads=4")
 
         parquet_filename = str(Path(__file__).parent / "data" / "userdata1.parquet")
@@ -38,7 +38,7 @@ class TestArrowRecordBatchReader:
         assert rel.filter("first_name='Jose' and salary > 134708.82").aggregate("count(*)").execute().fetchone()[0] == 0
 
     def test_parallel_reader_replacement_scans(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("PRAGMA threads=4")
 
         parquet_filename = str(Path(__file__).parent / "data" / "userdata1.parquet")
@@ -69,7 +69,7 @@ class TestArrowRecordBatchReader:
         )
 
     def test_parallel_reader_register(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("PRAGMA threads=4")
 
         parquet_filename = str(Path(__file__).parent / "data" / "userdata1.parquet")
@@ -112,7 +112,7 @@ class TestArrowRecordBatchReader:
         batches = list(userdata_parquet_dataset.to_batches())
         reader = pyarrow.dataset.Scanner.from_batches(batches, schema=userdata_parquet_dataset.schema).to_reader()
 
-        rel = duckdb.from_arrow(reader)
+        rel = quacklab.from_arrow(reader)
 
         assert (
             rel.filter("first_name='Jose' and salary > 134708.82").aggregate("count(*)").execute().fetchone()[0] == 12

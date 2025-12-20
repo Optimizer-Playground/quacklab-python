@@ -1,12 +1,12 @@
 import numpy
 import pandas as pd
 
-import duckdb
+import quacklab
 
 
 class TestPartitionedPandasScan:
     def test_parallel_pandas(self, duckdb_cursor):
-        con = duckdb.connect()
+        con = quacklab.connect()
         df = pd.DataFrame({"i": numpy.arange(10000000)})
 
         con.register("df", df)

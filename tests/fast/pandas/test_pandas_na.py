@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from conftest import ArrowPandas, NumpyPandas
 
-import duckdb
+import quacklab
 
 
 def assert_nullness(items, null_indices):
@@ -17,7 +17,7 @@ def assert_nullness(items, null_indices):
 
 @pytest.mark.skipif(platform.system() == "Emscripten", reason="Pandas interaction is broken in Pyodide 3.11")
 class TestPandasNA:
-    @pytest.mark.parametrize("rows", [100, duckdb.__standard_vector_size__, 5000, 1000000])
+    @pytest.mark.parametrize("rows", [100, quacklab.__standard_vector_size__, 5000, 1000000])
     @pytest.mark.parametrize("pd", [NumpyPandas(), ArrowPandas()])
     def test_pandas_string_null(self, duckdb_cursor, rows, pd):
         df: pd.DataFrame = pd.DataFrame(index=np.arange(rows))

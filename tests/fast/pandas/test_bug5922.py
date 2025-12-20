@@ -1,7 +1,7 @@
 import pytest
 from conftest import ArrowPandas, NumpyPandas
 
-import duckdb
+import quacklab
 
 
 class TestPandasAcceptFloat16:
@@ -9,7 +9,7 @@ class TestPandasAcceptFloat16:
     def test_pandas_accept_float16(self, duckdb_cursor, pandas):
         df = pandas.DataFrame({"col": [1, 2, 3]})
         df16 = df.astype({"col": "float16"})  # noqa: F841
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("CREATE TABLE tbl AS SELECT * FROM df16")
         con.execute("select * from tbl")
         df_result = con.fetchdf()

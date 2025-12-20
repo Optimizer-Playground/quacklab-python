@@ -1,7 +1,7 @@
 from typing import Optional, Union  # noqa: D100
 
-from duckdb import DuckDBPyConnection
-from duckdb.experimental.spark._globals import _NoValue, _NoValueType
+from quacklab import DuckDBPyConnection
+from quacklab.experimental.spark._globals import _NoValue, _NoValueType
 
 
 class RuntimeConfig:  # noqa: D101

@@ -5,7 +5,7 @@ import pytest
 from conftest import pandas_supports_arrow_backend
 from packaging.version import Version
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 pd = pytest.importorskip("pyarrow.dataset")
@@ -627,7 +627,7 @@ class TestArrowFilterPushdown:
                 "c": [bytes([1]), bytes([2]), bytes([3]), None],
             }
         )
-        rel = duckdb.from_df(df)
+        rel = quacklab.from_df(df)
         arrow_table = create_table(rel)
 
         # Try ==
@@ -704,8 +704,8 @@ class TestArrowFilterPushdown:
         glob_pattern = tmp_path / "data*.parquet"
         table = duckdb_cursor.read_parquet(glob_pattern.as_posix()).fetch_arrow_table()
 
-        output_df = duckdb.arrow(table).filter("date > '2019-01-01'").df()
-        expected_df = duckdb.from_parquet(glob_pattern.as_posix()).filter("date > '2019-01-01'").df()
+        output_df = quacklab.arrow(table).filter("date > '2019-01-01'").df()
+        expected_df = quacklab.from_parquet(glob_pattern.as_posix()).filter("date > '2019-01-01'").df()
         pandas.testing.assert_frame_equal(expected_df, output_df)
 
     # https://github.com/duckdb/duckdb/pull/4817/files#r1339973721
@@ -891,7 +891,7 @@ class TestArrowFilterPushdown:
         }
 
     def test_filter_pushdown_not_supported(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute(
             "CREATE TABLE T as SELECT i::integer a, i::varchar b, i::uhugeint c, i::integer d FROM range(5) tbl(i)"
         )
@@ -926,7 +926,7 @@ class TestArrowFilterPushdown:
         ).fetchall() == [(28, "28")]
 
     def test_join_filter_pushdown(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("CREATE TABLE probe as select range a from range(10000);")
         duckdb_conn.execute("CREATE TABLE build as select (random()*9999)::INT b from range(20);")
         duck_probe = duckdb_conn.table("probe")
@@ -940,7 +940,7 @@ class TestArrowFilterPushdown:
         ]
 
     def test_in_filter_pushdown(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("CREATE TABLE probe as select range a from range(1000);")
         duck_probe = duckdb_conn.table("probe")
         duck_probe_arrow = duck_probe.fetch_arrow_table()
@@ -965,7 +965,7 @@ class TestArrowFilterPushdown:
             }
         )
 
-        result = duckdb.query(
+        result = quacklab.query(
             """
             SELECT *
             FROM cardinality_table

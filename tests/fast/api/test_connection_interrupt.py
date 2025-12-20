@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 class TestConnectionInterrupt:
@@ -13,7 +13,7 @@ class TestConnectionInterrupt:
         reason="threads not allowed on Emscripten",
     )
     def test_connection_interrupt(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
 
         def interrupt() -> None:
             # Wait for query to start running before interrupting
@@ -22,12 +22,12 @@ class TestConnectionInterrupt:
 
         thread = threading.Thread(target=interrupt)
         thread.start()
-        with pytest.raises(duckdb.InterruptException):
+        with pytest.raises(quacklab.InterruptException):
             conn.execute("select count(*) from range(100000000000)").fetchall()
         thread.join()
 
     def test_interrupt_closed_connection(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.close()
-        with pytest.raises(duckdb.ConnectionException):
+        with pytest.raises(quacklab.ConnectionException):
             conn.interrupt()

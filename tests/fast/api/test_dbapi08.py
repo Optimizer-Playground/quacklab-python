@@ -2,13 +2,13 @@
 import pytest
 from conftest import NumpyPandas
 
-import duckdb
+import quacklab
 
 
 class TestType:
     @pytest.mark.parametrize("pandas", [NumpyPandas()])
     def test_fetchdf(self, pandas):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("CREATE TABLE items(item VARCHAR)")
         con.execute("INSERT INTO items VALUES ('jeans'), (''), (NULL)")
         res = con.execute("SELECT item FROM items").fetchdf()

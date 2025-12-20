@@ -2,7 +2,7 @@ import uuid  # noqa: D100
 from collections.abc import Iterable, Sized
 from typing import TYPE_CHECKING, Any, NoReturn, Optional, Union
 
-import duckdb
+import quacklab
 
 if TYPE_CHECKING:
     from pandas.core.frame import DataFrame as PandasDataFrame
@@ -33,8 +33,8 @@ from .udf import UDFRegistration
 
 # data is a List of rows
 # every value in each row needs to be turned into a Value
-def _combine_data_and_schema(data: Iterable[Any], schema: StructType) -> list[duckdb.Value]:
-    from duckdb import Value
+def _combine_data_and_schema(data: Iterable[Any], schema: StructType) -> list[quacklab.Value]:
+    from quacklab import Value
 
     new_data = []
     for row in data:
@@ -226,7 +226,7 @@ class SparkSession:  # noqa: D101
     @property
     def catalog(self) -> "Catalog":  # noqa: D102
         if not hasattr(self, "_catalog"):
-            from duckdb.experimental.spark.sql.catalog import Catalog
+            from quacklab.experimental.spark.sql.catalog import Catalog
 
             self._catalog = Catalog(self)
         return self._catalog

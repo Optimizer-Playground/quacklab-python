@@ -6,8 +6,8 @@ from typing import Any, NoReturn
 import numpy as np
 import pytest
 
-import duckdb
-from duckdb.sqltypes import (
+import quacklab
+from quacklab.sqltypes import (
     BIGINT,
     BLOB,
     BOOLEAN,
@@ -74,10 +74,10 @@ class TestScalarUDF:
             (INTERVAL, datetime.timedelta(days=30969, seconds=999, microseconds=999999)),
             (BOOLEAN, True),
             (
-                duckdb.struct_type(["BIGINT[]", "VARCHAR[]"]),
+                quacklab.struct_type(["BIGINT[]", "VARCHAR[]"]),
                 {"v1": [1, 2, 3], "v2": ["a", "non-inlined string", "duckdb"]},
             ),
-            (duckdb.list_type("VARCHAR"), ["the", "duck", "non-inlined string"]),
+            (quacklab.list_type("VARCHAR"), ["the", "duck", "non-inlined string"]),
         ],
     )
     def test_type_coverage(self, test_type, function_type):
@@ -86,7 +86,7 @@ class TestScalarUDF:
 
         test_function = make_annotated_function(type)
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("test", test_function, type=function_type)
         # Single value
         res = con.execute(f"select test(?::{type!s})", [value]).fetchall()
@@ -97,12 +97,12 @@ class TestScalarUDF:
         assert res[0][0] is None
 
         # Multiple chunks
-        size = duckdb.__standard_vector_size__ * 3
+        size = quacklab.__standard_vector_size__ * 3
         res = con.execute(f"select test(x) from repeat(?::{type!s}, {size}) as tbl(x)", [value]).fetchall()
         assert len(res) == size
 
         # Mixed NULL/NON-NULL
-        size = duckdb.__standard_vector_size__ * 3
+        size = quacklab.__standard_vector_size__ * 3
         con.execute("select setseed(0.1337)").fetchall()
         actual = con.execute(
             f"""
@@ -143,7 +143,7 @@ class TestScalarUDF:
         def no_op(x):
             return x
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         map_type = con.map_type("VARCHAR", "BIGINT")
         con.create_function("test_map", no_op, [map_type], map_type, type=udf_type)
         rel = con.sql("select test_map(map(['non-inlined string', 'test', 'duckdb'], [42, 1337, 123]))")
@@ -156,10 +156,10 @@ class TestScalarUDF:
             msg = "error"
             raise AttributeError(msg)
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("raises", raises_exception, [BIGINT], BIGINT, type=udf_type)
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match=" Python exception occurred while executing the UDF: AttributeError: error",
         ):
             res = con.sql("select raises(3)").fetchall()
@@ -172,7 +172,7 @@ class TestScalarUDF:
         assert res == [(None,), (None,), (None,), (None,), (None,)]
 
     def test_non_callable(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         with pytest.raises(TypeError):
             con.create_function("func", 5, [BIGINT], BIGINT, type="arrow")
 
@@ -196,7 +196,7 @@ class TestScalarUDF:
             if udf_type == "native":
                 return pd.NA
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("return_pd_nan", return_pd_nan, None, duckdb_type, null_handling="SPECIAL", type=udf_type)
 
         res = con.sql("select return_pd_nan()").fetchall()
@@ -210,7 +210,7 @@ class TestScalarUDF:
 
         count.counter = 0
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("my_counter", count, side_effects=False)
         res = con.sql("select my_counter() from range(10)").fetchall()
         assert res == [(0,), (0,), (0,), (0,), (0,), (0,), (0,), (0,), (0,), (0,)]
@@ -232,7 +232,7 @@ class TestScalarUDF:
 
                 return pa.chunked_array([[np.nan]], type=pa.float64())
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("return_np_nan", return_np_nan, None, duckdb_type, null_handling="SPECIAL", type=udf_type)
 
         res = con.sql("select return_np_nan()").fetchall()
@@ -249,7 +249,7 @@ class TestScalarUDF:
 
                 return pa.chunked_array([[cmath.nan]], type=pa.float64())
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function(
             "return_math_nan", return_math_nan, None, duckdb_type, null_handling="SPECIAL", type=udf_type
         )
@@ -281,8 +281,8 @@ class TestScalarUDF:
             BLOB,
             INTERVAL,
             BOOLEAN,
-            duckdb.struct_type(["BIGINT[]", "VARCHAR[]"]),
-            duckdb.list_type("VARCHAR"),
+            quacklab.struct_type(["BIGINT[]", "VARCHAR[]"]),
+            quacklab.list_type("VARCHAR"),
         ],
     )
     def test_return_null(self, data_type, udf_type):
@@ -294,7 +294,7 @@ class TestScalarUDF:
 
                 return pa.nulls(1)
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("return_null", return_null, None, data_type, null_handling="special", type=udf_type)
         rel = con.sql("select return_null() as x")
         assert rel.types[0] == data_type
@@ -304,7 +304,7 @@ class TestScalarUDF:
         def func(x: int) -> int:
             return x
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         rel = con.sql("select 42")
         # Using fetchone keeps the result open, with a transaction
         rel.fetchone()

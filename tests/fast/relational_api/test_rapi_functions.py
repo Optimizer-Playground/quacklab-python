@@ -1,4 +1,4 @@
-import duckdb
+import quacklab
 
 
 class TestRAPIFunctions:
@@ -8,5 +8,5 @@ class TestRAPIFunctions:
         res.show()
 
     def test_rapi_relation_sql_query(self):
-        res = duckdb.table_function("range", [10])
+        res = quacklab.table_function("range", [10])
         assert res.sql_query() == 'SELECT * FROM "range"(10)'

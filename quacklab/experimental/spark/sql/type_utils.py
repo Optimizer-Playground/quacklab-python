@@ -1,6 +1,6 @@
 from typing import cast  # noqa: D100
 
-from duckdb.sqltypes import DuckDBPyType
+from quacklab.sqltypes import DuckDBPyType
 
 from ..exception import ContributionsAcceptedError
 from .types import (

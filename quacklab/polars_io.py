@@ -9,7 +9,7 @@ from decimal import Decimal
 import polars as pl
 from polars.io.plugins import register_io_source
 
-import duckdb
+import quacklab
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator
@@ -19,7 +19,7 @@ if typing.TYPE_CHECKING:
 _ExpressionTree: typing_extensions.TypeAlias = typing.Dict[str, typing.Union[str, int, "_ExpressionTree", typing.Any]]  # noqa: UP006
 
 
-def _predicate_to_expression(predicate: pl.Expr) -> duckdb.Expression | None:
+def _predicate_to_expression(predicate: pl.Expr) -> quacklab.Expression | None:
     """Convert a Polars predicate expression to a DuckDB-compatible SQL expression.
 
     Parameters:
@@ -39,7 +39,7 @@ def _predicate_to_expression(predicate: pl.Expr) -> duckdb.Expression | None:
     try:
         # Convert the tree to SQL
         sql_filter = _pl_tree_to_sql(tree)
-        return duckdb.SQLExpression(sql_filter)
+        return quacklab.SQLExpression(sql_filter)
     except Exception:
         # If the conversion fails, we return None
         return None
@@ -238,7 +238,7 @@ def _pl_tree_to_sql(tree: _ExpressionTree) -> str:
             # Some new formats may store directly under StringOwned
             string_val = value.get("StringOwned", value.get("String", None))
             # the string must be a string constant
-            return str(duckdb.ConstantExpression(string_val))
+            return str(quacklab.ConstantExpression(string_val))
 
         msg = f"Unsupported scalar type {dtype!s}, with value {value}"
         raise NotImplementedError(msg)
@@ -247,7 +247,7 @@ def _pl_tree_to_sql(tree: _ExpressionTree) -> str:
     raise NotImplementedError(msg)
 
 
-def duckdb_source(relation: duckdb.DuckDBPyRelation, schema: pl.schema.Schema) -> pl.LazyFrame:
+def duckdb_source(relation: quacklab.DuckDBPyRelation, schema: pl.schema.Schema) -> pl.LazyFrame:
     """A polars IO plugin for DuckDB."""
 
     def source_generator(

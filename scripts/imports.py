@@ -110,11 +110,11 @@ import polars
 polars.DataFrame
 polars.LazyFrame
 
-import duckdb
-import duckdb.filesystem
+import quacklab
+import quacklab.filesystem
 
-duckdb.filesystem.ModifiedMemoryFileSystem
-duckdb.Value
+quacklab.filesystem.ModifiedMemoryFileSystem
+quacklab.Value
 
 import pytz
 
@@ -141,6 +141,6 @@ import collections.abc
 collections.abc.Iterable
 collections.abc.Mapping
 
-import duckdb.polars_io
+import quacklab.polars_io
 
-duckdb.polars_io.duckdb_source
+quacklab.polars_io.duckdb_source

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import duckdb
+import quacklab
 
 try:
     import pyarrow
@@ -19,7 +19,7 @@ class TestArrowScanner:
         if not can_run:
             return
 
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("PRAGMA threads=4")
 
         parquet_filename = str(Path(__file__).parent / "data" / "userdata1.parquet")
@@ -45,7 +45,7 @@ class TestArrowScanner:
         if not can_run:
             return
 
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("PRAGMA threads=4")
 
         parquet_filename = str(Path(__file__).parent / "data" / "userdata1.parquet")
@@ -69,7 +69,7 @@ class TestArrowScanner:
         if not can_run:
             return
 
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("PRAGMA threads=4")
 
         parquet_filename = str(Path(__file__).parent / "data" / "userdata1.parquet")
@@ -110,6 +110,6 @@ class TestArrowScanner:
 
         arrow_scanner = Scanner.from_dataset(arrow_dataset, filter=scanner_filter)
 
-        rel = duckdb.from_arrow(arrow_scanner)
+        rel = quacklab.from_arrow(arrow_scanner)
 
         assert rel.aggregate("count(*)").execute().fetchone()[0] == 12

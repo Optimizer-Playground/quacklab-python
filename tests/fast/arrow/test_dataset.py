@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-import duckdb
+import quacklab
 
 pyarrow = pytest.importorskip("pyarrow")
 np = pytest.importorskip("numpy")
@@ -12,7 +12,7 @@ pyarrow.dataset = pytest.importorskip("pyarrow.dataset")
 
 class TestArrowDataset:
     def test_parallel_dataset(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("PRAGMA threads=4")
         duckdb_conn.execute("PRAGMA verify_parallelism")
 
@@ -34,7 +34,7 @@ class TestArrowDataset:
         )
 
     def test_parallel_dataset_register(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("PRAGMA threads=4")
         duckdb_conn.execute("PRAGMA verify_parallelism")
 
@@ -59,7 +59,7 @@ class TestArrowDataset:
         )
 
     def test_parallel_dataset_roundtrip(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("PRAGMA threads=4")
         duckdb_conn.execute("PRAGMA verify_parallelism")
 
@@ -91,7 +91,7 @@ class TestArrowDataset:
         assert result_1 == result_2
 
     def test_ducktyping(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         dataset = CustomDataset()  # noqa: F841
         query = duckdb_conn.execute("SELECT b FROM dataset WHERE a < 5")
         record_batch_reader = query.fetch_record_batch(2048)

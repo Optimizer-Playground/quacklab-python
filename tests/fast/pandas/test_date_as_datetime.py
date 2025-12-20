@@ -2,7 +2,7 @@ import datetime
 
 import pandas as pd
 
-import duckdb
+import quacklab
 
 
 def run_checks(df):
@@ -12,7 +12,7 @@ def run_checks(df):
 
 
 def test_date_as_datetime():
-    con = duckdb.connect()
+    con = quacklab.connect()
     con.execute("create table t (d date)")
     con.execute("insert into t values ('1992-07-30'), (NULL)")
 

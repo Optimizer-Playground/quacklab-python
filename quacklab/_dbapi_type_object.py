@@ -25,7 +25,7 @@ See Also:
     - DuckDB Type System: https://duckdb.org/docs/sql/data_types/overview
 """
 
-from duckdb import sqltypes
+from quacklab import sqltypes
 
 
 class DBAPITypeObject:

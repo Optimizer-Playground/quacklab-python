@@ -1,12 +1,12 @@
 import pytest
 
-import duckdb
-from duckdb import ColumnExpression
+import quacklab
+from quacklab import ColumnExpression
 
 
 @pytest.fixture
 def con():
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     # Main relation
     conn.execute(
         """

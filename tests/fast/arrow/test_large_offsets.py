@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 pq = pytest.importorskip("pyarrow.parquet")
@@ -14,7 +14,7 @@ class TestArrowLargeOffsets:
         ary = pa.array([np.arange(start=0, stop=3000, dtype=np.uint8) for i in range(1_000_000)])
         tbl = pa.Table.from_pydict({"col": ary})  # noqa: F841
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match="Arrow Appender: The maximum combined list offset for regular list buffers is 2147483647 but "
             "the offset of 2147481000 exceeds this",
         ):
@@ -31,7 +31,7 @@ class TestArrowLargeOffsets:
         tbl = pa.Table.from_pydict({"col": ary})  # noqa: F841
 
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match="Arrow Appender: The maximum combined list offset for regular list buffers is 2147483647 but the "
             "offset of 2147481000 exceeds this",
         ):

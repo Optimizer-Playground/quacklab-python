@@ -1,7 +1,7 @@
 import numpy
 import pandas as pd
 
-import duckdb
+import quacklab
 
 
 class TestPandasString:
@@ -18,7 +18,7 @@ class TestPandasString:
         if hasattr(pd, "StringDtype"):
             df_in["string"] = pd.Series(strings, dtype=pd.StringDtype())
 
-        df_out = duckdb.query_df(df_in, "data", "SELECT * FROM data").df()
+        df_out = quacklab.query_df(df_in, "data", "SELECT * FROM data").df()
 
         assert numpy.all(df_out["object"] == strings)
         if hasattr(pd, "StringDtype"):
@@ -29,7 +29,7 @@ class TestPandasString:
         # Create DataFrame with string attribute
         df = pd.DataFrame({"city": ["Amsterdam", "New York", "London"] * N})
         # Copy Dataframe to DuckDB
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("df", df)
         con.execute(
             """

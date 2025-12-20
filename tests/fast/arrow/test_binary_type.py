@@ -1,4 +1,4 @@
-import duckdb
+import quacklab
 
 try:
     import pyarrow as pa
@@ -21,18 +21,18 @@ class TestArrowBinary:
 
         # Fixed Size Binary
         arrow_table = create_binary_table(pa.binary(3))
-        rel = duckdb.from_arrow(arrow_table)
+        rel = quacklab.from_arrow(arrow_table)
         res = rel.execute().fetchall()
         assert res == [(b"foo",), (b"bar",), (b"baz",)]
 
         # Normal Binary
         arrow_table = create_binary_table(pa.binary())
-        rel = duckdb.from_arrow(arrow_table)
+        rel = quacklab.from_arrow(arrow_table)
         res = rel.execute().fetchall()
         assert res == [(b"foo",), (b"bar",), (b"baz",)]
 
         # Large Binary
         arrow_table = create_binary_table(pa.large_binary())
-        rel = duckdb.from_arrow(arrow_table)
+        rel = quacklab.from_arrow(arrow_table)
         res = rel.execute().fetchall()
         assert res == [(b"foo",), (b"bar",), (b"baz",)]

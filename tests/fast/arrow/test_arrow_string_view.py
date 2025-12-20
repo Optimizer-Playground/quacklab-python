@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 
@@ -11,7 +11,7 @@ pytestmark = pytest.mark.skipif(
 
 # Compares with manually constructed arrow tables
 def RoundTripStringView(query, array):
-    con = duckdb.connect()
+    con = quacklab.connect()
     con.execute("SET produce_arrow_string_view=True")
     arrow_tbl = con.execute(query).fetch_arrow_table()
     # Assert that we spit the same as the defined array
@@ -32,7 +32,7 @@ def RoundTripStringView(query, array):
 
 
 def RoundTripDuckDBInternal(query):
-    con = duckdb.connect()
+    con = quacklab.connect()
     con.execute("SET produce_arrow_string_view=True")
     arrow_tbl = con.execute(query).fetch_arrow_table()
     arrow_tbl.validate(full=True)

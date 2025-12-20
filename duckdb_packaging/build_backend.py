@@ -95,11 +95,11 @@ def _duckdb_submodule_path() -> Path:
         if cur_module_reponame is not None and cur_module_path is not None:
             modules[cur_module_reponame] = cur_module_path
 
-    if "duckdb" not in modules:
+    if "quacklab" not in modules:
         msg = "DuckDB submodule missing"
         raise RuntimeError(msg)
 
-    duckdb_path = modules["duckdb"]
+    duckdb_path = modules["quacklab"]
     # now check that the submodule is usable
     proc = subprocess.Popen(["git", "submodule", "status", duckdb_path], stdout=subprocess.PIPE)
     status, _ = proc.communicate()

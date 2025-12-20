@@ -3,7 +3,7 @@ import datetime
 import numpy as np
 import pytest
 
-import duckdb
+import quacklab
 
 pandas = pytest.importorskip("pandas")
 
@@ -22,7 +22,7 @@ class TestPandasNaN:
         df.loc[0, "datetest"] = pandas.NaT
         # now pass the DF through duckdb:
 
-        conn = duckdb.connect(":memory:")
+        conn = quacklab.connect(":memory:")
         conn.register("testing_null_values", df)
         # scan the DF and fetch the results normally
         results = conn.execute("select * from testing_null_values").fetchall()

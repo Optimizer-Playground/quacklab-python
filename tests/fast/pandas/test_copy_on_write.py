@@ -2,7 +2,7 @@ import datetime
 
 import pytest
 
-import duckdb
+import quacklab
 
 # https://pandas.pydata.org/docs/dev/user_guide/copy_on_write.html
 pandas = pytest.importorskip("pandas", "1.5", reason="copy_on_write does not exist in earlier versions")
@@ -36,7 +36,7 @@ class TestCopyOnWrite:
     )
     def test_copy_on_write(self, col):
         assert pandas.options.mode.copy_on_write
-        con = duckdb.connect()
+        con = quacklab.connect()
         df_in = pandas.DataFrame(  # noqa: F841
             {
                 "numbers": col,

@@ -152,7 +152,7 @@ from _duckdb import (
     write_csv,
 )
 
-from duckdb._dbapi_type_object import (
+from quacklab._dbapi_type_object import (
     BINARY,
     DATETIME,
     NUMBER,
@@ -160,12 +160,12 @@ from duckdb._dbapi_type_object import (
     STRING,
     DBAPITypeObject,
 )
-from duckdb._version import (
+from quacklab._version import (
     __duckdb_version__,
     __version__,
     version,
 )
-from duckdb.value.constant import (
+from quacklab.value.constant import (
     BinaryValue,
     BitValue,
     BlobValue,

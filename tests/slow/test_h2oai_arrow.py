@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-import duckdb
+import quacklab
 
 read_csv = pytest.importorskip("pyarrow.csv").read_csv
 requests = pytest.importorskip("requests")
@@ -232,7 +232,7 @@ def arrow_dataset_register():
 
 @pytest.fixture(scope="module")
 def large_data(arrow_dataset_register):
-    con = duckdb.connect()
+    con = quacklab.connect()
     arrow_dataset_register(
         "https://github.com/duckdb/duckdb-data/releases/download/v1.0/J1_1e7_NA_0_0.csv.gz",
         "J1_1e7_NA_0_0.csv.gz",
@@ -263,7 +263,7 @@ def large_data(arrow_dataset_register):
 
 @pytest.fixture(scope="module")
 def group_by_data(arrow_dataset_register):
-    con = duckdb.connect()
+    con = quacklab.connect()
     arrow_dataset_register(
         "https://github.com/duckdb/duckdb-data/releases/download/v1.0/G1_1e7_1e2_5_0.csv.gz",
         "G1_1e7_1e2_5_0.csv.gz",

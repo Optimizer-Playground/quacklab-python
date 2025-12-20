@@ -6,7 +6,7 @@ import pytest
 from conftest import ArrowPandas, NumpyPandas, getTimeSeriesData
 from spark_namespace import USE_ACTUAL_SPARK
 
-from duckdb import InvalidInputException, read_csv
+from quacklab import InvalidInputException, read_csv
 
 if USE_ACTUAL_SPARK:
     pytest.skip(

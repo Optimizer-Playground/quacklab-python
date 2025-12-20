@@ -21,8 +21,8 @@ from typing import (
     overload,
 )
 
-import duckdb
-from duckdb.sqltypes import DuckDBPyType
+import quacklab
+from quacklab.sqltypes import DuckDBPyType
 
 from ..exception import ContributionsAcceptedError
 
@@ -343,7 +343,7 @@ class DecimalType(FractionalType):
     """
 
     def __init__(self, precision: int = 10, scale: int = 0) -> None:  # noqa: D107
-        super().__init__(duckdb.decimal_type(precision, scale))
+        super().__init__(quacklab.decimal_type(precision, scale))
         self.precision = precision
         self.scale = scale
         self.hasPrecisionInfo = True  # this is a public API
@@ -585,7 +585,7 @@ class ArrayType(DataType):
     """
 
     def __init__(self, elementType: DataType, containsNull: bool = True) -> None:  # noqa: D107
-        super().__init__(duckdb.list_type(elementType.duckdb_type))
+        super().__init__(quacklab.list_type(elementType.duckdb_type))
         assert isinstance(elementType, DataType), f"elementType {elementType} should be an instance of {DataType}"
         self.elementType = elementType
         self.containsNull = containsNull
@@ -635,7 +635,7 @@ class MapType(DataType):
     """
 
     def __init__(self, keyType: DataType, valueType: DataType, valueContainsNull: bool = True) -> None:  # noqa: D107
-        super().__init__(duckdb.map_type(keyType.duckdb_type, valueType.duckdb_type))
+        super().__init__(quacklab.map_type(keyType.duckdb_type, valueType.duckdb_type))
         assert isinstance(keyType, DataType), f"keyType {keyType} should be an instance of {DataType}"
         assert isinstance(valueType, DataType), f"valueType {valueType} should be an instance of {DataType}"
         self.keyType = keyType
@@ -748,7 +748,7 @@ class StructType(DataType):
     """
 
     def _update_internal_duckdb_type(self) -> None:
-        self.duckdb_type = duckdb.struct_type(dict(zip(self.names, [x.duckdb_type for x in self.fields])))
+        self.duckdb_type = quacklab.struct_type(dict(zip(self.names, [x.duckdb_type for x in self.fields])))
 
     def __init__(self, fields: Optional[list[StructField]] = None) -> None:  # noqa: D107
         if not fields:
@@ -761,7 +761,7 @@ class StructType(DataType):
         # Precalculated list of fields that need conversion with fromInternal/toInternal functions
         self._needConversion = [f.needConversion() for f in self]
         self._needSerializeAnyField = any(self._needConversion)
-        super().__init__(duckdb.struct_type(dict(zip(self.names, [x.duckdb_type for x in self.fields]))))
+        super().__init__(quacklab.struct_type(dict(zip(self.names, [x.duckdb_type for x in self.fields]))))
 
     @overload
     def add(

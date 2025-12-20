@@ -1,14 +1,14 @@
 from typing import Optional  # noqa: D100
 
-import duckdb
-from duckdb import DuckDBPyConnection
-from duckdb.experimental.spark.conf import SparkConf
-from duckdb.experimental.spark.exception import ContributionsAcceptedError
+import quacklab
+from quacklab import DuckDBPyConnection
+from quacklab.experimental.spark.conf import SparkConf
+from quacklab.experimental.spark.exception import ContributionsAcceptedError
 
 
 class SparkContext:  # noqa: D101
     def __init__(self, master: str) -> None:  # noqa: D107
-        self._connection = duckdb.connect(":memory:")
+        self._connection = quacklab.connect(":memory:")
         # This aligns the null ordering with Spark.
         self._connection.execute("set default_null_order='nulls_first_on_asc_last_on_desc'")
 

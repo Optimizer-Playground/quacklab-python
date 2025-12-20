@@ -7,7 +7,7 @@ from datetime import timedelta
 import numpy as np
 import pytest
 
-import duckdb
+import quacklab
 
 
 class TestScanNumpy:
@@ -87,25 +87,25 @@ class TestScanNumpy:
 
         # list of arrays with different length
         z = [np.array([1, 2]), np.array([3])]
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             duckdb_cursor.sql("select * from z")
 
         # dict of ndarrays of different length
         z = {"z": np.array([1, 2]), "x": np.array([3])}
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             duckdb_cursor.sql("select * from z")
 
         # high dimensional tensors
         z = np.array([[[1, 2]]])
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             duckdb_cursor.sql("select * from z")
 
         # list of ndarrys with len(shape) > 1
         z = [np.array([[1, 2], [3, 4]])]
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             duckdb_cursor.sql("select * from z")
 
         # dict of ndarrays with len(shape) > 1
         z = {"x": np.array([[1, 2], [3, 4]])}
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             duckdb_cursor.sql("select * from z")

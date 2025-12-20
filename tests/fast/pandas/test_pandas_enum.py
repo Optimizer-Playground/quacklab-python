@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-import duckdb
+import quacklab
 
 
 class TestPandasEnum:
@@ -39,7 +39,7 @@ class TestPandasEnum:
         )
         duckdb_cursor.register("df", df)
         with pytest.raises(
-            duckdb.ConversionException,
+            quacklab.ConversionException,
             match="Type UINT8 with value 0 can't be cast because the value is out of range for the destination "
             "type UINT8",
         ):

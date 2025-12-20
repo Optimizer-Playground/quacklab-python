@@ -1,9 +1,9 @@
-import duckdb
+import quacklab
 
 
 class TestUnion:
     def test_union_by_all(self):
-        connection = duckdb.connect()
+        connection = quacklab.connect()
 
         connection.execute(
             """

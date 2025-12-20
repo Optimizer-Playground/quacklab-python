@@ -7,8 +7,8 @@ from .types import DataType
 if TYPE_CHECKING:
     from ._typing import DateTimeLiteral, DecimalLiteral, LiteralType
 
-from duckdb import ColumnExpression, ConstantExpression, Expression, FunctionExpression
-from duckdb.sqltypes import DuckDBPyType
+from quacklab import ColumnExpression, ConstantExpression, Expression, FunctionExpression
+from quacklab.sqltypes import DuckDBPyType
 
 __all__ = ["Column"]
 

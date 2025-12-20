@@ -1,7 +1,7 @@
 import pytest
 from conftest import pandas_supports_arrow_backend
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 ds = pytest.importorskip("pyarrow.dataset")
@@ -11,7 +11,7 @@ _ = pytest.importorskip("pandas", "2.0.0")
 @pytest.mark.skipif(not pandas_supports_arrow_backend(), reason="pandas does not support the 'pyarrow' backend")
 class TestArrowDFProjectionPushdown:
     def test_projection_pushdown_no_filter(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("CREATE TABLE test (a  INTEGER, b INTEGER, c INTEGER)")
         duckdb_conn.execute("INSERT INTO  test VALUES (1,1,1),(10,10,10),(100,10,100),(NULL,NULL,NULL)")
         duck_tbl = duckdb_conn.table("test")

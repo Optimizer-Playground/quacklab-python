@@ -3,7 +3,7 @@ from threading import Thread, current_thread
 
 import pytest
 
-import duckdb
+import quacklab
 
 pytestmark = pytest.mark.xfail(
     condition=platform.system() == "Emscripten",
@@ -33,7 +33,7 @@ def insert_from_same_connection(duckdb_cursor):
 
 class TestPythonMultithreading:
     def test_multiple_cursors(self, duckdb_cursor):
-        duckdb_con = duckdb.connect()  # In Memory DuckDB
+        duckdb_con = quacklab.connect()  # In Memory DuckDB
         duckdb_con.execute("""CREATE OR REPLACE TABLE my_inserts (thread_name varchar)""")
 
         thread_count = 3
@@ -58,7 +58,7 @@ class TestPythonMultithreading:
         ]
 
     def test_same_connection(self, duckdb_cursor):
-        duckdb_con = duckdb.connect()  # In Memory DuckDB
+        duckdb_con = quacklab.connect()  # In Memory DuckDB
         duckdb_con.execute("""CREATE OR REPLACE TABLE my_inserts (thread_name varchar)""")
 
         thread_count = 3
@@ -84,7 +84,7 @@ class TestPythonMultithreading:
         ]
 
     def test_multiple_cursors_persisted(self, tmp_database):
-        duckdb_con = duckdb.connect(tmp_database)
+        duckdb_con = quacklab.connect(tmp_database)
         duckdb_con.execute("""CREATE OR REPLACE TABLE my_inserts (thread_name varchar)""")
 
         thread_count = 3
@@ -110,7 +110,7 @@ class TestPythonMultithreading:
         duckdb_con.close()
 
     def test_same_connection_persisted(self, tmp_database):
-        duckdb_con = duckdb.connect(tmp_database)
+        duckdb_con = quacklab.connect(tmp_database)
         duckdb_con.execute("""CREATE OR REPLACE TABLE my_inserts (thread_name varchar)""")
 
         thread_count = 3

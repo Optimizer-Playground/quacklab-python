@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 pytest.importorskip("pyarrow")
 
@@ -25,7 +25,7 @@ class TestArrowFetch:
         if not can_run:
             return
 
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("CREATE TABLE test (a  INTEGER)")
 
         check_equal(duckdb_conn)
@@ -34,7 +34,7 @@ class TestArrowFetch:
         if not can_run:
             return
 
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
 
         duckdb_conn.execute("CREATE TABLE test (a  INTEGER)")
         for value in range(10000):
@@ -47,7 +47,7 @@ class TestArrowFetch:
         if not can_run:
             return
 
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
 
         duckdb_conn.execute("CREATE TABLE test (a  INTEGER)")
         duckdb_conn.execute("INSERT INTO  test VALUES(NULL);")
@@ -58,7 +58,7 @@ class TestArrowFetch:
         if not can_run:
             return
 
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
 
         duckdb_conn.execute("CREATE TABLE test (a  INTEGER)")
         duckdb_conn.execute("INSERT INTO  test VALUES(1);")
@@ -69,7 +69,7 @@ class TestArrowFetch:
         if not can_run:
             return
 
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
 
         duckdb_conn.execute("CREATE TABLE test (a  INTEGER)")
         duckdb_conn.execute("PREPARE s1 AS INSERT INTO test VALUES ($1), ($2 / 2)")
@@ -83,7 +83,7 @@ class TestArrowFetch:
         if not can_run:
             return
 
-        duckdb_cursor = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
         duckdb_cursor.execute("CREATE table t as select range a from range(3000);")
         relation = duckdb_cursor.table("t")
         arrow_tbl = relation.fetch_arrow_table()

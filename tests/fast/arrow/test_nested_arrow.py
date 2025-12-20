@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 pq = pytest.importorskip("pyarrow.parquet")
@@ -193,7 +193,7 @@ class TestArrowNested:
         values = [[(3, 12), (3, 21)], [(5, 42)]]
         arrow_table = pa.table({"detail": pa.array(values, map_type)})
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match="Arrow map contains duplicate key, which isn't supported by DuckDB map type",
         ):
             duckdb_cursor.from_arrow(arrow_table).fetchall()

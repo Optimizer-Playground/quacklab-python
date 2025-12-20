@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 
 @pytest.fixture(autouse=True)
@@ -407,7 +407,7 @@ class TestRAPIWindows:
         assert all(r == e for r, e in zip(result, expected))
 
     def test_bitstring_agg(self, table):
-        with pytest.raises(duckdb.BinderException, match="Could not retrieve required statistics"):
+        with pytest.raises(quacklab.BinderException, match="Could not retrieve required statistics"):
             table.bitstring_agg(
                 "v",
                 window_spec="over (partition by id order by t asc rows between unbounded preceding and current row)",

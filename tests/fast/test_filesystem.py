@@ -6,8 +6,8 @@ from typing import Callable
 
 import pytest
 
-import duckdb
-from duckdb import DuckDBPyConnection, InvalidInputException
+import quacklab
+from quacklab import DuckDBPyConnection, InvalidInputException
 
 fsspec = pytest.importorskip("fsspec", "2022.11.0")
 
@@ -33,7 +33,7 @@ def intercept(monkeypatch: pytest.MonkeyPatch, obj: object, name: str) -> list[s
 
 @pytest.fixture
 def duckdb_cursor():
-    with duckdb.connect() as conn:
+    with quacklab.connect() as conn:
         yield conn
 
 
@@ -158,7 +158,7 @@ class TestPythonFilesystem:
         db_path = tmp_path / "hello.db"
 
         # setup a database to attach later
-        with duckdb.connect(str(db_path)) as conn:
+        with quacklab.connect(str(db_path)) as conn:
             conn.execute(
                 """
                 CREATE TABLE t (id int);
@@ -168,7 +168,7 @@ class TestPythonFilesystem:
 
         assert db_path.exists()
 
-        with duckdb.connect() as conn:
+        with quacklab.connect() as conn:
             fs = fsspec.filesystem("file", skip_instance_cache=True)
             write_errors = intercept(monkeypatch, fsspec.implementations.local.LocalFileOpener, "write")
             conn.register_filesystem(fs)
@@ -277,7 +277,7 @@ class TestPythonFilesystem:
         table2_path = tmp_path / "table2.parquet"
         pq.write_table(table2, table2_path)
 
-        c = duckdb.connect()
+        c = quacklab.connect()
         c.register_filesystem(fsspec.implementations.local.LocalFileSystem())
 
         q = f"SELECT * FROM read_parquet('file://{tmp_path}/table*.parquet', union_by_name = TRUE) ORDER BY time DESC LIMIT 1"  # noqa: E501

@@ -1,11 +1,11 @@
 import pandas as pd
 
-import duckdb
+import quacklab
 
 
 class TestPandasUpdateList:
     def test_pandas_update_list(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect(":memory:")
+        duckdb_cursor = quacklab.connect(":memory:")
         duckdb_cursor.execute("create table t (l int[])")
         duckdb_cursor.execute("insert into t values ([1, 2]), ([3,4])")
         duckdb_cursor.execute("update t set l = [5, 6]")

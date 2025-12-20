@@ -1,7 +1,7 @@
 import pytest
 from conftest import NumpyPandas
 
-import duckdb
+import quacklab
 
 
 def check_result_list(res):
@@ -10,7 +10,7 @@ def check_result_list(res):
 
 
 def check_create_table(category, pandas):
-    conn = duckdb.connect()
+    conn = quacklab.connect()
 
     conn.execute("PRAGMA enable_verification")
     df_in = pandas.DataFrame(
@@ -29,7 +29,7 @@ def check_create_table(category, pandas):
         }
     )
 
-    df_out = duckdb.query_df(df_in, "data", "SELECT * FROM data")
+    df_out = quacklab.query_df(df_in, "data", "SELECT * FROM data")
     df_out = df_out.df()
     assert df_in.equals(df_out)
 

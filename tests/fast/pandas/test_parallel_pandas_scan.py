@@ -5,7 +5,7 @@ import numpy
 import pytest
 from conftest import ArrowPandas, NumpyPandas
 
-import duckdb
+import quacklab
 
 
 def run_parallel_queries(main_table, left_join_table, expected_df, pandas, iteration_count=5):
@@ -23,7 +23,7 @@ def run_parallel_queries(main_table, left_join_table, expected_df, pandas, itera
             on main_table.join_column = t2.join_column
         """
         try:
-            duckdb_conn = duckdb.connect()
+            duckdb_conn = quacklab.connect()
             duckdb_conn.execute("PRAGMA threads=4")
             duckdb_conn.register("main_table", main_table)
             duckdb_conn.register("left_join_table", left_join_table)
@@ -98,7 +98,7 @@ class TestParallelPandasScan:
     @pytest.mark.parametrize("pandas", [NumpyPandas(), ArrowPandas()])
     def test_parallel_empty(self, duckdb_cursor, pandas):
         df_empty = pandas.DataFrame({"A": []})
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("PRAGMA threads=4")
         duckdb_conn.execute("PRAGMA verify_parallelism")
         duckdb_conn.register("main_table", df_empty)

@@ -1,13 +1,13 @@
 import pytest
 from pandas import DataFrame
 
-import duckdb
+import quacklab
 
 
 class TestInsertInto:
     def test_insert_into_schema(self, duckdb_cursor):
         # open connection
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("CREATE SCHEMA s")
         con.execute("CREATE TABLE s.t (id INTEGER PRIMARY KEY)")
 
@@ -20,7 +20,7 @@ class TestInsertInto:
         assert con.execute("select * from s.t").fetchall() == [(1,)]
 
         # This should fail since this will go to default schema
-        with pytest.raises(duckdb.CatalogException):
+        with pytest.raises(quacklab.CatalogException):
             rel.insert_into("t")
 
         # If we add t in the default schema it should work.

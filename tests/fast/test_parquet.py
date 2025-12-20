@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-import duckdb
-import duckdb.sqltypes as duckdb_types
+import quacklab
+import quacklab.sqltypes as duckdb_types
 
 VARCHAR = duckdb_types.VARCHAR
 BIGINT = duckdb_types.BIGINT
@@ -20,7 +20,7 @@ def tmp_parquets(tmp_path_factory):
 
 class TestParquet:
     def test_scan_binary(self, duckdb_cursor):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         res = conn.execute("SELECT typeof(#1) FROM parquet_scan('" + filename + "') limit 1").fetchall()
         assert res[0] == ("BLOB",)
 
@@ -28,14 +28,14 @@ class TestParquet:
         assert res[0] == (b"foo",)
 
     def test_from_parquet_binary(self, duckdb_cursor):
-        rel = duckdb.from_parquet(filename)
+        rel = quacklab.from_parquet(filename)
         assert rel.types == ["BLOB"]
 
         res = rel.execute().fetchall()
         assert res[0] == (b"foo",)
 
     def test_scan_binary_as_string(self, duckdb_cursor):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         res = conn.execute(
             "SELECT typeof(#1) FROM parquet_scan('" + filename + "',binary_as_string=True) limit 1"
         ).fetchall()
@@ -45,14 +45,14 @@ class TestParquet:
         assert res[0] == ("foo",)
 
     def test_from_parquet_binary_as_string(self, duckdb_cursor):
-        rel = duckdb.from_parquet(filename, True)
+        rel = quacklab.from_parquet(filename, True)
         assert rel.types == [VARCHAR]
 
         res = rel.execute().fetchall()
         assert res[0] == ("foo",)
 
     def test_from_parquet_file_row_number(self, duckdb_cursor):
-        rel = duckdb.from_parquet(filename, binary_as_string=True, file_row_number=True)
+        rel = quacklab.from_parquet(filename, binary_as_string=True, file_row_number=True)
         assert rel.types == [VARCHAR, BIGINT]
 
         res = rel.execute().fetchall()
@@ -62,7 +62,7 @@ class TestParquet:
         )
 
     def test_from_parquet_filename(self, duckdb_cursor):
-        rel = duckdb.from_parquet(filename, binary_as_string=True, filename=True)
+        rel = quacklab.from_parquet(filename, binary_as_string=True, filename=True)
         assert rel.types == [VARCHAR, VARCHAR]
 
         res = rel.execute().fetchall()
@@ -72,14 +72,14 @@ class TestParquet:
         )
 
     def test_from_parquet_list_binary_as_string(self, duckdb_cursor):
-        rel = duckdb.from_parquet([filename], binary_as_string=True)
+        rel = quacklab.from_parquet([filename], binary_as_string=True)
         assert rel.types == [VARCHAR]
 
         res = rel.execute().fetchall()
         assert res[0] == ("foo",)
 
     def test_from_parquet_list_file_row_number(self, duckdb_cursor):
-        rel = duckdb.from_parquet([filename], binary_as_string=True, file_row_number=True)
+        rel = quacklab.from_parquet([filename], binary_as_string=True, file_row_number=True)
         assert rel.types == [VARCHAR, BIGINT]
 
         res = rel.execute().fetchall()
@@ -89,7 +89,7 @@ class TestParquet:
         )
 
     def test_from_parquet_list_filename(self, duckdb_cursor):
-        rel = duckdb.from_parquet([filename], binary_as_string=True, filename=True)
+        rel = quacklab.from_parquet([filename], binary_as_string=True, filename=True)
         assert rel.types == [VARCHAR, VARCHAR]
 
         res = rel.execute().fetchall()
@@ -99,7 +99,7 @@ class TestParquet:
         )
 
     def test_parquet_binary_as_string_pragma(self, duckdb_cursor):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         res = conn.execute("SELECT typeof(#1) FROM parquet_scan('" + filename + "') limit 1").fetchall()
         assert res[0] == ("BLOB",)
 
@@ -131,16 +131,16 @@ class TestParquet:
         assert res[0] == (b"foo",)
 
     def test_from_parquet_binary_as_string_default_conn(self, duckdb_cursor):
-        duckdb.execute("PRAGMA binary_as_string=1")
+        quacklab.execute("PRAGMA binary_as_string=1")
 
-        rel = duckdb.from_parquet(filename, True)
+        rel = quacklab.from_parquet(filename, True)
         assert rel.types == [VARCHAR]
 
         res = rel.execute().fetchall()
         assert res[0] == ("foo",)
 
     def test_from_parquet_union_by_name(self, tmp_parquets):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
 
         conn.execute(
             "copy (from (values (1::bigint), (2::bigint), (9223372036854775807::bigint)) t(a)) to '"
@@ -160,7 +160,7 @@ class TestParquet:
             + "' (format 'parquet');"
         )
 
-        rel = duckdb.from_parquet(tmp_parquets, union_by_name=True).order("a")
+        rel = quacklab.from_parquet(tmp_parquets, union_by_name=True).order("a")
         assert rel.execute().fetchall() == [
             (
                 1,

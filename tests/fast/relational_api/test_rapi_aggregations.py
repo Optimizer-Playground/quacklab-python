@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 
 @pytest.fixture(autouse=True)
@@ -113,9 +113,9 @@ class TestRAPIAggregations:
         expected = [(1, "0011000000000"), (2, "0000000000011"), (3, "1000001000000")]
         assert len(result) == len(expected)
         assert all(r == e for r, e in zip(result, expected))
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             table.bitstring_agg("v", min="1")
-        with pytest.raises(duckdb.InvalidTypeException):
+        with pytest.raises(quacklab.InvalidTypeException):
             table.bitstring_agg("v", min="1", max=11)
 
     def test_bool_and(self, table):

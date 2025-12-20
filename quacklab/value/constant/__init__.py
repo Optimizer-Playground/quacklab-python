@@ -1,7 +1,7 @@
 # ruff: noqa: D101, D104, D105, D107, ANN401
 from typing import Any
 
-from duckdb.sqltypes import (
+from quacklab.sqltypes import (
     BIGINT,
     BIT,
     BLOB,
@@ -126,9 +126,9 @@ class DoubleValue(Value):
 
 class DecimalValue(Value):
     def __init__(self, object: Any, width: int, scale: int) -> None:
-        import duckdb
+        import quacklab
 
-        decimal_type = duckdb.decimal_type(width, scale)
+        decimal_type = quacklab.decimal_type(width, scale)
         super().__init__(object, decimal_type)
 
 
@@ -205,33 +205,33 @@ class TimeTimeZoneValue(Value):
 
 class ListValue(Value):
     def __init__(self, object: Any, child_type: DuckDBPyType) -> None:
-        import duckdb
+        import quacklab
 
-        list_type = duckdb.list_type(child_type)
+        list_type = quacklab.list_type(child_type)
         super().__init__(object, list_type)
 
 
 class StructValue(Value):
     def __init__(self, object: Any, children: dict[str, DuckDBPyType]) -> None:
-        import duckdb
+        import quacklab
 
-        struct_type = duckdb.struct_type(children)
+        struct_type = quacklab.struct_type(children)
         super().__init__(object, struct_type)
 
 
 class MapValue(Value):
     def __init__(self, object: Any, key_type: DuckDBPyType, value_type: DuckDBPyType) -> None:
-        import duckdb
+        import quacklab
 
-        map_type = duckdb.map_type(key_type, value_type)
+        map_type = quacklab.map_type(key_type, value_type)
         super().__init__(object, map_type)
 
 
 class UnionType(Value):
     def __init__(self, object: Any, members: dict[str, DuckDBPyType]) -> None:
-        import duckdb
+        import quacklab
 
-        union_type = duckdb.union_type(members)
+        union_type = quacklab.union_type(members)
         super().__init__(object, union_type)
 
 

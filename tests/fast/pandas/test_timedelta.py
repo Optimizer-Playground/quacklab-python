@@ -4,7 +4,7 @@ import platform
 import pandas as pd
 import pytest
 
-import duckdb
+import quacklab
 
 
 class TestTimedelta:
@@ -14,7 +14,7 @@ class TestTimedelta:
         ).df()
         data = [datetime.timedelta(microseconds=9151574400000000)]
         df_in = pd.DataFrame({0: pd.Series(data=data, dtype="object")})
-        df_out = duckdb.query_df(df_in, "df", "select * from df", connection=duckdb_cursor).df()
+        df_out = quacklab.query_df(df_in, "df", "select * from df", connection=duckdb_cursor).df()
         pd.testing.assert_frame_equal(df_out, duckdb_interval)
 
     def test_timedelta_basic(self, duckdb_cursor):
@@ -23,7 +23,7 @@ class TestTimedelta:
         ).df()
         data = [datetime.timedelta(microseconds=9169797460000000)]
         df_in = pd.DataFrame({0: pd.Series(data=data, dtype="object")})
-        df_out = duckdb.query_df(df_in, "df", "select * from df", connection=duckdb_cursor).df()
+        df_out = quacklab.query_df(df_in, "df", "select * from df", connection=duckdb_cursor).df()
         pd.testing.assert_frame_equal(df_out, duckdb_interval)
 
     def test_timedelta_negative(self, duckdb_cursor):
@@ -32,7 +32,7 @@ class TestTimedelta:
         ).df()
         data = [datetime.timedelta(microseconds=-9151574400000000)]
         df_in = pd.DataFrame({0: pd.Series(data=data, dtype="object")})
-        df_out = duckdb.query_df(df_in, "df", "select * from df", connection=duckdb_cursor).df()
+        df_out = quacklab.query_df(df_in, "df", "select * from df", connection=duckdb_cursor).df()
         pd.testing.assert_frame_equal(df_out, duckdb_interval)
 
     @pytest.mark.parametrize("days", [1, 9999])

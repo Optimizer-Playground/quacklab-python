@@ -1,4 +1,4 @@
-import duckdb
+import quacklab
 
 
 class TestColumnOrder:
@@ -11,6 +11,6 @@ class TestColumnOrder:
 		);
 		SELECT timepoint, date, col1 FROM t1;
 		"""
-        df = duckdb.execute(to_execute).fetchdf()
+        df = quacklab.execute(to_execute).fetchdf()
         cols = list(df.columns)
         assert cols == ["timepoint", "date", "col1"]

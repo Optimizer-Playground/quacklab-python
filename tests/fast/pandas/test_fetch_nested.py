@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-import duckdb
+import quacklab
 
 pd = pytest.importorskip("pandas")
 
@@ -304,7 +304,7 @@ class TestFetchNested:
         if not expected_error:
             compare_results(duckdb_cursor, query, expected)
         else:
-            with pytest.raises(duckdb.InvalidInputException, match=expected_error):
+            with pytest.raises(quacklab.InvalidInputException, match=expected_error):
                 compare_results(duckdb_cursor, query, expected)
 
     # fmt: off

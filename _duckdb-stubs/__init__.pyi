@@ -12,7 +12,7 @@ if pytyping.TYPE_CHECKING:
     import torch as pytorch
     import tensorflow
     from collections.abc import Callable, Sequence, Mapping
-    from duckdb import sqltypes, func
+    from quacklab import sqltypes, func
 
     # the field_ids argument to to_parquet and write_parquet has a recursive structure
     ParquetFieldIdsType = Mapping[str, pytyping.Union[int, "ParquetFieldIdsType"]]

@@ -1,6 +1,6 @@
 [submodule "external/duckdb"]
 	path = external/duckdb
-	url = https://github.com/duckdb/duckdb.git
-	branch = main
+	url = https://github.com/rbergm/quacklab.git
+	branch = quacklab-v1.4-andium
 [submodule]
 	recurse = true

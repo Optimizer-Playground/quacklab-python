@@ -1,6 +1,6 @@
 from typing import Optional  # noqa: D100
 
-from duckdb.experimental.spark.exception import ContributionsAcceptedError
+from quacklab.experimental.spark.exception import ContributionsAcceptedError
 
 
 class SparkConf:  # noqa: D101

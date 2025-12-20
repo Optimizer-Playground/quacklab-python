@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 
@@ -29,6 +29,6 @@ class TestArrowIPCExtension:
             stream = ipc.MessageReader.open_stream(buf_reader)
             # This fails
             with pytest.raises(
-                duckdb.Error, match="The nanoarrow community extension is needed to read the Arrow IPC protocol"
+                quacklab.Error, match="The nanoarrow community extension is needed to read the Arrow IPC protocol"
             ):
                 duckdb_cursor.from_arrow(stream).fetchall()

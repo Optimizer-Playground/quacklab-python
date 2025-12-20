@@ -1,13 +1,13 @@
 import pytest
 from conftest import ArrowPandas, NumpyPandas
 
-import duckdb
+import quacklab
 
 
 class TestCaseAlias:
     @pytest.mark.parametrize("pandas", [NumpyPandas(), ArrowPandas()])
     def test_case_alias(self, duckdb_cursor, pandas):
-        con = duckdb.connect(":memory:")
+        con = quacklab.connect(":memory:")
 
         df = pandas.DataFrame([{"COL1": "val1", "CoL2": 1.05}, {"COL1": "val3", "CoL2": 17}])
 

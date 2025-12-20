@@ -1,14 +1,14 @@
 import pytest
 
-import duckdb
-from duckdb.sqltypes import VARCHAR
+import quacklab
+from quacklab.sqltypes import VARCHAR
 
 pa = pytest.importorskip("pyarrow")
 
 
 class TestArrowBufferSize:
     def test_arrow_buffer_size(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
 
         # All small string
         res = con.query("select 'bla'").fetch_arrow_table()
@@ -34,7 +34,7 @@ class TestArrowBufferSize:
         def just_return(x):
             return x
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("just_return", just_return, [VARCHAR], VARCHAR, type="arrow")
 
         res = con.query("select just_return('bla')").fetch_arrow_table()

@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 def send_keyboard_interrupt():
@@ -21,7 +21,7 @@ class TestQueryInterruption:
         reason="Emscripten builds cannot use threads",
     )
     def test_query_interruption(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         thread = threading.Thread(target=send_keyboard_interrupt)
         # Start the thread
         thread.start()

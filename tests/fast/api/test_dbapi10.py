@@ -3,7 +3,7 @@ from datetime import date, datetime
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 class TestCursorDescription:
@@ -32,12 +32,12 @@ class TestCursorDescription:
         assert isinstance(duckdb_cursor.fetchone()[0], real_type)
 
     def test_description_comparisons(self):
-        duckdb.execute("select 42 a, 'test' b, true c")
-        types = [x[1] for x in duckdb.description()]
+        quacklab.execute("select 42 a, 'test' b, true c")
+        types = [x[1] for x in quacklab.description()]
 
-        STRING = duckdb.STRING
-        NUMBER = duckdb.NUMBER
-        DATETIME = duckdb.DATETIME
+        STRING = quacklab.STRING
+        NUMBER = quacklab.NUMBER
+        DATETIME = quacklab.DATETIME
 
         assert types[1] == STRING
         assert STRING == types[1]  # noqa: SIM300
