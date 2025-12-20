@@ -1,47 +1,49 @@
-<div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/duckdb/duckdb/refs/heads/main/logo/DuckDB_Logo-horizontal.svg">
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/duckdb/duckdb/refs/heads/main/logo/DuckDB_Logo-horizontal-dark-mode.svg">
-    <img alt="DuckDB logo" src="https://raw.githubusercontent.com/duckdb/duckdb/refs/heads/main/logo/DuckDB_Logo-horizontal.svg" height="100">
-  </picture>
-</div>
-<br />
-<p align="center">
-  <a href="https://discord.gg/tcvwpjfnZx"><img src="https://shields.io/discord/909674491309850675" alt="Discord" /></a>
-  <a href="https://pypi.org/project/duckdb/"><img src="https://img.shields.io/pypi/v/duckdb.svg" alt="PyPI Latest Release"/></a>
-</p>
-<br />
-<p align="center">
-  <a href="https://duckdb.org">DuckDB.org</a>
-  |
-  <a href="https://duckdb.org/docs/stable/guides/python/install">User Guide (Python)</a>
-  -
-  <a href="https://duckdb.org/docs/stable/clients/python/overview">API Docs (Python)</a>
-</p>
+# quacklab Python adapter
 
-# DuckDB: A Fast, In-Process, Portable, Open Source, Analytical Database System
+The quacklab Python adapter integrates quacklab into the DuckDB Python package. quacklab is a research project to integrate
+optimizer hints into DuckDB. These hints overwrite optimizer decisions like the join order or cardinality estimates:
 
-* **Simple**: DuckDB is easy to install and deploy. It has zero external dependencies and runs in-process in its host application or as a single binary.
-* **Portable**: DuckDB runs on Linux, macOS, Windows, Android, iOS and all popular hardware architectures. It has idiomatic client APIs for major programming languages.
-* **Feature-rich**: DuckDB offers a rich SQL dialect. It can read and write file formats such as CSV, Parquet, and JSON, to and from the local file system and remote endpoints such as S3 buckets.
-* **Fast**: DuckDB runs analytical queries at blazing speed thanks to its columnar engine, which supports parallel execution and can process larger-than-memory workloads.
-* **Extensible**: DuckDB is extensible by third-party features such as new data types, functions, file formats and new SQL syntax. User contributions are available as community extensions.
-* **Free**: DuckDB and its core extensions are open-source under the permissive MIT License. The intellectual property of the project is held by the DuckDB Foundation.
+```py
+import quacklab
+db = quacklab.connect("imdb.duckdb")
+hints = "/*=quack_lab= card(t #42) card(mi #24) */"  # this comment will be embedded in the SQL query
+db.sql(f"explain {hints} select count(*) from title t join movie_info mi on t.id = mi.movie_id where t.production_year < 2010")
+```
 
 ## Installation
 
-Install the latest release of DuckDB directly from [PyPI](https://pypi.org/project/duckdb/):
+See the [quacklab repository](https://github.com/rbergm/quacklab.git) for information on the required software to compile
+quacklab. In addition to these requirements, the DuckDB Python adapter also needs [uv](https://docs.astral.sh/uv/) to build
+the Python package. For quacklab we adhere to the standard build process as far as possible.
+
+The ***TLDR** is
 
 ```bash
-pip install duckdb
+git clone --recurse-submodules https://github.com/rbergm/quacklab-python.git
+cd quacklab-python
+git fetch --tags
+cd external/duckdb && git fetch --tags
+cd third_party/antlr4
+java -jar antlr-runtime-4.13.2.jar ../../src/hinting/grammar/HintBlock.g4
+cd ../../../..
+uv build
 ```
 
-Install with all optional dependencies:
+Or to explain the individual steps:
 
-```bash
-pip install 'duckdb[all]'
-```
+1. Initialize the quacklab submodule: `git submodule update --init --recursive` (or clone with `--recurse-submodules`)
+2. Make sure you have tags available in the repository: `git fetch --tags`. Tags are used for versioning by the DuckDB build
+   process.
+3. Make sure you have tags available in the quacklab submodule: `cd external/duckdb && git fetch --tags`
+4. Currently, you need to manually generate the parser for the hinting grammar. Change into the following directory:
+   `external/duckdb/third_party/antlr4` and run the ANTLR generator:
+   `java -jar antlr-runtime-4.13.2.jar ../../src/hinting/grammar/HintBlock.g4`
+5. Back in the main directory, you can start the package build: `uv build`. This will automatically compile DuckDB/quacklab
+   from source, so this process will take a while.
+6. Install the quacklab wheel into whatever Python environment you want, e.g. using `pip install dist/quacklab-<suffix>.whl`.
 
-## Contributing
+## Usage
 
-See the [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on how to set up a development environment.
+The Python adapter can be used like the standard DuckDB package. Queries that contain hints are automatically processed by
+quacklab. Refer to the official [DuckDB documentation](https://duckdb.org/docs/stable/clients/python/overview) and
+[quacklab documentation](https://github.com/rbergm/quacklab.git) for details.
