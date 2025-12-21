@@ -22,7 +22,7 @@ See the [quacklab repository](https://github.com/rbergm/quacklab.git) for inform
 quacklab. In addition to these requirements, the DuckDB Python adapter also needs [uv](https://docs.astral.sh/uv/) to build
 the Python package. For quacklab we adhere to the standard build process as far as possible.
 
-The ***TLDR** is
+The **TLDR** is
 
 ```bash
 git clone --recurse-submodules https://github.com/rbergm/quacklab-python.git
@@ -31,7 +31,7 @@ git fetch --tags
 git switch quacklab-v1.4-andium
 cd external/duckdb && git fetch --tags
 cd third_party/antlr4
-java -jar antlr-runtime-4.13.2.jar ../../src/hinting/grammar/HintBlock.g4
+java -jar antlr-4.13.2-complete.jar -Dlanguage=Cpp ../../src/hinting/grammar/HintBlock.g4
 cd ../../../..
 uv build
 ```
@@ -46,7 +46,7 @@ Or to explain the individual steps:
 3. Make sure you have tags available in the quacklab submodule: `cd external/duckdb && git fetch --tags`
 4. Currently, you need to manually generate the parser for the hinting grammar. Change into the following directory:
    `external/duckdb/third_party/antlr4` and run the ANTLR generator:
-   `java -jar antlr-runtime-4.13.2.jar ../../src/hinting/grammar/HintBlock.g4`
+   `java -jar antlr-4.13.2-complete.jar -Dlanguage=Cpp ../../src/hinting/grammar/HintBlock.g4`
 5. Back in the main directory, you can start the package build: `uv build`. This will automatically compile DuckDB/quacklab
    from source, so this process will take a while.
 6. Install the quacklab wheel into whatever Python environment you want, e.g. using `pip install dist/quacklab-<suffix>.whl`.
