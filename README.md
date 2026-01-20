@@ -10,13 +10,20 @@ hints = "/*=quack_lab= card(t #42) card(mi #24) */"  # this comment will be embe
 db.sql(f"explain {hints} select count(*) from title t join movie_info mi on t.id = mi.movie_id where t.production_year < 2010")
 ```
 
+## Installation
+
+quacklab is available on PyPI so a simple `pip install quacklab` should do the trick. We provide pre-build wheels for a number
+of Python versions on MacOS and Linux. If no wheel is available for your system, the installation may take a while.
+
+
 ## Repo Layout
 
 The `quacklab-patches` branch is used to track our changes to upstream DuckDB. It should not be used directly.
 For the DuckDB versions that we support, dedicated `quacklab-[DuckDB release]` branches exist, such as `quacklab-v1.4-andium`.
 These branches are used to apply our quacklab patches to the specific DuckDB release. Use these branches to build quacklab.
 
-## Installation
+
+## Manual Setup
 
 See the [quacklab repository](https://github.com/rbergm/quacklab.git) for information on the required software to compile
 quacklab. In addition to these requirements, the DuckDB Python adapter also needs [uv](https://docs.astral.sh/uv/) to build
