@@ -53,6 +53,8 @@ def version_scheme(version: _VersionObject) -> str:
     try:
         if distance == 0 and not version.dirty:
             return _tag_to_version(str(version.tag))
+        if version.dirty:
+            distance = max(distance, 1)
         return _bump_dev_version(str(version.tag), distance)
     except Exception as e:
         msg = f"Failed to bump version: {e}"
