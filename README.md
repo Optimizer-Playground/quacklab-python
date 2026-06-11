@@ -28,7 +28,7 @@ The **TLDR** is
 git clone --recurse-submodules https://github.com/rbergm/quacklab-python.git
 cd quacklab-python
 git fetch --tags
-git switch quacklab-v1.4-andium
+git switch quacklab-v1.5-variegata
 cd external/duckdb && git fetch --tags
 cd third_party/antlr4
 java -jar antlr-4.13.2-complete.jar -Dlanguage=Cpp ../../src/hinting/grammar/HintBlock.g4
