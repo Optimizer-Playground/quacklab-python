@@ -363,12 +363,11 @@ LogicalType PandasAnalyzer::GetItemType(py::object ele, bool &can_convert) {
 	case PythonObjectType::Bool:
 		return LogicalType::BOOLEAN;
 	case PythonObjectType::Integer: {
-		Value integer;
-		if (!TryTransformPythonNumeric(integer, ele)) {
+		auto type = SniffPythonIntegerType(ele);
+		if (type.id() == LogicalTypeId::SQLNULL) {
 			can_convert = false;
-			return LogicalType::SQLNULL;
 		}
-		return integer.type();
+		return type;
 	}
 	case PythonObjectType::Float:
 		if (std::isnan(PyFloat_AsDouble(ele.ptr()))) {
@@ -500,12 +499,6 @@ LogicalType PandasAnalyzer::InnerAnalyze(py::object column, bool &can_convert, i
 bool PandasAnalyzer::Analyze(py::object column) {
 	// Disable analyze
 	if (sample_size == 0) {
-		return false;
-	}
-	auto &import_cache = *DuckDBPyConnection::ImportCache();
-	auto pandas = import_cache.pandas();
-	if (!pandas) {
-		//! Pandas is not installed, no need to analyze
 		return false;
 	}
 

@@ -160,6 +160,15 @@ py::object GetScalar(Value &constant, const string &timezone_config, const Arrow
 	}
 }
 
+static py::list TransformInList(const InFilter &in) {
+	py::list res;
+	ClientProperties default_properties;
+	for (auto &val : in.values) {
+		res.append(PythonObject::FromValue(val, val.type(), default_properties));
+	}
+	return res;
+}
+
 py::object TransformFilterRecursive(TableFilter &filter, vector<string> column_ref, const string &timezone_config,
                                     const ArrowType &type) {
 	auto &import_cache = *DuckDBPyConnection::ImportCache();
@@ -227,7 +236,6 @@ py::object TransformFilterRecursive(TableFilter &filter, vector<string> column_r
 		auto constant_field = field(py::tuple(py::cast(column_ref)));
 		return constant_field.attr("is_valid")();
 	}
-	//! We do not pushdown or conjunctions yet
 	case TableFilterType::CONJUNCTION_OR: {
 		auto &or_filter = filter.Cast<ConjunctionOrFilter>();
 		py::object expression = py::none();
@@ -235,7 +243,9 @@ py::object TransformFilterRecursive(TableFilter &filter, vector<string> column_r
 			auto &child_filter = *or_filter.child_filters[i];
 			py::object child_expression = TransformFilterRecursive(child_filter, column_ref, timezone_config, type);
 			if (child_expression.is(py::none())) {
-				continue;
+				// An OR branch that can't be translated (e.g. DYNAMIC_FILTER) means the pushed-down
+				// predicate would be stricter than the engine intends — fall back to no pushdown.
+				return py::none();
 			}
 			if (expression.is(py::none())) {
 				expression = std::move(child_expression);
@@ -282,17 +292,9 @@ py::object TransformFilterRecursive(TableFilter &filter, vector<string> column_r
 	}
 	case TableFilterType::IN_FILTER: {
 		auto &in_filter = filter.Cast<InFilter>();
-		ConjunctionOrFilter or_filter;
-		value_set_t unique_values;
-		for (const auto &value : in_filter.values) {
-			if (unique_values.find(value) == unique_values.end()) {
-				unique_values.insert(value);
-			}
-		}
-		for (const auto &value : unique_values) {
-			or_filter.child_filters.push_back(make_uniq<ConstantFilter>(ExpressionType::COMPARE_EQUAL, value));
-		}
-		return TransformFilterRecursive(or_filter, column_ref, timezone_config, type);
+		auto constant_field = field(py::tuple(py::cast(column_ref)));
+		auto in_list = TransformInList(in_filter);
+		return constant_field.attr("isin")(std::move(in_list));
 	}
 	case TableFilterType::DYNAMIC_FILTER: {
 		//! Ignore dynamic filters for now, not necessary for correctness

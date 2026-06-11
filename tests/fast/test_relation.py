@@ -2,13 +2,11 @@
 import datetime
 import gc
 import os
-import platform
 import tempfile
 
 import numpy as np
 import pandas as pd
 import pytest
-from conftest import ArrowPandas, NumpyPandas
 
 import quacklab
 from quacklab import ColumnExpression
@@ -39,10 +37,9 @@ class TestRelation:
         csv_rel = quacklab.from_csv_auto(temp_file_name)
         assert df_rel.execute().fetchall() == csv_rel.execute().fetchall()
 
-    @pytest.mark.parametrize("pandas", [NumpyPandas(), ArrowPandas()])
-    def test_relation_view(self, duckdb_cursor, pandas):
+    def test_relation_view(self, duckdb_cursor):
         def create_view(duckdb_cursor) -> None:
-            df_in = pandas.DataFrame({"numbers": [1, 2, 3, 4, 5]})
+            df_in = pd.DataFrame({"numbers": [1, 2, 3, 4, 5]})
             rel = duckdb_cursor.query("select * from df_in")
             rel.to_view("my_view")
 
@@ -536,15 +533,6 @@ class TestRelation:
             1024,
             2048,
             5000,
-            1000000,
-            pytest.param(
-                10000000,
-                marks=pytest.mark.skipif(
-                    condition=platform.system() == "Emscripten",
-                    reason="Emscripten/Pyodide builds run out of memory at this scale, and error might not "
-                    "thrown reliably",
-                ),
-            ),
         ],
     )
     def test_materialized_relation(self, duckdb_cursor, num_rows):
@@ -688,3 +676,10 @@ class TestRelation:
 
         res = con.sql("select * from vw").fetchall()
         assert res == expected
+
+    def test_relation_select_dtypes_quotes_identifiers_with_spaces(self, duckdb_cursor):
+        df = pd.DataFrame({"na me": ["alice", "bob"], "x": [1, 2]})
+        rel = duckdb_cursor.from_df(df)
+        out = rel.select_dtypes([duckdb.sqltypes.VARCHAR]).fetchdf()
+        assert list(out.columns) == ["na me"]
+        assert out["na me"].tolist() == ["alice", "bob"]

@@ -3,6 +3,7 @@
 #include "duckdb/catalog/default/default_types.hpp"
 #include "duckdb/common/arrow/arrow.hpp"
 #include "duckdb/common/enums/file_compression_type.hpp"
+#include "duckdb/common/enums/profiler_format.hpp"
 #include "duckdb/common/printer.hpp"
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/types/vector.hpp"
@@ -74,12 +75,34 @@ std::string DuckDBPyConnection::formatted_python_version = "";
 
 DuckDBPyConnection::~DuckDBPyConnection() {
 	try {
-		py::gil_scoped_release gil;
-		// Release any structures that do not need to hold the GIL here
-		con.SetDatabase(nullptr);
-		con.SetConnection(nullptr);
+		// The native Connection / DuckDB teardown is pure C++ work — release
+		// the GIL for it so other Python threads can run. The implicit member
+		// destructors that fire after this scope (notably
+		// `registered_functions`, a `case_insensitive_map_t<unique_ptr<ExternalDependency>>`
+		// whose entries transitively own pybind-managed Python references)
+		// run with the GIL reacquired because `gil` is destroyed at the end
+		// of the inner block.
+		{
+			py::gil_scoped_release gil;
+			con.SetDatabase(nullptr);
+			con.SetConnection(nullptr);
+		}
 	} catch (...) { // NOLINT
 	}
+}
+
+unique_ptr<DuckDBPyRelation> DuckDBPyConnection::CreateRelation(shared_ptr<Relation> rel) {
+	auto py_rel = make_uniq<DuckDBPyRelation>(std::move(rel));
+	py::gil_scoped_acquire gil;
+	py_rel->SetConnectionOwner(py::cast(shared_from_this()));
+	return py_rel;
+}
+
+unique_ptr<DuckDBPyRelation> DuckDBPyConnection::CreateRelation(shared_ptr<DuckDBPyResult> result) {
+	auto py_rel = make_uniq<DuckDBPyRelation>(std::move(result));
+	py::gil_scoped_acquire gil;
+	py_rel->SetConnectionOwner(py::cast(shared_from_this()));
+	return py_rel;
 }
 
 void DuckDBPyConnection::DetectEnvironment() {
@@ -202,11 +225,28 @@ static void InitializeConnectionMethods(py::class_<DuckDBPyConnection, shared_pt
 	      py::kw_only(), py::arg("date_as_object") = false);
 	m.def("pl", &DuckDBPyConnection::FetchPolars, "Fetch a result as Polars DataFrame following execute()",
 	      py::arg("rows_per_batch") = 1000000, py::kw_only(), py::arg("lazy") = false);
-	m.def("fetch_arrow_table", &DuckDBPyConnection::FetchArrow, "Fetch a result as Arrow table following execute()",
-	      py::arg("rows_per_batch") = 1000000);
-	m.def("fetch_record_batch", &DuckDBPyConnection::FetchRecordBatchReader,
-	      "Fetch an Arrow RecordBatchReader following execute()", py::arg("rows_per_batch") = 1000000);
-	m.def("arrow", &DuckDBPyConnection::FetchRecordBatchReader, "Fetch an Arrow RecordBatchReader following execute()",
+	m.def("to_arrow_table", &DuckDBPyConnection::FetchArrow, "Fetch a result as Arrow table following execute()",
+	      py::arg("batch_size") = 1000000);
+	m.def("to_arrow_reader", &DuckDBPyConnection::FetchRecordBatchReader,
+	      "Fetch an Arrow RecordBatchReader following execute()", py::arg("batch_size") = 1000000);
+	m.def(
+	    "fetch_arrow_table",
+	    [](DuckDBPyConnection &self, idx_t rows_per_batch) {
+		    PyErr_WarnEx(PyExc_DeprecationWarning, "fetch_arrow_table() is deprecated, use to_arrow_table() instead.",
+		                 0);
+		    return self.FetchArrow(rows_per_batch);
+	    },
+	    "Fetch a result as Arrow table following execute()", py::arg("rows_per_batch") = 1000000);
+	m.def(
+	    "fetch_record_batch",
+	    [](DuckDBPyConnection &self, idx_t rows_per_batch) {
+		    PyErr_WarnEx(PyExc_DeprecationWarning, "fetch_record_batch() is deprecated, use to_arrow_reader() instead.",
+		                 0);
+		    return self.FetchRecordBatchReader(rows_per_batch);
+	    },
+	    "Fetch an Arrow RecordBatchReader following execute()", py::arg("rows_per_batch") = 1000000);
+	m.def("arrow", &DuckDBPyConnection::FetchRecordBatchReader,
+	      "Alias of to_arrow_reader(). We recommend using to_arrow_reader() instead.",
 	      py::arg("rows_per_batch") = 1000000);
 	m.def("torch", &DuckDBPyConnection::FetchPyTorch, "Fetch a result as dict of PyTorch Tensors following execute()");
 	m.def("tf", &DuckDBPyConnection::FetchTF, "Fetch a result as dict of TensorFlow Tensors following execute()");
@@ -259,25 +299,15 @@ static void InitializeConnectionMethods(py::class_<DuckDBPyConnection, shared_pt
 	m.def("from_arrow", &DuckDBPyConnection::FromArrow, "Create a relation object from an Arrow object",
 	      py::arg("arrow_object"));
 	m.def("from_parquet", &DuckDBPyConnection::FromParquet,
-	      "Create a relation object from the Parquet files in file_glob", py::arg("file_glob"),
-	      py::arg("binary_as_string") = false, py::kw_only(), py::arg("file_row_number") = false,
-	      py::arg("filename") = false, py::arg("hive_partitioning") = false, py::arg("union_by_name") = false,
-	      py::arg("compression") = py::none());
+	      "Create a relation object from the Parquet path(s) or file-like object(s) in 'path_or_buffer'",
+	      py::arg("path_or_buffer"), py::arg("binary_as_string") = false, py::kw_only(),
+	      py::arg("file_row_number") = false, py::arg("filename") = false, py::arg("hive_partitioning") = false,
+	      py::arg("union_by_name") = false, py::arg("compression") = py::none());
 	m.def("read_parquet", &DuckDBPyConnection::FromParquet,
-	      "Create a relation object from the Parquet files in file_glob", py::arg("file_glob"),
-	      py::arg("binary_as_string") = false, py::kw_only(), py::arg("file_row_number") = false,
-	      py::arg("filename") = false, py::arg("hive_partitioning") = false, py::arg("union_by_name") = false,
-	      py::arg("compression") = py::none());
-	m.def("from_parquet", &DuckDBPyConnection::FromParquets,
-	      "Create a relation object from the Parquet files in file_globs", py::arg("file_globs"),
-	      py::arg("binary_as_string") = false, py::kw_only(), py::arg("file_row_number") = false,
-	      py::arg("filename") = false, py::arg("hive_partitioning") = false, py::arg("union_by_name") = false,
-	      py::arg("compression") = py::none());
-	m.def("read_parquet", &DuckDBPyConnection::FromParquets,
-	      "Create a relation object from the Parquet files in file_globs", py::arg("file_globs"),
-	      py::arg("binary_as_string") = false, py::kw_only(), py::arg("file_row_number") = false,
-	      py::arg("filename") = false, py::arg("hive_partitioning") = false, py::arg("union_by_name") = false,
-	      py::arg("compression") = py::none());
+	      "Create a relation object from the Parquet path(s) or file-like object(s) in 'path_or_buffer'",
+	      py::arg("path_or_buffer"), py::arg("binary_as_string") = false, py::kw_only(),
+	      py::arg("file_row_number") = false, py::arg("filename") = false, py::arg("hive_partitioning") = false,
+	      py::arg("union_by_name") = false, py::arg("compression") = py::none());
 	m.def("get_table_names", &DuckDBPyConnection::GetTableNames, "Extract the required table names from a query",
 	      py::arg("query"), py::kw_only(), py::arg("qualified") = false);
 	m.def("install_extension", &DuckDBPyConnection::InstallExtension,
@@ -285,13 +315,17 @@ static void InitializeConnectionMethods(py::class_<DuckDBPyConnection, shared_pt
 	      py::arg("extension"), py::kw_only(), py::arg("force_install") = false, py::arg("repository") = py::none(),
 	      py::arg("repository_url") = py::none(), py::arg("version") = py::none());
 	m.def("load_extension", &DuckDBPyConnection::LoadExtension, "Load an installed extension", py::arg("extension"));
+	m.def("get_profiling_information", &DuckDBPyConnection::GetProfilingInformation,
+	      "Get profiling information for a query", py::arg("format") = "json");
+	m.def("enable_profiling", &DuckDBPyConnection::EnableProfiling, "Enable profiling for subsequent queries");
+	m.def("disable_profiling", &DuckDBPyConnection::DisableProfiling, "Disable profiling for subsequent queries");
 } // END_OF_CONNECTION_METHODS
 
 void DuckDBPyConnection::UnregisterFilesystem(const py::str &name) {
 	auto &database = con.GetDatabase();
 	auto &fs = database.GetFileSystem();
 
-	fs.UnregisterSubSystem(name);
+	fs.ExtractSubSystem(name);
 }
 
 void DuckDBPyConnection::RegisterFilesystem(AbstractFileSystem filesystem) {
@@ -329,6 +363,41 @@ py::list DuckDBPyConnection::ListFilesystems() {
 		names.append(py::str(name));
 	}
 	return names;
+}
+
+py::str DuckDBPyConnection::GetProfilingInformation(const py::str &format) {
+	// We want to expose ProfilerPrintFormat as a string to Python users
+	ProfilerPrintFormat format_enum;
+	if (format == "query_tree") {
+		format_enum = ProfilerPrintFormat::QUERY_TREE;
+	} else if (format == "json") {
+		format_enum = ProfilerPrintFormat::JSON;
+	} else if (format == "query_tree_optimizer") {
+		format_enum = ProfilerPrintFormat::QUERY_TREE_OPTIMIZER;
+	} else if (format == "no_output") {
+		format_enum = ProfilerPrintFormat::NO_OUTPUT;
+	} else if (format == "html") {
+		format_enum = ProfilerPrintFormat::HTML;
+	} else if (format == "graphviz") {
+		format_enum = ProfilerPrintFormat::GRAPHVIZ;
+	} else {
+		throw InvalidInputException(
+		    "Invalid ProfilerPrintFormat string: " + std::string(format) +
+		    ". Valid options are: query_tree, json, query_tree_optimizer, no_output, html, graphviz.");
+	}
+	auto &connection = con.GetConnection();
+	py::str profiling_info = connection.GetProfilingInformation(format_enum);
+	return profiling_info;
+}
+
+void DuckDBPyConnection::EnableProfiling() {
+	auto &connection = con.GetConnection();
+	connection.EnableProfiling();
+}
+
+void DuckDBPyConnection::DisableProfiling() {
+	auto &connection = con.GetConnection();
+	connection.DisableProfiling();
 }
 
 py::list DuckDBPyConnection::ExtractStatements(const string &query) {
@@ -421,6 +490,7 @@ void DuckDBPyConnection::Initialize(py::handle &m) {
 
 shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteMany(const py::object &query, py::object params_p) {
 	py::gil_scoped_acquire gil;
+	ConnectionLockGuard conn_lock(*this);
 	con.SetResult(nullptr);
 	if (params_p.is_none()) {
 		params_p = py::list();
@@ -456,8 +526,9 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteMany(const py::object 
 	}
 	// Set the internal 'result' object
 	if (query_result) {
-		auto py_result = make_uniq<DuckDBPyResult>(std::move(query_result));
-		con.SetResult(make_uniq<DuckDBPyRelation>(std::move(py_result)));
+		// Don't use CreateRelation here — the result is stored inside the connection,
+		// so setting connection_owner would create a ref cycle (connection → result → connection).
+		con.SetResult(make_uniq<DuckDBPyRelation>(make_shared_ptr<DuckDBPyResult>(std::move(query_result))));
 	}
 
 	return shared_from_this();
@@ -551,7 +622,7 @@ unique_ptr<PreparedStatement> DuckDBPyConnection::PrepareQuery(unique_ptr<SQLSta
 	{
 		D_ASSERT(py::gil_check());
 		py::gil_scoped_release release;
-		unique_lock<mutex> lock(py_connection_lock);
+		unique_lock<std::recursive_mutex> lock(py_connection_lock);
 
 		prep = connection.Prepare(std::move(statement));
 		if (prep->HasError()) {
@@ -572,7 +643,7 @@ unique_ptr<QueryResult> DuckDBPyConnection::ExecuteInternal(PreparedStatement &p
 	{
 		D_ASSERT(py::gil_check());
 		py::gil_scoped_release release;
-		unique_lock<std::mutex> lock(py_connection_lock);
+		unique_lock<std::recursive_mutex> lock(py_connection_lock);
 
 		auto pending_query = prep.PendingQuery(named_values);
 		if (pending_query->HasError()) {
@@ -599,7 +670,7 @@ unique_ptr<QueryResult> DuckDBPyConnection::PrepareAndExecuteInternal(unique_ptr
 	{
 		D_ASSERT(py::gil_check());
 		py::gil_scoped_release release;
-		unique_lock<std::mutex> lock(py_connection_lock);
+		unique_lock<std::recursive_mutex> lock(py_connection_lock);
 
 		auto pending_query = con.GetConnection().PendingQuery(std::move(statement), named_values, true);
 
@@ -638,6 +709,7 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteFromString(const strin
 
 shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Execute(const py::object &query, py::object params) {
 	py::gil_scoped_acquire gil;
+	ConnectionLockGuard conn_lock(*this);
 	con.SetResult(nullptr);
 
 	auto statements = GetStatements(query);
@@ -656,8 +728,9 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Execute(const py::object &que
 
 	// Set the internal 'result' object
 	if (res) {
-		auto py_result = make_uniq<DuckDBPyResult>(std::move(res));
-		con.SetResult(make_uniq<DuckDBPyRelation>(std::move(py_result)));
+		// Don't use CreateRelation here — the result is stored inside the connection,
+		// so setting connection_owner would create a ref cycle (connection → result → connection).
+		con.SetResult(make_uniq<DuckDBPyRelation>(make_shared_ptr<DuckDBPyResult>(std::move(res))));
 	}
 	return shared_from_this();
 }
@@ -715,7 +788,7 @@ static void ParseMultiFileOptions(named_parameter_map_t &options, const Optional
 
 	if (!py::none().is(hive_partitioning)) {
 		if (!py::isinstance<py::bool_>(hive_partitioning)) {
-			string actual_type = py::str(hive_partitioning.get_type());
+			string actual_type = py::str(py::type::of(hive_partitioning));
 			throw BinderException("read_json only accepts 'hive_partitioning' as a boolean, not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(hive_partitioning, LogicalTypeId::BOOLEAN);
@@ -724,7 +797,7 @@ static void ParseMultiFileOptions(named_parameter_map_t &options, const Optional
 
 	if (!py::none().is(union_by_name)) {
 		if (!py::isinstance<py::bool_>(union_by_name)) {
-			string actual_type = py::str(union_by_name.get_type());
+			string actual_type = py::str(py::type::of(union_by_name));
 			throw BinderException("read_json only accepts 'union_by_name' as a boolean, not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(union_by_name, LogicalTypeId::BOOLEAN);
@@ -733,7 +806,7 @@ static void ParseMultiFileOptions(named_parameter_map_t &options, const Optional
 
 	if (!py::none().is(hive_types_autocast)) {
 		if (!py::isinstance<py::bool_>(hive_types_autocast)) {
-			string actual_type = py::str(hive_types_autocast.get_type());
+			string actual_type = py::str(py::type::of(hive_types_autocast));
 			throw BinderException("read_json only accepts 'hive_types_autocast' as a boolean, not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(hive_types_autocast, LogicalTypeId::BOOLEAN);
@@ -772,11 +845,11 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 			auto &column_name = kv.first;
 			auto &type = kv.second;
 			if (!py::isinstance<py::str>(column_name)) {
-				string actual_type = py::str(column_name.get_type());
+				string actual_type = py::str(py::type::of(column_name));
 				throw BinderException("The provided column name must be a str, not of type '%s'", actual_type);
 			}
 			if (!py::isinstance<py::str>(type)) {
-				string actual_type = py::str(column_name.get_type());
+				string actual_type = py::str(py::type::of(column_name));
 				throw BinderException("The provided column type must be a str, not of type '%s'", actual_type);
 			}
 			struct_fields.emplace_back(py::str(column_name), Value(py::str(type)));
@@ -787,7 +860,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 
 	if (!py::none().is(records)) {
 		if (!py::isinstance<py::str>(records)) {
-			string actual_type = py::str(records.get_type());
+			string actual_type = py::str(py::type::of(records));
 			throw BinderException("read_json only accepts 'records' as a string, not '%s'", actual_type);
 		}
 		auto records_s = py::reinterpret_borrow<py::str>(records);
@@ -797,7 +870,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 
 	if (!py::none().is(format)) {
 		if (!py::isinstance<py::str>(format)) {
-			string actual_type = py::str(format.get_type());
+			string actual_type = py::str(py::type::of(format));
 			throw BinderException("read_json only accepts 'format' as a string, not '%s'", actual_type);
 		}
 		auto format_s = py::reinterpret_borrow<py::str>(format);
@@ -807,7 +880,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 
 	if (!py::none().is(date_format)) {
 		if (!py::isinstance<py::str>(date_format)) {
-			string actual_type = py::str(date_format.get_type());
+			string actual_type = py::str(py::type::of(date_format));
 			throw BinderException("read_json only accepts 'date_format' as a string, not '%s'", actual_type);
 		}
 		auto date_format_s = py::reinterpret_borrow<py::str>(date_format);
@@ -817,7 +890,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 
 	if (!py::none().is(timestamp_format)) {
 		if (!py::isinstance<py::str>(timestamp_format)) {
-			string actual_type = py::str(timestamp_format.get_type());
+			string actual_type = py::str(py::type::of(timestamp_format));
 			throw BinderException("read_json only accepts 'timestamp_format' as a string, not '%s'", actual_type);
 		}
 		auto timestamp_format_s = py::reinterpret_borrow<py::str>(timestamp_format);
@@ -827,7 +900,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 
 	if (!py::none().is(compression)) {
 		if (!py::isinstance<py::str>(compression)) {
-			string actual_type = py::str(compression.get_type());
+			string actual_type = py::str(py::type::of(compression));
 			throw BinderException("read_json only accepts 'compression' as a string, not '%s'", actual_type);
 		}
 		auto compression_s = py::reinterpret_borrow<py::str>(compression);
@@ -837,7 +910,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 
 	if (!py::none().is(sample_size)) {
 		if (!py::isinstance<py::int_>(sample_size)) {
-			string actual_type = py::str(sample_size.get_type());
+			string actual_type = py::str(py::type::of(sample_size));
 			throw BinderException("read_json only accepts 'sample_size' as an integer, not '%s'", actual_type);
 		}
 		options["sample_size"] = Value::INTEGER(py::int_(sample_size));
@@ -845,7 +918,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 
 	if (!py::none().is(maximum_depth)) {
 		if (!py::isinstance<py::int_>(maximum_depth)) {
-			string actual_type = py::str(maximum_depth.get_type());
+			string actual_type = py::str(py::type::of(maximum_depth));
 			throw BinderException("read_json only accepts 'maximum_depth' as an integer, not '%s'", actual_type);
 		}
 		options["maximum_depth"] = Value::INTEGER(py::int_(maximum_depth));
@@ -853,7 +926,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 
 	if (!py::none().is(maximum_object_size)) {
 		if (!py::isinstance<py::int_>(maximum_object_size)) {
-			string actual_type = py::str(maximum_object_size.get_type());
+			string actual_type = py::str(py::type::of(maximum_object_size));
 			throw BinderException("read_json only accepts 'maximum_object_size' as an unsigned integer, not '%s'",
 			                      actual_type);
 		}
@@ -863,7 +936,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 
 	if (!py::none().is(ignore_errors)) {
 		if (!py::isinstance<py::bool_>(ignore_errors)) {
-			string actual_type = py::str(ignore_errors.get_type());
+			string actual_type = py::str(py::type::of(ignore_errors));
 			throw BinderException("read_json only accepts 'ignore_errors' as a boolean, not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(ignore_errors, LogicalTypeId::BOOLEAN);
@@ -872,7 +945,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 
 	if (!py::none().is(convert_strings_to_integers)) {
 		if (!py::isinstance<py::bool_>(convert_strings_to_integers)) {
-			string actual_type = py::str(convert_strings_to_integers.get_type());
+			string actual_type = py::str(py::type::of(convert_strings_to_integers));
 			throw BinderException("read_json only accepts 'convert_strings_to_integers' as a boolean, not '%s'",
 			                      actual_type);
 		}
@@ -882,7 +955,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 
 	if (!py::none().is(field_appearance_threshold)) {
 		if (!py::isinstance<py::float_>(field_appearance_threshold)) {
-			string actual_type = py::str(field_appearance_threshold.get_type());
+			string actual_type = py::str(py::type::of(field_appearance_threshold));
 			throw BinderException("read_json only accepts 'field_appearance_threshold' as a float, not '%s'",
 			                      actual_type);
 		}
@@ -892,7 +965,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 
 	if (!py::none().is(map_inference_threshold)) {
 		if (!py::isinstance<py::int_>(map_inference_threshold)) {
-			string actual_type = py::str(map_inference_threshold.get_type());
+			string actual_type = py::str(py::type::of(map_inference_threshold));
 			throw BinderException("read_json only accepts 'map_inference_threshold' as an integer, not '%s'",
 			                      actual_type);
 		}
@@ -902,7 +975,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 
 	if (!py::none().is(maximum_sample_files)) {
 		if (!py::isinstance<py::int_>(maximum_sample_files)) {
-			string actual_type = py::str(maximum_sample_files.get_type());
+			string actual_type = py::str(py::type::of(maximum_sample_files));
 			throw BinderException("read_json only accepts 'maximum_sample_files' as an integer, not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(maximum_sample_files, LogicalTypeId::BIGINT);
@@ -925,7 +998,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadJSON(
 	if (file_like_object_wrapper) {
 		read_json_relation->AddExternalDependency(std::move(file_like_object_wrapper));
 	}
-	return make_uniq<DuckDBPyRelation>(std::move(read_json_relation));
+	return CreateRelation(std::move(read_json_relation));
 }
 
 PathLike DuckDBPyConnection::GetPathLike(const py::object &object) {
@@ -1355,7 +1428,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 	if (!py::none().is(lineterminator)) {
 		PythonCSVLineTerminator::Type new_line_type;
 		if (!py::try_cast<PythonCSVLineTerminator::Type>(lineterminator, new_line_type)) {
-			string actual_type = py::str(lineterminator.get_type());
+			string actual_type = py::str(py::type::of(lineterminator));
 			throw BinderException("read_csv only accepts 'lineterminator' as a string or CSVLineTerminator, not '%s'",
 			                      actual_type);
 		}
@@ -1364,7 +1437,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 
 	if (!py::none().is(max_line_size)) {
 		if (!py::isinstance<py::str>(max_line_size) && !py::isinstance<py::int_>(max_line_size)) {
-			string actual_type = py::str(max_line_size.get_type());
+			string actual_type = py::str(py::type::of(max_line_size));
 			throw BinderException("read_csv only accepts 'max_line_size' as a string or an integer, not '%s'",
 			                      actual_type);
 		}
@@ -1374,7 +1447,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 
 	if (!py::none().is(auto_type_candidates)) {
 		if (!py::isinstance<py::list>(auto_type_candidates)) {
-			string actual_type = py::str(auto_type_candidates.get_type());
+			string actual_type = py::str(py::type::of(auto_type_candidates));
 			throw BinderException("read_csv only accepts 'auto_type_candidates' as a list[str], not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(auto_type_candidates, LogicalType::LIST(LogicalTypeId::VARCHAR));
@@ -1383,7 +1456,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 
 	if (!py::none().is(ignore_errors)) {
 		if (!py::isinstance<py::bool_>(ignore_errors)) {
-			string actual_type = py::str(ignore_errors.get_type());
+			string actual_type = py::str(py::type::of(ignore_errors));
 			throw BinderException("read_csv only accepts 'ignore_errors' as a bool, not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(ignore_errors, LogicalTypeId::BOOLEAN);
@@ -1392,7 +1465,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 
 	if (!py::none().is(store_rejects)) {
 		if (!py::isinstance<py::bool_>(store_rejects)) {
-			string actual_type = py::str(store_rejects.get_type());
+			string actual_type = py::str(py::type::of(store_rejects));
 			throw BinderException("read_csv only accepts 'store_rejects' as a bool, not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(store_rejects, LogicalTypeId::BOOLEAN);
@@ -1401,7 +1474,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 
 	if (!py::none().is(rejects_table)) {
 		if (!py::isinstance<py::str>(rejects_table)) {
-			string actual_type = py::str(rejects_table.get_type());
+			string actual_type = py::str(py::type::of(rejects_table));
 			throw BinderException("read_csv only accepts 'rejects_table' as a string, not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(rejects_table, LogicalTypeId::VARCHAR);
@@ -1410,7 +1483,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 
 	if (!py::none().is(rejects_scan)) {
 		if (!py::isinstance<py::str>(rejects_scan)) {
-			string actual_type = py::str(rejects_scan.get_type());
+			string actual_type = py::str(py::type::of(rejects_scan));
 			throw BinderException("read_csv only accepts 'rejects_scan' as a string, not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(rejects_scan, LogicalTypeId::VARCHAR);
@@ -1419,7 +1492,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 
 	if (!py::none().is(rejects_limit)) {
 		if (!py::isinstance<py::int_>(rejects_limit)) {
-			string actual_type = py::str(rejects_limit.get_type());
+			string actual_type = py::str(py::type::of(rejects_limit));
 			throw BinderException("read_csv only accepts 'rejects_limit' as an int, not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(rejects_limit, LogicalTypeId::BIGINT);
@@ -1428,7 +1501,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 
 	if (!py::none().is(force_not_null)) {
 		if (!py::isinstance<py::list>(force_not_null)) {
-			string actual_type = py::str(force_not_null.get_type());
+			string actual_type = py::str(py::type::of(force_not_null));
 			throw BinderException("read_csv only accepts 'force_not_null' as a list[str], not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(force_not_null, LogicalType::LIST(LogicalTypeId::VARCHAR));
@@ -1437,7 +1510,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 
 	if (!py::none().is(buffer_size)) {
 		if (!py::isinstance<py::int_>(buffer_size)) {
-			string actual_type = py::str(buffer_size.get_type());
+			string actual_type = py::str(py::type::of(buffer_size));
 			throw BinderException("read_csv only accepts 'buffer_size' as a list[str], not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(buffer_size, LogicalTypeId::UBIGINT);
@@ -1446,7 +1519,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 
 	if (!py::none().is(decimal)) {
 		if (!py::isinstance<py::str>(decimal)) {
-			string actual_type = py::str(decimal.get_type());
+			string actual_type = py::str(py::type::of(decimal));
 			throw BinderException("read_csv only accepts 'decimal' as a string, not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(decimal, LogicalTypeId::VARCHAR);
@@ -1455,7 +1528,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 
 	if (!py::none().is(allow_quoted_nulls)) {
 		if (!py::isinstance<py::bool_>(allow_quoted_nulls)) {
-			string actual_type = py::str(allow_quoted_nulls.get_type());
+			string actual_type = py::str(py::type::of(allow_quoted_nulls));
 			throw BinderException("read_csv only accepts 'allow_quoted_nulls' as a bool, not '%s'", actual_type);
 		}
 		auto val = TransformPythonValue(allow_quoted_nulls, LogicalTypeId::BOOLEAN);
@@ -1473,11 +1546,11 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 			auto &column_name = kv.first;
 			auto &type = kv.second;
 			if (!py::isinstance<py::str>(column_name)) {
-				string actual_type = py::str(column_name.get_type());
+				string actual_type = py::str(py::type::of(column_name));
 				throw BinderException("The provided column name must be a str, not of type '%s'", actual_type);
 			}
 			if (!py::isinstance<py::str>(type)) {
-				string actual_type = py::str(column_name.get_type());
+				string actual_type = py::str(py::type::of(column_name));
 				throw BinderException("The provided column type must be a str, not of type '%s'", actual_type);
 			}
 			struct_fields.emplace_back(py::str(column_name), Value(py::str(type)));
@@ -1496,7 +1569,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::ReadCSV(const py::object &name_
 		read_csv.AddExternalDependency(std::move(file_like_object_wrapper));
 	}
 
-	return make_uniq<DuckDBPyRelation>(read_csv_p->Alias(read_csv.alias));
+	return CreateRelation(read_csv_p->Alias(read_csv.alias));
 }
 
 void DuckDBPyConnection::ExecuteImmediately(vector<unique_ptr<SQLStatement>> statements) {
@@ -1543,8 +1616,9 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::RunQuery(const py::object &quer
 
 	// Attempt to create a Relation for lazy execution if possible
 	shared_ptr<Relation> relation;
-	if (py::none().is(params)) {
-		// FIXME: currently we can't create relations with prepared parameters
+	bool has_params = !py::none().is(params) && py::len(params) > 0;
+	if (!has_params) {
+		// No params (or empty params) — use lazy QueryRelation path
 		{
 			D_ASSERT(py::gil_check());
 			py::gil_scoped_release gil;
@@ -1581,7 +1655,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::RunQuery(const py::object &quer
 		relation = make_shared_ptr<MaterializedRelation>(connection.context, materialized_result.TakeCollection(),
 		                                                 res->names, alias);
 	}
-	return make_uniq<DuckDBPyRelation>(std::move(relation));
+	return CreateRelation(std::move(relation));
 }
 
 unique_ptr<DuckDBPyRelation> DuckDBPyConnection::Table(const string &tname) {
@@ -1591,8 +1665,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::Table(const string &tname) {
 		qualified_name.schema = DEFAULT_SCHEMA;
 	}
 	try {
-		return make_uniq<DuckDBPyRelation>(
-		    connection.Table(qualified_name.catalog, qualified_name.schema, qualified_name.name));
+		return CreateRelation(connection.Table(qualified_name.catalog, qualified_name.schema, qualified_name.name));
 	} catch (const CatalogException &) {
 		// CatalogException will be of the type '... is not a table'
 		// Not a table in the database, make a query relation that can perform replacement scans
@@ -1631,7 +1704,7 @@ static vector<vector<unique_ptr<ParsedExpression>>> ValueListsFromTuples(const p
 	for (idx_t i = 0; i < arg_count; i++) {
 		py::handle arg = tuples[i];
 		if (!py::isinstance<py::tuple>(arg)) {
-			string actual_type = py::str(arg.get_type());
+			string actual_type = py::str(py::type::of(arg));
 			throw InvalidInputException("Expected objects of type tuple, not %s", actual_type);
 		}
 		auto expressions = py::cast<py::args>(arg);
@@ -1658,7 +1731,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::Values(const py::args &args) {
 	py::handle first_arg = args[0];
 	if (arg_count == 1 && py::isinstance<py::list>(first_arg)) {
 		vector<vector<Value>> values {DuckDBPyConnection::TransformPythonParamList(first_arg)};
-		return make_uniq<DuckDBPyRelation>(connection.Values(values));
+		return CreateRelation(connection.Values(values));
 	} else {
 		vector<vector<unique_ptr<ParsedExpression>>> expressions;
 		if (py::isinstance<py::tuple>(first_arg)) {
@@ -1667,13 +1740,13 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::Values(const py::args &args) {
 			auto values = ValueListFromExpressions(args);
 			expressions.push_back(std::move(values));
 		}
-		return make_uniq<DuckDBPyRelation>(connection.Values(std::move(expressions)));
+		return CreateRelation(connection.Values(std::move(expressions)));
 	}
 }
 
 unique_ptr<DuckDBPyRelation> DuckDBPyConnection::View(const string &vname) {
 	auto &connection = con.GetConnection();
-	return make_uniq<DuckDBPyRelation>(connection.View(vname));
+	return CreateRelation(connection.View(vname));
 }
 
 unique_ptr<DuckDBPyRelation> DuckDBPyConnection::TableFunction(const string &fname, py::object params) {
@@ -1685,8 +1758,7 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::TableFunction(const string &fna
 		throw InvalidInputException("'params' has to be a list of parameters");
 	}
 
-	return make_uniq<DuckDBPyRelation>(
-	    connection.TableFunction(fname, DuckDBPyConnection::TransformPythonParamList(params)));
+	return CreateRelation(connection.TableFunction(fname, DuckDBPyConnection::TransformPythonParamList(params)));
 }
 
 unique_ptr<DuckDBPyRelation> DuckDBPyConnection::FromDF(const PandasDataFrame &value) {
@@ -1699,17 +1771,24 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::FromDF(const PandasDataFrame &v
 	auto tableref = PythonReplacementScan::ReplacementObject(value, name, *connection.context);
 	D_ASSERT(tableref);
 	auto rel = make_shared_ptr<ViewRelation>(connection.context, std::move(tableref), name);
-	return make_uniq<DuckDBPyRelation>(std::move(rel));
+	return CreateRelation(std::move(rel));
 }
 
-unique_ptr<DuckDBPyRelation> DuckDBPyConnection::FromParquetInternal(Value &&file_param, bool binary_as_string,
-                                                                     bool file_row_number, bool filename,
-                                                                     bool hive_partitioning, bool union_by_name,
-                                                                     const py::object &compression) {
+unique_ptr<DuckDBPyRelation> DuckDBPyConnection::FromParquet(const py::object &path_or_buffer, bool binary_as_string,
+                                                             bool file_row_number, bool filename,
+                                                             bool hive_partitioning, bool union_by_name,
+                                                             const py::object &compression) {
 	auto &connection = con.GetConnection();
+	auto path_like = GetPathLike(path_or_buffer);
+	auto file_like_object_wrapper = std::move(path_like.dependency);
+
 	string name = "parquet_" + StringUtil::GenerateRandomName();
+	vector<Value> file_values;
+	for (auto &file : path_like.files) {
+		file_values.emplace_back(std::move(file));
+	}
 	vector<Value> params;
-	params.emplace_back(std::move(file_param));
+	params.emplace_back(Value::LIST(LogicalType::VARCHAR, std::move(file_values)));
 	named_parameter_map_t named_parameters({{"binary_as_string", Value::BOOLEAN(binary_as_string)},
 	                                        {"file_row_number", Value::BOOLEAN(file_row_number)},
 	                                        {"filename", Value::BOOLEAN(filename)},
@@ -1724,43 +1803,24 @@ unique_ptr<DuckDBPyRelation> DuckDBPyConnection::FromParquetInternal(Value &&fil
 	}
 	D_ASSERT(py::gil_check());
 	py::gil_scoped_release gil;
-	return make_uniq<DuckDBPyRelation>(connection.TableFunction("parquet_scan", params, named_parameters)->Alias(name));
-}
-
-unique_ptr<DuckDBPyRelation> DuckDBPyConnection::FromParquet(const string &file_glob, bool binary_as_string,
-                                                             bool file_row_number, bool filename,
-                                                             bool hive_partitioning, bool union_by_name,
-                                                             const py::object &compression) {
-	auto file_param = Value(file_glob);
-	return FromParquetInternal(std::move(file_param), binary_as_string, file_row_number, filename, hive_partitioning,
-	                           union_by_name, compression);
-}
-
-unique_ptr<DuckDBPyRelation> DuckDBPyConnection::FromParquets(const vector<string> &file_globs, bool binary_as_string,
-                                                              bool file_row_number, bool filename,
-                                                              bool hive_partitioning, bool union_by_name,
-                                                              const py::object &compression) {
-	vector<Value> params;
-	auto file_globs_as_value = vector<Value>();
-	for (const auto &file : file_globs) {
-		file_globs_as_value.emplace_back(file);
+	auto parquet_relation = connection.TableFunction("parquet_scan", params, named_parameters);
+	if (file_like_object_wrapper) {
+		parquet_relation->AddExternalDependency(std::move(file_like_object_wrapper));
 	}
-	auto file_param = Value::LIST(file_globs_as_value);
-	return FromParquetInternal(std::move(file_param), binary_as_string, file_row_number, filename, hive_partitioning,
-	                           union_by_name, compression);
+	return CreateRelation(parquet_relation->Alias(name));
 }
 
 unique_ptr<DuckDBPyRelation> DuckDBPyConnection::FromArrow(py::object &arrow_object) {
 	auto &connection = con.GetConnection();
 	string name = "arrow_object_" + StringUtil::GenerateRandomName();
 	if (!IsAcceptedArrowObject(arrow_object)) {
-		auto py_object_type = string(py::str(arrow_object.get_type().attr("__name__")));
+		auto py_object_type = string(py::str(py::type::of(arrow_object).attr("__name__")));
 		throw InvalidInputException("Python Object Type %s is not an accepted Arrow Object.", py_object_type);
 	}
 	auto tableref = PythonReplacementScan::ReplacementObject(arrow_object, name, *connection.context, true);
 	D_ASSERT(tableref);
 	auto rel = make_shared_ptr<ViewRelation>(connection.context, std::move(tableref), name);
-	return make_uniq<DuckDBPyRelation>(std::move(rel));
+	return CreateRelation(std::move(rel));
 }
 
 unordered_set<string> DuckDBPyConnection::GetTableNames(const string &query, bool qualified) {
@@ -1807,6 +1867,7 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Checkpoint() {
 }
 
 Optional<py::list> DuckDBPyConnection::GetDescription() {
+	ConnectionLockGuard conn_lock(*this);
 	if (!con.HasResult()) {
 		return py::none();
 	}
@@ -1819,11 +1880,22 @@ int DuckDBPyConnection::GetRowcount() {
 }
 
 void DuckDBPyConnection::Close() {
+	ConnectionLockGuard conn_lock(*this);
 	con.SetResult(nullptr);
 	D_ASSERT(py::gil_check());
-	py::gil_scoped_release release;
-	con.SetConnection(nullptr);
-	con.SetDatabase(nullptr);
+	// Release the GIL only for the native Connection / DuckDB teardown, which
+	// is pure C++ work and can take noticeable time. Hold the GIL back for
+	// `registered_functions.clear()` because the
+	// `case_insensitive_map_t<unique_ptr<ExternalDependency>>` it destroys
+	// transitively owns pybind-managed Python references (Python UDF
+	// callables, registered Python objects, …). Decrementing those
+	// references with the GIL released is undefined behaviour — see
+	// duckdb-python#456.
+	{
+		py::gil_scoped_release release;
+		con.SetConnection(nullptr);
+		con.SetDatabase(nullptr);
+	}
 	// https://peps.python.org/pep-0249/#Connection.close
 	cursors.ClearCursors();
 	registered_functions.clear();
@@ -1953,7 +2025,13 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Cursor() {
 }
 
 // these should be functions on the result but well
+//
+// All of the connection-level fetch methods below take `py_connection_lock`
+// before touching `con.GetResult()`, so that another thread cannot replace
+// or destroy the connection's current result while we are mid-fetch — see
+// duckdb-python#435.
 Optional<py::tuple> DuckDBPyConnection::FetchOne() {
+	ConnectionLockGuard conn_lock(*this);
 	if (!con.HasResult()) {
 		throw InvalidInputException("No open result set");
 	}
@@ -1962,6 +2040,7 @@ Optional<py::tuple> DuckDBPyConnection::FetchOne() {
 }
 
 py::list DuckDBPyConnection::FetchMany(idx_t size) {
+	ConnectionLockGuard conn_lock(*this);
 	if (!con.HasResult()) {
 		throw InvalidInputException("No open result set");
 	}
@@ -1970,6 +2049,7 @@ py::list DuckDBPyConnection::FetchMany(idx_t size) {
 }
 
 py::list DuckDBPyConnection::FetchAll() {
+	ConnectionLockGuard conn_lock(*this);
 	if (!con.HasResult()) {
 		throw InvalidInputException("No open result set");
 	}
@@ -1978,6 +2058,7 @@ py::list DuckDBPyConnection::FetchAll() {
 }
 
 py::dict DuckDBPyConnection::FetchNumpy() {
+	ConnectionLockGuard conn_lock(*this);
 	if (!con.HasResult()) {
 		throw InvalidInputException("No open result set");
 	}
@@ -1986,6 +2067,7 @@ py::dict DuckDBPyConnection::FetchNumpy() {
 }
 
 PandasDataFrame DuckDBPyConnection::FetchDF(bool date_as_object) {
+	ConnectionLockGuard conn_lock(*this);
 	if (!con.HasResult()) {
 		throw InvalidInputException("No open result set");
 	}
@@ -1994,6 +2076,7 @@ PandasDataFrame DuckDBPyConnection::FetchDF(bool date_as_object) {
 }
 
 PandasDataFrame DuckDBPyConnection::FetchDFChunk(const idx_t vectors_per_chunk, bool date_as_object) {
+	ConnectionLockGuard conn_lock(*this);
 	if (!con.HasResult()) {
 		throw InvalidInputException("No open result set");
 	}
@@ -2002,6 +2085,7 @@ PandasDataFrame DuckDBPyConnection::FetchDFChunk(const idx_t vectors_per_chunk, 
 }
 
 duckdb::pyarrow::Table DuckDBPyConnection::FetchArrow(idx_t rows_per_batch) {
+	ConnectionLockGuard conn_lock(*this);
 	if (!con.HasResult()) {
 		throw InvalidInputException("No open result set");
 	}
@@ -2010,6 +2094,7 @@ duckdb::pyarrow::Table DuckDBPyConnection::FetchArrow(idx_t rows_per_batch) {
 }
 
 py::dict DuckDBPyConnection::FetchPyTorch() {
+	ConnectionLockGuard conn_lock(*this);
 	if (!con.HasResult()) {
 		throw InvalidInputException("No open result set");
 	}
@@ -2018,6 +2103,7 @@ py::dict DuckDBPyConnection::FetchPyTorch() {
 }
 
 py::dict DuckDBPyConnection::FetchTF() {
+	ConnectionLockGuard conn_lock(*this);
 	if (!con.HasResult()) {
 		throw InvalidInputException("No open result set");
 	}
@@ -2026,6 +2112,7 @@ py::dict DuckDBPyConnection::FetchTF() {
 }
 
 PolarsDataFrame DuckDBPyConnection::FetchPolars(idx_t rows_per_batch, bool lazy) {
+	ConnectionLockGuard conn_lock(*this);
 	if (!con.HasResult()) {
 		throw InvalidInputException("No open result set");
 	}
@@ -2034,6 +2121,7 @@ PolarsDataFrame DuckDBPyConnection::FetchPolars(idx_t rows_per_batch, bool lazy)
 }
 
 duckdb::pyarrow::RecordBatchReader DuckDBPyConnection::FetchRecordBatchReader(const idx_t rows_per_batch) {
+	ConnectionLockGuard conn_lock(*this);
 	if (!con.HasResult()) {
 		throw InvalidInputException("No open result set");
 	}
@@ -2113,7 +2201,7 @@ static shared_ptr<DuckDBPyConnection> FetchOrCreateInstance(const string &databa
 	{
 		D_ASSERT(py::gil_check());
 		py::gil_scoped_release release;
-		unique_lock<mutex> lock(res->py_connection_lock);
+		unique_lock<std::recursive_mutex> lock(res->py_connection_lock);
 		auto database =
 		    instance_cache.GetOrCreateInstance(database_path, config, cache_instance, InstantiateNewInstance);
 		res->con.SetDatabase(std::move(database));
@@ -2140,7 +2228,7 @@ static string GetPathString(const py::object &path) {
 	if (is_path || py::isinstance<py::str>(path)) {
 		return std::string(py::str(path));
 	}
-	string actual_type = py::str(path.get_type());
+	string actual_type = py::str(py::type::of(path));
 	throw InvalidInputException("Please provide either a str or a pathlib.Path, not %s", actual_type);
 }
 
@@ -2326,26 +2414,16 @@ PyArrowObjectType DuckDBPyConnection::GetArrowType(const py::handle &obj) {
 
 	if (ModuleIsLoaded<PyarrowCacheItem>()) {
 		auto &import_cache = *DuckDBPyConnection::ImportCache();
-		// First Verify Lib Types
-		auto table_class = import_cache.pyarrow.Table();
-		auto record_batch_reader_class = import_cache.pyarrow.RecordBatchReader();
-		auto message_reader_class = import_cache.pyarrow.ipc.MessageReader();
-		if (py::isinstance(obj, table_class)) {
-			return PyArrowObjectType::Table;
-		} else if (py::isinstance(obj, record_batch_reader_class)) {
-			return PyArrowObjectType::RecordBatchReader;
-		} else if (py::isinstance(obj, message_reader_class)) {
+		// MessageReader requires nanoarrow, separate scan function
+		if (py::isinstance(obj, import_cache.pyarrow.ipc.MessageReader())) {
 			return PyArrowObjectType::MessageReader;
 		}
 
 		if (ModuleIsLoaded<PyarrowDatasetCacheItem>()) {
-			// Then Verify dataset types
-			auto dataset_class = import_cache.pyarrow.dataset.Dataset();
-			auto scanner_class = import_cache.pyarrow.dataset.Scanner();
-
-			if (py::isinstance(obj, scanner_class)) {
+			// Scanner/Dataset don't have __arrow_c_stream__, need dedicated handling
+			if (py::isinstance(obj, import_cache.pyarrow.dataset.Scanner())) {
 				return PyArrowObjectType::Scanner;
-			} else if (py::isinstance(obj, dataset_class)) {
+			} else if (py::isinstance(obj, import_cache.pyarrow.dataset.Dataset())) {
 				return PyArrowObjectType::Dataset;
 			}
 		}

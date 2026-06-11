@@ -48,6 +48,7 @@ static idx_t GetNumpyTypeWidth(const LogicalType &type) {
 	case LogicalTypeId::TIMESTAMP_TZ:
 		return sizeof(int64_t);
 	case LogicalTypeId::TIME:
+	case LogicalTypeId::TIME_NS:
 	case LogicalTypeId::TIME_TZ:
 	case LogicalTypeId::VARCHAR:
 	case LogicalTypeId::BIT:
@@ -59,6 +60,8 @@ static idx_t GetNumpyTypeWidth(const LogicalType &type) {
 	case LogicalTypeId::UNION:
 	case LogicalTypeId::UUID:
 	case LogicalTypeId::ARRAY:
+	case LogicalTypeId::VARIANT:
+	case LogicalTypeId::GEOMETRY:
 		return sizeof(PyObject *);
 	default:
 		throw NotImplementedException("Unsupported type \"%s\" for DuckDB -> NumPy conversion", type.ToString());
@@ -108,8 +111,9 @@ string RawArrayWrapper::DuckDBToNumpyDtype(const LogicalType &type) {
 	case LogicalTypeId::DATE:
 		return "datetime64[us]";
 	case LogicalTypeId::INTERVAL:
-		return "timedelta64[ns]";
+		return "timedelta64[us]";
 	case LogicalTypeId::TIME:
+	case LogicalTypeId::TIME_NS:
 	case LogicalTypeId::TIME_TZ:
 	case LogicalTypeId::VARCHAR:
 	case LogicalTypeId::BIT:
@@ -120,6 +124,8 @@ string RawArrayWrapper::DuckDBToNumpyDtype(const LogicalType &type) {
 	case LogicalTypeId::UNION:
 	case LogicalTypeId::UUID:
 	case LogicalTypeId::ARRAY:
+	case LogicalTypeId::VARIANT:
+	case LogicalTypeId::GEOMETRY:
 		return "object";
 	case LogicalTypeId::ENUM: {
 		auto size = EnumType::GetSize(type);

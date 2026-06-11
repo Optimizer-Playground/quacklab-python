@@ -125,6 +125,34 @@ static void InitializeConnectionMethods(py::module_ &m) {
 	    "Check if a filesystem with the provided name is currently registered", py::arg("name"), py::kw_only(),
 	    py::arg("connection") = py::none());
 	m.def(
+	    "get_profiling_information",
+	    [](const py::str &format, shared_ptr<DuckDBPyConnection> conn = nullptr) {
+		    if (!conn) {
+			    conn = DuckDBPyConnection::DefaultConnection();
+		    }
+		    return conn->GetProfilingInformation(format);
+	    },
+	    "Get profiling information from a query", py::kw_only(), py::arg("format") = "json",
+	    py::arg("connection") = py::none());
+	m.def(
+	    "enable_profiling",
+	    [](shared_ptr<DuckDBPyConnection> conn = nullptr) {
+		    if (!conn) {
+			    conn = DuckDBPyConnection::DefaultConnection();
+		    }
+		    return conn->EnableProfiling();
+	    },
+	    "Enable profiling for the current connection", py::kw_only(), py::arg("connection") = py::none());
+	m.def(
+	    "disable_profiling",
+	    [](shared_ptr<DuckDBPyConnection> conn = nullptr) {
+		    if (!conn) {
+			    conn = DuckDBPyConnection::DefaultConnection();
+		    }
+		    return conn->DisableProfiling();
+	    },
+	    "Disable profiling for the current connection", py::kw_only(), py::arg("connection") = py::none());
+	m.def(
 	    "create_function",
 	    [](const string &name, const py::function &udf, const py::object &arguments = py::none(),
 	       const shared_ptr<DuckDBPyType> &return_type = nullptr, PythonUDFType type = PythonUDFType::NATIVE,
@@ -418,11 +446,33 @@ static void InitializeConnectionMethods(py::module_ &m) {
 	    "Fetch a result as Polars DataFrame following execute()", py::arg("rows_per_batch") = 1000000, py::kw_only(),
 	    py::arg("lazy") = false, py::arg("connection") = py::none());
 	m.def(
+	    "to_arrow_table",
+	    [](idx_t batch_size, shared_ptr<DuckDBPyConnection> conn = nullptr) {
+		    if (!conn) {
+			    conn = DuckDBPyConnection::DefaultConnection();
+		    }
+		    return conn->FetchArrow(batch_size);
+	    },
+	    "Fetch a result as Arrow table following execute()", py::arg("batch_size") = 1000000, py::kw_only(),
+	    py::arg("connection") = py::none());
+	m.def(
+	    "to_arrow_reader",
+	    [](idx_t batch_size, shared_ptr<DuckDBPyConnection> conn = nullptr) {
+		    if (!conn) {
+			    conn = DuckDBPyConnection::DefaultConnection();
+		    }
+		    return conn->FetchRecordBatchReader(batch_size);
+	    },
+	    "Fetch an Arrow RecordBatchReader following execute()", py::arg("batch_size") = 1000000, py::kw_only(),
+	    py::arg("connection") = py::none());
+	m.def(
 	    "fetch_arrow_table",
 	    [](idx_t rows_per_batch, shared_ptr<DuckDBPyConnection> conn = nullptr) {
 		    if (!conn) {
 			    conn = DuckDBPyConnection::DefaultConnection();
 		    }
+		    PyErr_WarnEx(PyExc_DeprecationWarning, "fetch_arrow_table() is deprecated, use to_arrow_table() instead.",
+		                 0);
 		    return conn->FetchArrow(rows_per_batch);
 	    },
 	    "Fetch a result as Arrow table following execute()", py::arg("rows_per_batch") = 1000000, py::kw_only(),
@@ -433,16 +483,8 @@ static void InitializeConnectionMethods(py::module_ &m) {
 		    if (!conn) {
 			    conn = DuckDBPyConnection::DefaultConnection();
 		    }
-		    return conn->FetchRecordBatchReader(rows_per_batch);
-	    },
-	    "Fetch an Arrow RecordBatchReader following execute()", py::arg("rows_per_batch") = 1000000, py::kw_only(),
-	    py::arg("connection") = py::none());
-	m.def(
-	    "arrow",
-	    [](const idx_t rows_per_batch, shared_ptr<DuckDBPyConnection> conn = nullptr) {
-		    if (!conn) {
-			    conn = DuckDBPyConnection::DefaultConnection();
-		    }
+		    PyErr_WarnEx(PyExc_DeprecationWarning, "fetch_record_batch() is deprecated, use to_arrow_reader() instead.",
+		                 0);
 		    return conn->FetchRecordBatchReader(rows_per_batch);
 	    },
 	    "Fetch an Arrow RecordBatchReader following execute()", py::arg("rows_per_batch") = 1000000, py::kw_only(),
@@ -706,64 +748,34 @@ static void InitializeConnectionMethods(py::module_ &m) {
 	    py::arg("connection") = py::none());
 	m.def(
 	    "from_parquet",
-	    [](const string &file_glob, bool binary_as_string, bool file_row_number, bool filename, bool hive_partitioning,
-	       bool union_by_name, const py::object &compression = py::none(),
-	       shared_ptr<DuckDBPyConnection> conn = nullptr) {
-		    if (!conn) {
-			    conn = DuckDBPyConnection::DefaultConnection();
-		    }
-		    return conn->FromParquet(file_glob, binary_as_string, file_row_number, filename, hive_partitioning,
-		                             union_by_name, compression);
-	    },
-	    "Create a relation object from the Parquet files in file_glob", py::arg("file_glob"),
-	    py::arg("binary_as_string") = false, py::kw_only(), py::arg("file_row_number") = false,
-	    py::arg("filename") = false, py::arg("hive_partitioning") = false, py::arg("union_by_name") = false,
-	    py::arg("compression") = py::none(), py::arg("connection") = py::none());
-	m.def(
-	    "read_parquet",
-	    [](const string &file_glob, bool binary_as_string, bool file_row_number, bool filename, bool hive_partitioning,
-	       bool union_by_name, const py::object &compression = py::none(),
-	       shared_ptr<DuckDBPyConnection> conn = nullptr) {
-		    if (!conn) {
-			    conn = DuckDBPyConnection::DefaultConnection();
-		    }
-		    return conn->FromParquet(file_glob, binary_as_string, file_row_number, filename, hive_partitioning,
-		                             union_by_name, compression);
-	    },
-	    "Create a relation object from the Parquet files in file_glob", py::arg("file_glob"),
-	    py::arg("binary_as_string") = false, py::kw_only(), py::arg("file_row_number") = false,
-	    py::arg("filename") = false, py::arg("hive_partitioning") = false, py::arg("union_by_name") = false,
-	    py::arg("compression") = py::none(), py::arg("connection") = py::none());
-	m.def(
-	    "from_parquet",
-	    [](const vector<string> &file_globs, bool binary_as_string, bool file_row_number, bool filename,
+	    [](const py::object &path_or_buffer, bool binary_as_string, bool file_row_number, bool filename,
 	       bool hive_partitioning, bool union_by_name, const py::object &compression = py::none(),
 	       shared_ptr<DuckDBPyConnection> conn = nullptr) {
 		    if (!conn) {
 			    conn = DuckDBPyConnection::DefaultConnection();
 		    }
-		    return conn->FromParquets(file_globs, binary_as_string, file_row_number, filename, hive_partitioning,
-		                              union_by_name, compression);
+		    return conn->FromParquet(path_or_buffer, binary_as_string, file_row_number, filename, hive_partitioning,
+		                             union_by_name, compression);
 	    },
-	    "Create a relation object from the Parquet files in file_globs", py::arg("file_globs"),
-	    py::arg("binary_as_string") = false, py::kw_only(), py::arg("file_row_number") = false,
-	    py::arg("filename") = false, py::arg("hive_partitioning") = false, py::arg("union_by_name") = false,
-	    py::arg("compression") = py::none(), py::arg("connection") = py::none());
+	    "Create a relation object from the Parquet path(s) or file-like object(s) in 'path_or_buffer'",
+	    py::arg("path_or_buffer"), py::arg("binary_as_string") = false, py::kw_only(),
+	    py::arg("file_row_number") = false, py::arg("filename") = false, py::arg("hive_partitioning") = false,
+	    py::arg("union_by_name") = false, py::arg("compression") = py::none(), py::arg("connection") = py::none());
 	m.def(
 	    "read_parquet",
-	    [](const vector<string> &file_globs, bool binary_as_string, bool file_row_number, bool filename,
+	    [](const py::object &path_or_buffer, bool binary_as_string, bool file_row_number, bool filename,
 	       bool hive_partitioning, bool union_by_name, const py::object &compression = py::none(),
 	       shared_ptr<DuckDBPyConnection> conn = nullptr) {
 		    if (!conn) {
 			    conn = DuckDBPyConnection::DefaultConnection();
 		    }
-		    return conn->FromParquets(file_globs, binary_as_string, file_row_number, filename, hive_partitioning,
-		                              union_by_name, compression);
+		    return conn->FromParquet(path_or_buffer, binary_as_string, file_row_number, filename, hive_partitioning,
+		                             union_by_name, compression);
 	    },
-	    "Create a relation object from the Parquet files in file_globs", py::arg("file_globs"),
-	    py::arg("binary_as_string") = false, py::kw_only(), py::arg("file_row_number") = false,
-	    py::arg("filename") = false, py::arg("hive_partitioning") = false, py::arg("union_by_name") = false,
-	    py::arg("compression") = py::none(), py::arg("connection") = py::none());
+	    "Create a relation object from the Parquet path(s) or file-like object(s) in 'path_or_buffer'",
+	    py::arg("path_or_buffer"), py::arg("binary_as_string") = false, py::kw_only(),
+	    py::arg("file_row_number") = false, py::arg("filename") = false, py::arg("hive_partitioning") = false,
+	    py::arg("union_by_name") = false, py::arg("compression") = py::none(), py::arg("connection") = py::none());
 	m.def(
 	    "get_table_names",
 	    [](const string &query, bool qualified, shared_ptr<DuckDBPyConnection> conn = nullptr) {
@@ -929,14 +941,14 @@ static void InitializeConnectionMethods(py::module_ &m) {
 	// We define these "wrapper" methods manually because they are overloaded
 	m.def(
 	    "arrow",
-	    [](idx_t rows_per_batch, shared_ptr<DuckDBPyConnection> conn) -> duckdb::pyarrow::Table {
+	    [](idx_t rows_per_batch, shared_ptr<DuckDBPyConnection> conn) -> duckdb::pyarrow::RecordBatchReader {
 		    if (!conn) {
 			    conn = DuckDBPyConnection::DefaultConnection();
 		    }
-		    return conn->FetchArrow(rows_per_batch);
+		    return conn->FetchRecordBatchReader(rows_per_batch);
 	    },
-	    "Fetch a result as Arrow table following execute()", py::arg("rows_per_batch") = 1000000, py::kw_only(),
-	    py::arg("connection") = py::none());
+	    "Alias of to_arrow_reader(). We recommend using to_arrow_reader() instead.",
+	    py::arg("rows_per_batch") = 1000000, py::kw_only(), py::arg("connection") = py::none());
 	m.def(
 	    "arrow",
 	    [](py::object &arrow_object, shared_ptr<DuckDBPyConnection> conn) -> unique_ptr<DuckDBPyRelation> {
@@ -1009,22 +1021,16 @@ static void RegisterExpectedResultType(py::handle &m) {
 }
 
 // ######################################################################
-// Symbol exports
+// Force inclusion of symbols that are not referenced by any code in the
+// Python module but must be present in the shared object.
 //
-// We want to limit the symbols we export to only the absolute minimum.
-// This means we compile with -fvisibility=hidden to hide all symbols,
-// and then explicitly export only the symbols we want.
+// duckdb_adbc_init: entrypoint for the ADBC driver. Not called from Python
+//   code, but loaded by adbc_driver_manager via dlsym/GetProcAddress.
 //
-// Right now we export two symbols only:
-// - duckdb_adbc_init: the entrypoint for our ADBC driver
-// - PyInit__duckdb: the entrypoint for the python extension
-//
-// All symbols that need exporting must be added to both the list below
-// AND to CMakeLists.txt.
+// Without this, the linker may strip these as dead code.
 extern "C" {
 PYBIND11_EXPORT void *_force_symbol_inclusion() {
 	static void *symbols[] = {
-	    // Add functions to export here
 	    (void *)&duckdb_adbc_init,
 	};
 	return symbols;
