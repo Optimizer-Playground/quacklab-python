@@ -13,7 +13,7 @@ import subprocess
 import sys
 from typing import ClassVar
 
-import _duckdb
+import _quacklab as _duckdb
 import pytest
 
 import quacklab
@@ -698,7 +698,7 @@ CHILD_TIMEOUT = 60
 
 REENTRANT_SCHEMA = """
 import json
-import _duckdb
+import _quacklab as _duckdb
 import quacklab
 import pyarrow as pa
 

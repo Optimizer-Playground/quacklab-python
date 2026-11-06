@@ -17,7 +17,8 @@ if(MSVC)
 endif()
 
 # Set the library name
-set(DUCKDB_PYTHON_LIB_NAME "_duckdb")
+# !!! quacklab: the extension module is _quacklab, so it cannot clash with an installed duckdb
+set(DUCKDB_PYTHON_LIB_NAME "_quacklab")
 
 # Detect CCache
 include(cmake/compiler_launcher.cmake)
@@ -155,6 +156,9 @@ target_compile_options(${DUCKDB_PY_NANOBIND} PRIVATE "${DUCKDB_PY_LTO_FLAG}")
 
 # Bundle in INTERFACE library
 add_library(_duckdb_dependencies INTERFACE)
+# !!! quacklab: NB_MODULE in duckdb_python.cpp takes the module name from this define
+target_compile_definitions(_duckdb_dependencies
+                           INTERFACE DUCKDB_PYTHON_LIB_NAME=${DUCKDB_PYTHON_LIB_NAME})
 target_link_libraries(_duckdb_dependencies INTERFACE ${DUCKDB_PY_NANOBIND}
                                                      duckdb_target)
 # Also add include directory
@@ -175,7 +179,7 @@ target_compile_options(_duckdb_dependencies INTERFACE "${DUCKDB_PY_LTO_FLAG}")
 
 # Optional AddressSanitizer instrumentation of the Python binding objects ONLY.
 # Every binding object library consumes _duckdb_dependencies (for headers) and
-# _duckdb links it, so adding the flag here instruments the bindings and links
+# the extension module links it, so adding the flag here instruments the bindings and links
 # the ASAN runtime, while the engine target (duckdb_target, which does NOT
 # consume this) stays uninstrumented and keeps hitting the sccache cache. ASAN's
 # allocator is process-global, so heap errors involving the instrumented binding
@@ -195,7 +199,7 @@ endif()
 add_subdirectory(src)
 
 nanobind_add_module(
-  _duckdb
+  ${DUCKDB_PYTHON_LIB_NAME}
   NB_STATIC
   ${DUCKDB_PY_STABLE_ABI}
   $<TARGET_OBJECTS:python_src>
@@ -210,15 +214,15 @@ nanobind_add_module(
   $<TARGET_OBJECTS:python_connection>
   $<TARGET_OBJECTS:python_type>)
 # add _duckdb_dependencies
-target_link_libraries(_duckdb PRIVATE _duckdb_dependencies)
-duckdb_python_link_extensions(_duckdb)
+target_link_libraries(${DUCKDB_PYTHON_LIB_NAME} PRIVATE _duckdb_dependencies)
+duckdb_python_link_extensions(${DUCKDB_PYTHON_LIB_NAME})
 if(DUCKDB_PY_LTO)
-  target_link_options(_duckdb PRIVATE "${DUCKDB_PY_LTO_FLAG}")
+  target_link_options(${DUCKDB_PYTHON_LIB_NAME} PRIVATE "${DUCKDB_PY_LTO_FLAG}")
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # lld's default ThinLTO job count ran the whole backend on one thread on
     # aarch64 (a 20 minute link that takes about a minute with every core).
     target_link_options(
-      _duckdb PRIVATE "$<${DUCKDB_PY_LTO_CONFIGS}:-fuse-ld=lld;-flto-jobs=all>")
+      ${DUCKDB_PYTHON_LIB_NAME} PRIVATE "$<${DUCKDB_PY_LTO_CONFIGS}:-fuse-ld=lld;-flto-jobs=all>")
   endif()
 endif()
 
@@ -241,4 +245,4 @@ else()
   set(_DUCKDB_PY_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}")
 endif()
 
-install(TARGETS _duckdb LIBRARY DESTINATION "${_DUCKDB_PY_INSTALL_DIR}")
+install(TARGETS ${DUCKDB_PYTHON_LIB_NAME} LIBRARY DESTINATION "${_DUCKDB_PY_INSTALL_DIR}")

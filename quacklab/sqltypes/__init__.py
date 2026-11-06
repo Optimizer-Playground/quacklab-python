@@ -1,6 +1,6 @@
 """DuckDB's SQL types."""
 
-from _duckdb._sqltypes import (
+from _quacklab._sqltypes import (
     BIGINT,
     BIT,
     BLOB,

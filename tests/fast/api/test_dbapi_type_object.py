@@ -468,7 +468,7 @@ RECREATED_AFTER_RELEASE_SCRIPT = """
 
     before = quacklab.default_connection()
     del quacklab._clean_default_connection
-    del sys.modules["_duckdb"]._clean_default_connection
+    del sys.modules["_quacklab"]._clean_default_connection
     after = quacklab.default_connection()
     assert after is not before
     assert quacklab.sql("SELECT 42").fetchall() == [(42,)]

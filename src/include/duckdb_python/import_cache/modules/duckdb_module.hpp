@@ -23,10 +23,10 @@ namespace duckdb {
 struct DuckdbPolarsioCacheItem : public PythonImportCacheItem {
 
 public:
-	static constexpr const char *Name = "duckdb.polars_io";
+	static constexpr const char *Name = "quacklab.polars_io"; // !!! quacklab: Python package name
 
 public:
-	DuckdbPolarsioCacheItem() : PythonImportCacheItem("duckdb.polars_io"), duckdb_source("duckdb_source", this) {
+	DuckdbPolarsioCacheItem() : PythonImportCacheItem("quacklab.polars_io"), duckdb_source("duckdb_source", this) {
 	}
 	~DuckdbPolarsioCacheItem() override {
 	}
@@ -42,11 +42,11 @@ protected:
 struct DuckdbFilesystemCacheItem : public PythonImportCacheItem {
 
 public:
-	static constexpr const char *Name = "duckdb.filesystem";
+	static constexpr const char *Name = "quacklab.filesystem"; // !!! quacklab: Python package name
 
 public:
 	DuckdbFilesystemCacheItem()
-	    : PythonImportCacheItem("duckdb.filesystem"), ModifiedMemoryFileSystem("ModifiedMemoryFileSystem", this) {
+	    : PythonImportCacheItem("quacklab.filesystem"), ModifiedMemoryFileSystem("ModifiedMemoryFileSystem", this) {
 	}
 	~DuckdbFilesystemCacheItem() override {
 	}
@@ -62,10 +62,10 @@ protected:
 struct DuckdbCacheItem : public PythonImportCacheItem {
 
 public:
-	static constexpr const char *Name = "duckdb";
+	static constexpr const char *Name = "quacklab"; // !!! quacklab: Python package name
 
 public:
-	DuckdbCacheItem() : PythonImportCacheItem("duckdb"), filesystem(), Value("Value", this), polars_io() {
+	DuckdbCacheItem() : PythonImportCacheItem("quacklab"), filesystem(), Value("Value", this), polars_io() {
 	}
 	~DuckdbCacheItem() override {
 	}

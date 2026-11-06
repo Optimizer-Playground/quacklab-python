@@ -10,7 +10,7 @@
 import importlib
 from importlib.metadata import version as _dist_version
 
-import _duckdb
+import _quacklab as _duckdb
 
 __version__: str = _dist_version("quacklab")
 """Version of the DuckDB Python Package."""

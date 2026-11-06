@@ -345,7 +345,7 @@ static void InitializeConnectionMethods(nb::class_<DuckDBPyConnection> &m) {
 	      "Register the passed Python Object value for querying with a view", nb::arg("view_name"),
 	      nb::arg("python_object"));
 	m.def("_register_arrow_source", &DuckDBPyConnection::RegisterArrowSource,
-	      "Register a source from duckdb._sources for querying with a view", nb::arg("view_name"), nb::arg("source"));
+	      "Register a source from quacklab._sources for querying with a view", nb::arg("view_name"), nb::arg("source"));
 	m.def("unregister", &DuckDBPyConnection::UnregisterPythonObject, "Unregister the view name", nb::arg("view_name"));
 	m.def("extract_statements", &DuckDBPyConnection::ExtractStatements,
 	      "Parse the query string and extract the Statement object(s) produced", nb::arg("query"));
@@ -1087,6 +1087,26 @@ nb::tuple DuckDBPyConnection::PrepareScript(const nb::object &query, const nb::o
 	if (location.offset != QueryLocation::INVALID_OFFSET && location.offset + location.length <= text.size()) {
 		text = text.substr(location.offset, location.length);
 	}
+	// !!! quacklab addition: the parser cuts each statement's text at its first keyword, so a comment right before the
+	// last statement is not part of it. A relation re-runs this text on every read and quacklab's optimizer hints live
+	// in such a leading comment, so the comments are taken back from the query. The last statement runs to the end of
+	// the query, which makes its text a suffix of the (normalized) query.
+	if (nb::isinstance<nb::str>(query)) {
+		auto full = Parser::NormalizeSQLString(nb::cast<std::string>(nb::str(query)));
+		if (text.size() <= full.size() && full.compare(full.size() - text.size(), text.size(), text) == 0) {
+			auto offset = full.size() - text.size();
+			auto start = offset;
+			auto preceding = Parser::Tokenize(full.substr(0, offset));
+			for (auto token = preceding.rbegin(); token != preceding.rend(); ++token) {
+				if (token->type != SimplifiedTokenType::SIMPLIFIED_TOKEN_COMMENT) {
+					break;
+				}
+				start = token->start;
+			}
+			text = full.substr(start);
+		}
+	}
+	// !!! end quacklab addition
 	// The text gets embedded in a larger statement, where a terminating semicolon would end it early
 	while (!text.empty() && (StringUtil::CharacterIsSpace(text.back()) || text.back() == ';')) {
 		text.pop_back();
@@ -1770,14 +1790,14 @@ static nb::object ArrowSourcesPart(const unique_ptr<PyObjectHolder> &part) {
 	if (!part) {
 		// A program can outlive Cleanup; the package is then taken from sys.modules again, never imported anew.
 		auto modules = nb::borrow<nb::dict>(PyImport_GetModuleDict());
-		auto sources = PyDict_GetItemString(modules.ptr(), "duckdb._sources");
+		auto sources = PyDict_GetItemString(modules.ptr(), "quacklab._sources"); // !!! quacklab: Python package name
 		if (sources) {
 			DuckDBPyConnection::SetArrowSources(nb::borrow(sources));
 		}
 	}
 	if (!part) {
 		throw InvalidInputException(
-		    "Python Arrow objects cannot be scanned: the duckdb package did not set up duckdb._sources");
+		    "Python Arrow objects cannot be scanned: the quacklab package did not set up quacklab._sources");
 	}
 	return part->obj;
 }

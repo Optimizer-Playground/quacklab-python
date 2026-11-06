@@ -41,8 +41,8 @@ def connect(path: str | None = None) -> adbc_driver_manager.AdbcDatabase:
 @functools.cache
 def driver_path() -> str:
     """Get the path to the DuckDB ADBC driver."""
-    duckdb_module_spec = importlib.util.find_spec("_duckdb")
+    duckdb_module_spec = importlib.util.find_spec("_quacklab")
     if duckdb_module_spec is None:
-        msg = "Could not find duckdb shared library. Did you pip install duckdb?"
+        msg = "Could not find the quacklab shared library. Did you pip install quacklab?"
         raise ImportError(msg)
     return duckdb_module_spec.origin

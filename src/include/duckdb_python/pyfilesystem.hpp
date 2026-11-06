@@ -21,7 +21,7 @@ public:
 		// Mirror AbstractFileSystem::check_ and report "not an instance" on any error.
 		try {
 			return duckdb::PyUtil::IsInstance(
-			    object, nb::module_::import_("duckdb.filesystem").attr("ModifiedMemoryFileSystem"));
+			    object, nb::module_::import_("quacklab.filesystem").attr("ModifiedMemoryFileSystem"));
 		} catch (...) {
 			return false;
 		}

@@ -9,11 +9,11 @@ import numpy as np
 
 adbc_driver_manager = pytest.importorskip("adbc_driver_manager")
 adbc_driver_manager_dbapi = pytest.importorskip("adbc_driver_manager.dbapi")
-adbc_driver_duckdb = pytest.importorskip("adbc_driver_duckdb")
+adbc_driver_quacklab = pytest.importorskip("adbc_driver_quacklab")
 pyarrow = pytest.importorskip("pyarrow")
 
 xfail = pytest.mark.xfail
-driver_path = adbc_driver_duckdb.driver_path()
+driver_path = adbc_driver_quacklab.driver_path()
 
 
 @pytest.fixture
@@ -420,15 +420,15 @@ def test_the_driver_works_in_a_process_that_never_imports_duckdb(tmp_path):
     script = f"""
 import sys
 import pyarrow as pa
-from adbc_driver_duckdb import dbapi
-assert "quacklab" not in sys.modules and "_duckdb" not in sys.modules
+from adbc_driver_quacklab import dbapi
+assert "quacklab" not in sys.modules and "_quacklab" not in sys.modules
 with dbapi.connect({(tmp_path / "w.duckdb").as_posix()!r}) as conn, conn.cursor() as cur:
     cur.execute("SELECT current_catalog(), version() LIKE 'v%'")
     print(cur.fetchall())
     print(cur.adbc_ingest("t", pa.table({{"a": [1, 2]}}), mode="create"))
     cur.execute("SELECT count(*), max(a) FROM t")
     print(cur.fetchall())
-assert "quacklab" not in sys.modules and "_duckdb" not in sys.modules
+assert "quacklab" not in sys.modules and "_quacklab" not in sys.modules
 """
     try:
         proc = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=120, check=False)

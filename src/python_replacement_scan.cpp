@@ -149,7 +149,7 @@ static void ThrowScanFailureError(const nb::object &entry, const string &name, c
 
 static bool IsPythonRelation(const nb::handle &object) {
 	// A relation can exist only once its module ran, so the module is looked up, never imported
-	auto module = PyDict_GetItemString(PyImport_GetModuleDict(), "duckdb._relation");
+	auto module = PyDict_GetItemString(PyImport_GetModuleDict(), "quacklab._relation"); // !!! quacklab: Python package name
 	if (!module) {
 		return false;
 	}
@@ -370,7 +370,7 @@ static bool IsPackageFrame(const nb::object &frame) {
 		return false;
 	}
 	auto name = nb::cast<std::string>(nb::handle(module_name));
-	return name == "duckdb" || StringUtil::StartsWith(name, "duckdb.");
+	return name == "quacklab" || StringUtil::StartsWith(name, "quacklab."); // !!! quacklab: Python package name
 }
 
 static unique_ptr<TableRef> ReplaceInternal(ClientContext &context, const string &table_name) {

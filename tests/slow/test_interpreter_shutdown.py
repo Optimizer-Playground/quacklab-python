@@ -82,7 +82,7 @@ import quacklab
 
 before = quacklab.default_connection()
 del quacklab._clean_default_connection
-del sys.modules["_duckdb"]._clean_default_connection
+del sys.modules["_quacklab"]._clean_default_connection
 assert quacklab.default_connection() is not before
 """
 

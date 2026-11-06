@@ -747,7 +747,7 @@ NB_MODULE(DUCKDB_PYTHON_LIB_NAME, m) { // NOLINT
 	DuckDBPyConnection::Initialize(m);
 
 	m.doc() = "DuckDB is an embeddable SQL OLAP Database Management System";
-	m.attr("__package__") = "duckdb";
+	m.attr("__package__") = "quacklab"; // !!! quacklab: Python package name
 	m.attr("__version__") = std::string(DuckDB::LibraryVersion()).substr(1);
 	m.attr("__standard_vector_size__") = DuckDB::StandardVectorSize();
 	m.attr("__git_revision__") = DuckDB::SourceID();

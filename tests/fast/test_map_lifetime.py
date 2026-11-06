@@ -14,9 +14,9 @@ import weakref
 
 import pytest
 
-import quacklab
 import numpy as np
 import pandas as pd
+import quacklab
 
 ROWS = 5000
 # With one thread and a 32KB streaming buffer, a query over this many rows still runs after its first fetch.
@@ -714,7 +714,7 @@ def test_a_python_error_from_the_binding_code_keeps_its_type_and_message(shape, 
     raising_function, text = ("__str__", "bad string") if shape == "unprintable_value" else ("dtypes", "bad dtypes")
     outcome = _run_child(_BINDING_CODE_RAISES, shape, stage, "input")
     assert outcome["raised_at"] == ("map" if stage == "bind" else "fetchall")
-    assert outcome["error_type"] == "_duckdb.Error"
+    assert outcome["error_type"] == "_quacklab.Error"
     # The layout between the header, the raising frame and the final line is nanobind's: the full API prints bare
     # frame lines, the limited API uses traceback.format_exception, with blank lines, source lines and markers.
     traceback = (

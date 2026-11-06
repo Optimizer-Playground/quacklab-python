@@ -8,7 +8,7 @@ This is the **production** duckdb-python client, the `duckdb` package on PyPI. I
 
 - **Repository**: https://github.com/duckdb/duckdb-python
 - **Package name**: `duckdb`
-- **Bindings**: nanobind (3.x). The C++ extension module is `_duckdb`; the `duckdb` package wraps it.
+- **Bindings**: nanobind (3.x). The C++ extension module is `_quacklab`; the `quacklab` package wraps it (quacklab fork: renamed from `_duckdb`/`duckdb` so it can be installed next to DuckDB).
 - **Build backend**: `duckdb_packaging.build_backend`, a wrapper around scikit-build-core
 - **Supported Python**: 3.11, 3.12, 3.13, 3.14, 3.15
 - **Wheels**: starting with v2.0 (branch `v2.0-cyanoptera`) each platform ships one version-specific wheel for 3.11 and one stable ABI wheel tagged `cp312-abi3` that serves 3.12 through 3.15 and later releases. See "Stable ABI" below.
@@ -228,7 +228,7 @@ C++ formatting is clang-format 21 through pre-commit; CMake files go through cma
 
 ## Type stubs
 
-Stubs live in `_duckdb-stubs/` and are maintained by hand. There is no stub generator; the pybind11-era generator scripts were removed with the nanobind port.
+Stubs live in `_quacklab-stubs/` and are maintained by hand. There is no stub generator; the pybind11-era generator scripts were removed with the nanobind port.
 
 ## Debugging
 
@@ -323,15 +323,15 @@ daemon thread woken after finalization aborts through the engine's frames (tests
 ## Project structure
 
 ```
-├── duckdb/                    # Python package wrapping the _duckdb extension module
+├── quacklab/                  # Python package wrapping the _quacklab extension module
 │   ├── __init__.py
 │   ├── experimental/          # pyspark compatibility layer
 │   ├── filesystem.py          # fsspec integration
 │   ├── func/, sqltypes/, value/
 │   ├── polars_io.py, udf.py
 │   └── query_graph/           # (old, unmaintained)
-├── adbc_driver_duckdb/        # ADBC driver package
-├── _duckdb-stubs/             # type stubs (*.pyi)
+├── adbc_driver_quacklab/        # ADBC driver package
+├── _quacklab-stubs/           # type stubs (*.pyi)
 ├── src/                       # C++ extension source (nanobind), one object library per subdirectory
 │   └── include/duckdb_python/ # headers
 ├── cmake/                     # compiler launcher detection, DuckDB engine loader

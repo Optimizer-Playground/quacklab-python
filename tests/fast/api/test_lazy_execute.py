@@ -210,7 +210,7 @@ class TestWrites:
 
     def test_checkpoint_runs_in_execute(self, tmp_path):
         path = tmp_path / "db.duckdb"
-        wal = tmp_path / "db.quacklab.wal"
+        wal = tmp_path / "db.duckdb.wal"
         con = quacklab.connect(str(path))
         con.execute("CREATE TABLE t AS SELECT range i FROM range(1000)")
         assert wal.exists()

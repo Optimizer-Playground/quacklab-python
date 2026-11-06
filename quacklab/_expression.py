@@ -24,8 +24,8 @@ import uuid
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, NoReturn, TypeAlias, cast
 
-import _duckdb
-from _duckdb import Error, InvalidInputException
+import _quacklab as _duckdb
+from _quacklab import Error, InvalidInputException
 
 from quacklab import _seam
 from quacklab._expression_aggregates import AggregateMethods

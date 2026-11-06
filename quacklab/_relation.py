@@ -22,7 +22,7 @@ import warnings
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any, ClassVar, NoReturn, cast
 
-import _duckdb
+import _quacklab as _duckdb
 
 from quacklab import _seam
 from quacklab._expression import PendingCase, _is_value, constant, fold_name, plain_value, quote, text_tokens
@@ -159,9 +159,7 @@ def _query_statement(step: QueryOver, source: str, ctes: list[tuple[str, str]]) 
         listed = ",\n".join(f"{name} AS NOT MATERIALIZED (\n{body}\n)" for name, body in [*ctes, own])
         head = "WITH RECURSIVE" if clause.recursive else "WITH"
         return f"{head} {listed},\n{clause.listed}\n{clause.rest}"
-    tokens = [(o, k) for o, k in text_tokens(step.text) if k != _duckdb.token_type.comment]
-    first = fold_name(step.text[tokens[0][0] :].split(None, 1)[0]) if tokens else ""
-    if clause is None and first in ("select", "from", "values"):
+    if clause is None and _first_word(step.text) in ("select", "from", "values"):
         return _assemble([*ctes, own], step.text)
     return _assemble([*ctes, own], _wrap(step.text, "_q"))
 
@@ -327,11 +325,17 @@ def _wrap(text: str, alias: str) -> str:
     return f"SELECT * FROM (\n{text}\n) AS {quote(alias)}"
 
 
+def _first_word(text: str) -> str:
+    """The folded first word of a query, from the tokenizer, so a leading comment (a quacklab hint) is skipped."""
+    tokens = [o for o, k in text_tokens(text) if k != _duckdb.token_type.comment]
+    return fold_name(text[tokens[0] :].split(None, 1)[0]) if tokens else ""
+
+
 def _assemble(ctes: list[tuple[str, str]], body: str) -> str:
     """One statement from named bodies and a last one; a last body with its own WITH becomes a subquery."""
     if not ctes:
         return body
-    if fold_name(body.lstrip()[:4]) == "with":
+    if _first_word(body) == "with":
         body = _wrap(body, "_q")
     listed = ",\n".join(f"{name} AS NOT MATERIALIZED (\n{text}\n)" for name, text in ctes)
     return f"WITH {listed}\n{body}"

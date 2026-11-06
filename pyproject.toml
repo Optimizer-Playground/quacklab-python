@@ -93,8 +93,8 @@ cmake = true
 # a wheel of its own from the same setting.
 py-api = "cp312"
 packages.quacklab = "quacklab"
-packages.adbc_driver_duckdb = "adbc_driver_duckdb"
-packages._duckdb-stubs = "_duckdb-stubs"
+packages.adbc_driver_quacklab = "adbc_driver_quacklab"
+packages._quacklab-stubs = "_quacklab-stubs"
 
 [tool.scikit-build.cmake.define]
 BUILD_EXTENSIONS = "core_functions;json;parquet;icu"
@@ -110,7 +110,7 @@ DUCKDB_PY_LTO = ""
 # The version this branch releases next. A release forces exactly this version, a
 # dev build appends .dev<yymmddhhmm> of the latest commit across this repository
 # and the DuckDB submodule. Bump it right after every release from this branch.
-release_version = "2.0.1"
+release_version = "2.0.2"
 
 [[tool.scikit-build.overrides]]
 if.env.CIBUILDWHEEL_BUILD_IDENTIFIER = true
@@ -183,8 +183,8 @@ include = [
     "src/**",
     "quacklab/**",
     "duckdb_packaging/**",
-    "adbc_driver_duckdb/**",
-    "_duckdb-stubs/*.pyi",
+    "adbc_driver_quacklab/**",
+    "_quacklab-stubs/*.pyi",
 
     # Generated during the sdist build, the identity the wheel build inherits
     "duckdb_packaging/build_info.json",
@@ -382,7 +382,7 @@ filterwarnings = [
 ]
 
 [tool.mypy]
-packages = ["quacklab", "_duckdb"]
+packages = ["quacklab", "_quacklab"]
 strict = true
 warn_unreachable = true
 pretty = true

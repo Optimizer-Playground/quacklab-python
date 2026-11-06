@@ -20,7 +20,7 @@
 import adbc_driver_manager
 import adbc_driver_manager.dbapi
 
-import adbc_driver_duckdb
+import adbc_driver_quacklab
 
 __all__ = [
     "BINARY",
@@ -95,7 +95,7 @@ def connect(path: str | None = None, **kwargs) -> "Connection":
     conn = None
 
     try:
-        db = adbc_driver_duckdb.connect(path)
+        db = adbc_driver_quacklab.connect(path)
         conn = adbc_driver_manager.AdbcConnection(db)
         return adbc_driver_manager.dbapi.Connection(db, conn, **kwargs)
     except Exception:

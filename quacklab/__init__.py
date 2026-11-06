@@ -1,7 +1,7 @@
 # ruff: noqa: F401
 """The DuckDB Python Package.
 
-This module re-exports the DuckDB C++ extension (`_duckdb`) and provides DuckDB's public API.
+This module re-exports the DuckDB C++ extension (`_quacklab`) and provides DuckDB's public API.
 
 Note:
 - Some symbols exposed here are implementation details of DuckDB's C++ engine.
@@ -9,8 +9,8 @@ Note:
 - Future versions may move them into submodules with deprecation warnings.
 """
 
-import _duckdb
-from _duckdb import (
+import _quacklab as _duckdb
+from _quacklab import (
     Appender,
     BinderException,
     CatalogException,
