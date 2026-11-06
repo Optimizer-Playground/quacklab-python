@@ -7,7 +7,7 @@ from typing import NamedTuple
 
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 from spark_namespace import USE_ACTUAL_SPARK
 from spark_namespace.errors import ParseException, PySparkTypeError, PySparkValueError, error_condition
@@ -35,8 +35,8 @@ from spark_namespace.sql.types import (
     TimestampType,
 )
 
-import duckdb
-from duckdb.experimental.spark.exception import ContributionsAcceptedError
+import quacklab
+from quacklab.experimental.spark.exception import ContributionsAcceptedError
 
 if USE_ACTUAL_SPARK:
     import pyspark
@@ -226,7 +226,7 @@ class TestSchemaString:
             row = spark.createDataFrame([((1, "x"),)], schema).collect()[0]
             assert tuple(row.s) == (1, "x")
         else:
-            from duckdb.experimental.spark.errors import PySparkNotImplementedError
+            from quacklab.experimental.spark.errors import PySparkNotImplementedError
 
             # DuckDB matches struct field names case insensitively, so a struct cannot hold both.
             with pytest.raises(PySparkNotImplementedError):
@@ -279,7 +279,7 @@ class TestSchemaString:
             with pytest.raises(ParseException):
                 spark.createDataFrame([], schema)
         else:
-            from duckdb.experimental.spark.sql.types import (
+            from quacklab.experimental.spark.sql.types import (
                 HugeIntegerType,
                 UnsignedByteType,
                 UnsignedLongType,
@@ -642,7 +642,7 @@ class TestReaderSchema:
         sub_dir = tmp_path / "dir with space's"
         sub_dir.mkdir()
         file_path = (sub_dir / "data.parquet").as_posix()
-        duckdb.sql("select 1 as a, 2 as b").write_parquet(file_path)
+        quacklab.sql("select 1 as a, 2 as b").write_parquet(file_path)
 
         assert spark.read.load(file_path).collect() == [Row(a=1, b=2)]
 
@@ -668,8 +668,8 @@ class TestReaderSchema:
 class TestReaderSchemaMatching:
     @pytest.fixture
     def files(self, tmp_path):
-        duckdb.sql("select 1 as a, 2 as b").write_parquet((tmp_path / "ab.parquet").as_posix())
-        duckdb.sql('select 1 as "Mixed", 2 as "order"').write_parquet((tmp_path / "mixed.parquet").as_posix())
+        quacklab.sql("select 1 as a, 2 as b").write_parquet((tmp_path / "ab.parquet").as_posix())
+        quacklab.sql('select 1 as "Mixed", 2 as "order"').write_parquet((tmp_path / "mixed.parquet").as_posix())
         (tmp_path / "ab.json").write_text('{"a": 1, "b": 2}\n', newline="", encoding="utf-8")
         (tmp_path / "mixed.json").write_text('{"Mixed": 1, "order": 2}\n', newline="", encoding="utf-8")
         (tmp_path / "ab.csv").write_text("1,2\n", newline="", encoding="utf-8")

@@ -2,7 +2,7 @@ import datetime
 
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 
@@ -21,7 +21,7 @@ class TestArrowTimestampsTimezone:
     def test_timestamp_timezone(self, duckdb_cursor):
         precisions = ["us", "s", "ns", "ms"]
         current_time = datetime.datetime(2017, 11, 28, 23, 55, 59, tzinfo=datetime.timezone.utc)
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("SET TimeZone = 'UTC'")
         for precision in precisions:
             arrow_table = generate_table(current_time, precision, "UTC")
@@ -33,13 +33,13 @@ class TestArrowTimestampsTimezone:
         current_time = 9223372036854775807
         for precision in precisions:
             arrow_table = generate_table(current_time, precision, "UTC")
-            with pytest.raises(duckdb.ConversionException, match="Could not convert"):
-                duckdb.from_arrow(arrow_table).fetchall()
+            with pytest.raises(quacklab.ConversionException, match="Could not convert"):
+                quacklab.from_arrow(arrow_table).fetchall()
 
     @pytest.mark.parametrize("precision", ["us", "s", "ns", "ms"])
     def test_timestamp_tz_to_arrow(self, duckdb_cursor, precision):
         current_time = datetime.datetime(2017, 11, 28, 23, 55, 59)
-        con = duckdb.connect()
+        con = quacklab.connect()
         expected_precision = "ns" if precision == "ns" else "us"
         for timezone in timezones:
             con.execute("SET TimeZone = '" + timezone + "'")
@@ -49,7 +49,7 @@ class TestArrowTimestampsTimezone:
             assert res == generate_table(current_time, expected_precision, timezone)
 
     def test_timestamp_tz_with_null(self, duckdb_cursor):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("create table t (i timestamptz)")
         con.execute("insert into t values (NULL),('2021-11-15 02:30:00'::timestamptz)")
         rel = con.table("t")
@@ -59,7 +59,7 @@ class TestArrowTimestampsTimezone:
         assert con.execute("select * from t").fetchall() == con.execute("select * from t2").fetchall()
 
     def test_timestamp_stream(self, duckdb_cursor):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("create table t (i timestamptz)")
         con.execute("insert into t values (NULL),('2021-11-15 02:30:00'::timestamptz)")
         rel = con.table("t")

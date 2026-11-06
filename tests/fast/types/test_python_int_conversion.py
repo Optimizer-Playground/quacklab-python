@@ -11,8 +11,8 @@ from typing import ClassVar, NoReturn
 
 import pytest
 
-import duckdb
-from duckdb.sqltypes import BIGINT, HUGEINT
+import quacklab
+from quacklab.sqltypes import BIGINT, HUGEINT
 
 TOO_LARGE = "Python integer too large for 128-bit integer type"
 
@@ -116,13 +116,13 @@ AT_THE_BOUNDARIES = [
 class TestIntSubclassConversion:
     @pytest.mark.parametrize("value", IN_RANGE)
     def test_plain_int_converts_exactly(self, value):
-        con = duckdb.connect()
+        con = quacklab.connect()
         assert con.sql("SELECT ?", params=[value]).fetchall() == [(value,)]
 
     @pytest.mark.parametrize("value", IN_RANGE)
     @pytest.mark.parametrize("rshift", RSHIFT)
     def test_parameter_converts_the_stored_value(self, rshift, value):
-        con = duckdb.connect()
+        con = quacklab.connect()
         lying = lying_int(rshift, value)
         assert con.sql("SELECT ?", params=[lying]).fetchall() == [(value,)]
         assert lying.calls == []
@@ -130,7 +130,7 @@ class TestIntSubclassConversion:
     @pytest.mark.parametrize(("value", "expected_type"), AT_THE_BOUNDARIES)
     @pytest.mark.parametrize("rshift", PLAIN_OR_RSHIFT)
     def test_type_at_the_hugeint_boundaries(self, rshift, value, expected_type):
-        con = duckdb.connect()
+        con = quacklab.connect()
         integer = plain_or_lying(rshift, value)
         assert con.sql("SELECT $1, typeof($1)", params=[integer]).fetchall() == [(value, expected_type)]
         assert calls_of(integer) == []
@@ -138,40 +138,40 @@ class TestIntSubclassConversion:
     @pytest.mark.parametrize("value", [2**128, -(2**127) - 1, 2**130])
     @pytest.mark.parametrize("rshift", PLAIN_OR_RSHIFT)
     def test_beyond_128_bits_still_reports_the_range_error(self, rshift, value):
-        con = duckdb.connect()
+        con = quacklab.connect()
         integer = plain_or_lying(rshift, value)
-        with pytest.raises(duckdb.InvalidInputException, match=re.escape(f"{TOO_LARGE}: {value}") + "$"):
+        with pytest.raises(quacklab.InvalidInputException, match=re.escape(f"{TOO_LARGE}: {value}") + "$"):
             con.sql("SELECT ?", params=[integer]).fetchall()
         assert calls_of(integer) == []
 
     def test_value_beyond_the_decimal_digit_limit_still_reports_the_range_error(self):
         # Python refuses to turn an int of more than 4300 decimal digits into a string by default.
-        con = duckdb.connect()
-        with pytest.raises(duckdb.InvalidInputException, match=f"{TOO_LARGE}$"):
+        con = quacklab.connect()
+        with pytest.raises(quacklab.InvalidInputException, match=f"{TOO_LARGE}$"):
             con.sql("SELECT ?", params=[10**5000]).fetchall()
 
     def test_value_beyond_the_lifted_digit_limit_is_printed_without_its_own_methods(self):
         # Without the limit, Python prints a large int through code that calls the value's own bit_length.
-        con = duckdb.connect()
+        con = quacklab.connect()
         limit = sys.get_int_max_str_digits()
         sys.set_int_max_str_digits(0)
         try:
             lying = lying_int(rshift_raises, 10**10000)
-            with pytest.raises(duckdb.InvalidInputException, match=re.escape(f"{TOO_LARGE}: {10**10000}") + "$"):
+            with pytest.raises(quacklab.InvalidInputException, match=re.escape(f"{TOO_LARGE}: {10**10000}") + "$"):
                 con.sql("SELECT ?", params=[lying]).fetchall()
         finally:
             sys.set_int_max_str_digits(limit)
         assert lying.calls == []
 
     def test_connection_stays_usable_after_a_conversion_error(self):
-        con = duckdb.connect()
-        with pytest.raises(duckdb.InvalidInputException, match=TOO_LARGE):
+        con = quacklab.connect()
+        with pytest.raises(quacklab.InvalidInputException, match=TOO_LARGE):
             con.sql("SELECT ?", params=[lying_int(rshift_raises, 2**128)]).fetchall()
         assert con.sql("select 42").fetchall() == [(42,)]
 
     @pytest.mark.parametrize("exc", [pytest.param(cls, id=cls.__name__) for cls in EXCEPTIONS])
     def test_rshift_is_not_called_below_the_128_bit_path(self, exc):
-        con = duckdb.connect()
+        con = quacklab.connect()
         value = bad_int(exc, 2**64 - 1)
         assert con.sql("SELECT ?", params=[value]).fetchall() == [(2**64 - 1,)]
         assert type(value).calls == []
@@ -181,7 +181,7 @@ class TestUDFResultConversion:
     @pytest.mark.parametrize("value", [2**65, -(2**65)])
     @pytest.mark.parametrize("rshift", RSHIFT)
     def test_native_udf_result_converts_the_stored_value(self, rshift, value):
-        con = duckdb.connect()
+        con = quacklab.connect()
         lying = lying_int(rshift, value)
         con.create_function("lying", lambda x: lying, [BIGINT], HUGEINT, type="native")
         assert con.sql("select lying(1)").fetchall() == [(value,)]
@@ -197,7 +197,7 @@ class TestUDFResultConversion:
     )
     @pytest.mark.parametrize("rshift", RSHIFT)
     def test_native_udf_result_casts_the_stored_value(self, rshift, return_type, expected):
-        con = duckdb.connect()
+        con = quacklab.connect()
         lying = lying_int(rshift, 2**65)
         con.create_function("lying", lambda x: lying, [BIGINT], return_type, type="native")
         assert con.sql("select lying(1)").fetchall() == [(expected,)]
@@ -213,7 +213,7 @@ class TestPandasObjectColumn:
     def test_sampled_value_converts_the_stored_value(self, pd, rshift):
         lying = lying_int(rshift, 2**65)
         df = pd.DataFrame({"a": [lying]})  # noqa: F841
-        con = duckdb.connect()
+        con = quacklab.connect()
         assert con.sql("select * from df").fetchall() == [(2**65,)]
         assert lying.calls == []
 
@@ -221,7 +221,7 @@ class TestPandasObjectColumn:
     def test_value_beyond_the_sample_converts_the_stored_value(self, pd, rshift):
         lying = lying_int(rshift, 2**65)
         df = pd.DataFrame({"a": [2**65, lying]})  # noqa: F841
-        con = duckdb.connect()
+        con = quacklab.connect()
         # A one row sample types the column from the plain value, so only the scan converts the subclass.
         con.execute("SET pandas_analyze_sample = 1")
         assert con.sql("select a, typeof(a) from df").fetchall() == [(2**65, "HUGEINT"), (2**65, "HUGEINT")]

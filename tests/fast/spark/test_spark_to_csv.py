@@ -7,7 +7,7 @@ from spark_namespace import USE_ACTUAL_SPARK
 from spark_namespace.errors import IllegalArgumentException
 
 import pandas as pd
-from duckdb import InvalidInputException, read_csv
+from quacklab import InvalidInputException, read_csv
 
 if USE_ACTUAL_SPARK:
     pytest.skip(
@@ -17,7 +17,7 @@ if USE_ACTUAL_SPARK:
         allow_module_level=True,
     )
 
-pytest.importorskip("duckdb.experimental.spark")
+pytest.importorskip("quacklab.experimental.spark")
 
 
 @pytest.fixture

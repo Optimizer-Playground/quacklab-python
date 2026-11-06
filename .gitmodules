@@ -1,6 +1,6 @@
 [submodule "external/duckdb"]
 	path = external/duckdb
-	url = https://github.com/duckdb/duckdb.git
-	branch = main
+	url = https://github.com/rbergm/quacklab.git
+	branch = quacklab-v2.0-cyanoptera
 [submodule]
 	recurse = true

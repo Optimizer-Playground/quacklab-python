@@ -1,4 +1,4 @@
-import duckdb
+import quacklab
 import pandas as pd
 
 
@@ -9,7 +9,7 @@ class TestLimitPandas:
                 "numbers": [1, 2, 3, 4, 5],
             }
         )
-        limit_df = duckdb.limit(df_in, 2)
+        limit_df = quacklab.limit(df_in, 2)
         assert len(limit_df.fetchall()) == 2
 
     def test_aggregate_df(self, duckdb_cursor):
@@ -18,5 +18,5 @@ class TestLimitPandas:
                 "numbers": [1, 2, 2, 2],
             }
         )
-        aggregate_df = duckdb.aggregate(df_in, "count(numbers)", "numbers").order("all")
+        aggregate_df = quacklab.aggregate(df_in, "count(numbers)", "numbers").order("all")
         assert aggregate_df.fetchall() == [(1,), (3,)]

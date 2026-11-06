@@ -46,7 +46,7 @@ cmake-build-debug
 cmake-build-release
 cmake-build-relwithdebinfo
 duckdb_packaging/build_info.json
-duckdb/_build_info.py
+quacklab/_build_info.py
 test.db
 tmp/
 

@@ -45,7 +45,7 @@ from _pushdown_helpers import (
     make_typed_table as _make_typed_table,
 )
 
-import duckdb
+import quacklab
 
 pl = pytest.importorskip("polars")
 pa = pytest.importorskip("pyarrow")
@@ -514,7 +514,7 @@ class TestOptionalFilter:
     """
 
     def test_no_crash_correct_result(self, factory):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute(
             "CREATE TABLE _t AS SELECT * FROM (VALUES "
             "('id', 100), ('product_code', 100), ('price', 100), ('quantity', 45), ('category', 5), "
@@ -572,7 +572,7 @@ class TestJoinFilterPushdown:
     """
 
     def test_two_polars_tables(self, factory):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("CREATE TABLE probe AS SELECT range a FROM range(10000)")
         con.execute("CREATE TABLE build AS SELECT (random()*9999)::INT b FROM range(20)")
         con.register("probe_arrow", factory(con.table("probe")))
@@ -593,7 +593,7 @@ class TestUnsupportedTypes:
     """
 
     def test_uhugeint_single_filter(self, factory):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute(
             "CREATE TABLE t AS SELECT i::INTEGER a, i::VARCHAR b, i::UHUGEINT c, i::INTEGER d FROM range(5) tbl(i)"
         )
@@ -601,7 +601,7 @@ class TestUnsupportedTypes:
         assert con.execute("FROM arrow_tbl WHERE c = 3").fetchall() == [(3, "3", 3, 3)]
 
     def test_uhugeint_mixed_with_supported(self, factory):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute(
             "CREATE TABLE t AS SELECT i::INTEGER a, i::VARCHAR b, i::UHUGEINT c, i::INTEGER d FROM range(5) tbl(i)"
         )
@@ -623,14 +623,14 @@ class TestLazyFrameProducePath:
     """Behaviour specific to scanning a LazyFrame."""
 
     def test_unfiltered_scan(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         lf = pl.LazyFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
         con.register("lf", lf)
         result = con.sql("SELECT * FROM lf").fetchall()
         assert result == [(1, 4), (2, 5), (3, 6)]
 
     def test_column_projection(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         lf = pl.LazyFrame({"a": [1, 2, 3], "b": [4, 5, 6], "c": [7, 8, 9]})
         con.register("lf", lf)
         result = con.sql("SELECT a, c FROM lf").fetchall()
@@ -638,7 +638,7 @@ class TestLazyFrameProducePath:
 
     def test_cached_dataframe_reuse(self):
         """Repeated unfiltered scans on a registered LazyFrame return the same rows."""
-        con = duckdb.connect()
+        con = quacklab.connect()
         lf = pl.LazyFrame({"a": [1, 2, 3]})
         con.register("my_lf", lf)
         r1 = con.sql("SELECT * FROM my_lf").fetchall()
@@ -647,7 +647,7 @@ class TestLazyFrameProducePath:
 
     def test_filtered_scan_not_cached(self):
         """Each filtered scan collects the LazyFrame with its own filter."""
-        con = duckdb.connect()
+        con = quacklab.connect()
         lf = pl.LazyFrame({"a": [1, 2, 3, 4, 5]})
         con.register("my_lf", lf)
         r1 = con.sql("SELECT * FROM my_lf WHERE a > 3").fetchall()
@@ -656,7 +656,7 @@ class TestLazyFrameProducePath:
         assert sorted(r2) == [(1,), (2,)]
 
     def test_empty_result(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         lf = pl.LazyFrame({"a": [1, 2, 3]})
         con.register("lf", lf)
         result = con.sql("SELECT * FROM lf WHERE a > 100").fetchall()
@@ -674,7 +674,7 @@ class TestRegressions:
     def test_nan_comparison_uses_is_nan(self):
         """NaN equality must produce ``is_nan()`` on the polars side, not literal-NaN equality."""
         lf = pl.LazyFrame({"a": [1.0, float("nan"), 3.0]})
-        result = duckdb.sql("SELECT * FROM lf WHERE a = 'NaN'::DOUBLE").fetchall()
+        result = quacklab.sql("SELECT * FROM lf WHERE a = 'NaN'::DOUBLE").fetchall()
         assert len(result) == 1
         assert math.isnan(result[0][0])
 
@@ -719,7 +719,7 @@ class TestLazyFrameTakesNullChecksAndStructIn:
         ],
     )
     def test_is_pushed_and_matches_native(self, frame, query):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("arrow_table", pl.LazyFrame(frame))
         con.execute("CREATE TABLE native_t AS SELECT * FROM arrow_table")
         _assert_pushed(con, query.format("arrow_table"))
@@ -732,7 +732,7 @@ class TestLazyFrameJoin:
     """DuckDB applies a hash join's runtime filters itself, so a join over a LazyFrame matches a native join."""
 
     def test_join_with_runtime_filters_matches_native(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("CREATE TABLE build AS SELECT (i*2)::BIGINT AS k FROM range(50000) t(i)")
         con.execute("CREATE TABLE probe_src AS SELECT i::BIGINT AS k FROM range(50000) t(i)")
         con.register("probe", to_polars_lazyframe(con.table("probe_src")))

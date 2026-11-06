@@ -5,7 +5,7 @@
 ######################################################################################################
 
 [project]
-name = "duckdb"
+name = "quacklab"
 dynamic = ["version"]
 description = "DuckDB in-process database"
 readme = "README.md"
@@ -92,7 +92,7 @@ cmake = true
 # One stable ABI wheel for CPython 3.12 and up, where nanobind can link the stable ABI; an older interpreter gets
 # a wheel of its own from the same setting.
 py-api = "cp312"
-packages.duckdb = "duckdb"
+packages.quacklab = "quacklab"
 packages.adbc_driver_duckdb = "adbc_driver_duckdb"
 packages._duckdb-stubs = "_duckdb-stubs"
 
@@ -181,7 +181,7 @@ include = [
 
     # Source code and stubs
     "src/**",
-    "duckdb/**",
+    "quacklab/**",
     "duckdb_packaging/**",
     "adbc_driver_duckdb/**",
     "_duckdb-stubs/*.pyi",
@@ -382,19 +382,19 @@ filterwarnings = [
 ]
 
 [tool.mypy]
-packages = ["duckdb", "_duckdb"]
+packages = ["quacklab", "_duckdb"]
 strict = true
 warn_unreachable = true
 pretty = true
 python_version = "3.12"
 exclude = [
-    "duckdb/experimental/", # not checking the pyspark API
-    "duckdb/query_graph/",  # old and unmaintained (should probably remove)
+    "quacklab/experimental/", # not checking the pyspark API
+    "quacklab/query_graph/",  # old and unmaintained (should probably remove)
     "tests", "scripts",
 ]
 
 [[tool.mypy.overrides]]
-module = "duckdb.experimental.*"
+module = "quacklab.experimental.*"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
@@ -410,12 +410,12 @@ module = [
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "duckdb.filesystem"
+module = "quacklab.filesystem"
 disallow_subclassing_any = false
 
 [tool.coverage.run]
 branch = true
-source = ["duckdb"]
+source = ["quacklab"]
 
 [tool.ruff]
 line-length = 120
@@ -468,7 +468,7 @@ ban-relative-imports = "all"
 strict = true
 
 [tool.ruff.lint.per-file-ignores]
-"duckdb/experimental/spark/**.py" = [
+"quacklab/experimental/spark/**.py" = [
     # No need for moduledocstrings for spark
     'D100',
     # Ignore boolean positional args in the Spark API

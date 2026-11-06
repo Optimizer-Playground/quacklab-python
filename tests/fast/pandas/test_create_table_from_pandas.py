@@ -1,9 +1,9 @@
-import duckdb
+import quacklab
 import pandas as pd
 
 
 def assert_create(internal_data, expected_result, data_type):
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     df_in = pd.DataFrame(data=internal_data, dtype=data_type)  # noqa: F841
 
     conn.execute("CREATE TABLE t AS SELECT * FROM df_in")
@@ -13,7 +13,7 @@ def assert_create(internal_data, expected_result, data_type):
 
 
 def assert_create_register(internal_data, expected_result, data_type):
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     df_in = pd.DataFrame(data=internal_data, dtype=data_type)
     conn.register("dataframe", df_in)
     conn.execute("CREATE TABLE t AS SELECT * FROM dataframe")

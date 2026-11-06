@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import duckdb
+import quacklab
 import pandas as pd
 
 
@@ -9,7 +9,7 @@ class TestIssue1767:
     def test_unicode_join_pandas(self, duckdb_cursor):
         A = pd.DataFrame({"key": ["a", "п"]})
         B = pd.DataFrame({"key": ["a", "п"]})
-        con = duckdb.connect(":memory:")
+        con = quacklab.connect(":memory:")
         arrow = con.register("A", A).register("B", B)
         q = arrow.query("""SELECT key FROM "A" FULL JOIN "B" USING ("key") ORDER BY key""")
         result = q.df()

@@ -2,12 +2,12 @@ import re
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     connection.execute("CREATE SEQUENCE s")
     register_tick(connection)
     yield connection
@@ -157,7 +157,7 @@ class TestSqlWithParamsIsLazy:
 
     def test_an_error_raises_at_the_read(self, con):
         rel = con.sql("SELECT error(?)", params=["boom"])
-        with pytest.raises(duckdb.InvalidInputException, match="boom"):
+        with pytest.raises(quacklab.InvalidInputException, match="boom"):
             rel.fetchall()
 
 

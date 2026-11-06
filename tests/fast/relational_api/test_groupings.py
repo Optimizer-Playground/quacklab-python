@@ -1,11 +1,11 @@
 import pytest
 
-import duckdb
+import quacklab
 
 
 @pytest.fixture
 def con():
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     conn.execute(
         """
 		create table tbl as (SELECT * FROM (VALUES

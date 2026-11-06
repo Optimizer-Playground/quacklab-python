@@ -5,13 +5,13 @@ from zoneinfo import ZoneInfo
 import pytest
 from packaging.version import parse as parse_version
 
-import duckdb
+import quacklab
 
 pl = pytest.importorskip("polars")
 arrow = pytest.importorskip("pyarrow")
 pl_testing = pytest.importorskip("polars.testing")
 
-from duckdb.polars_io import _pl_tree_to_sql, _predicate_to_expression  # noqa: E402
+from quacklab.polars_io import _pl_tree_to_sql, _predicate_to_expression  # noqa: E402
 
 pl_pre_1_35_0 = parse_version(pl.__version__) < parse_version("1.35.0")
 pl_pre_1_36_0 = parse_version(pl.__version__) < parse_version("1.36.0")
@@ -46,7 +46,7 @@ class TestPolars:
         lazy_result = duckdb_cursor.sql("SELECT * FROM lazy_df").pl()
         pl_testing.assert_frame_equal(df, lazy_result)
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con_result = con.sql("SELECT * FROM df").pl()
         pl_testing.assert_frame_equal(df, con_result)
 
@@ -55,7 +55,7 @@ class TestPolars:
         assert res1.columns == ["a", "a_1"]
 
     def test_register_polars(self, duckdb_cursor):
-        con = duckdb.connect()
+        con = quacklab.connect()
         df = pl.DataFrame(
             {
                 "A": [1, 2, 3, 4, 5],
@@ -69,7 +69,7 @@ class TestPolars:
         polars_result = con.sql("select * from polars_df").pl()
         pl_testing.assert_frame_equal(df, polars_result)
         con.unregister("polars_df")
-        with pytest.raises(duckdb.CatalogException, match="Table with name polars_df does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="Table with name polars_df does not exist"):
             con.sql("SELECT * FROM polars_df;").pl()
 
         con.register("polars_df", df.lazy())
@@ -79,7 +79,7 @@ class TestPolars:
     def test_empty_polars_dataframe(self, duckdb_cursor):
         polars_empty_df = pl.DataFrame()  # noqa: F841
         with pytest.raises(
-            duckdb.InvalidInputException, match="Provided table/dataframe must have at least one column"
+            quacklab.InvalidInputException, match="Provided table/dataframe must have at least one column"
         ):
             duckdb_cursor.sql("from polars_empty_df")
 
@@ -111,13 +111,13 @@ class TestPolars:
             duckdb_cursor.read_json(string).pl()
 
     def test_polars_from_json_error_2(self, duckdb_cursor):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         my_table = conn.query("select 'x' my_str").pl()  # noqa: F841
-        my_res = duckdb.query("select my_str from my_table where my_str != 'y'")
+        my_res = quacklab.query("select my_str from my_table where my_str != 'y'")
         assert my_res.fetchall() == [("x",)]
 
     def test_polars_lazy_from_conn(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
 
         result = duckdb_conn.sql("SELECT 42 as bla")
 
@@ -125,7 +125,7 @@ class TestPolars:
         assert lazy_df.collect().to_dicts() == [{"bla": 42}]
 
     def test_polars_lazy(self, duckdb_cursor):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("Create table names (a varchar, b integer)")
         con.execute("insert into names values ('Pedro',32),  ('Mark',31), ('Thijs', 29)")
         rel = con.sql("FROM names")
@@ -197,7 +197,7 @@ class TestPolars:
         ],
     )
     def test_polars_lazy_pushdown_numeric(self, data_type, duckdb_cursor):
-        con = duckdb.connect()
+        con = quacklab.connect()
         tbl_name = "test"
         con.execute(
             f"""
@@ -612,7 +612,7 @@ class TestPolars:
                 "c": [bytes([1]), bytes([2]), bytes([3]), None],
             }
         )
-        duck_tbl = duckdb.from_df(df)
+        duck_tbl = quacklab.from_df(df)
         lazy_df = duck_tbl.pl(lazy=True)
 
         # Reference bytes
@@ -661,7 +661,7 @@ class TestPolars:
         valid_filter((pl.col("a") == b1) | (pl.col("b") == b2))
 
     def test_polars_lazy_many_batches(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
         duckdb_cursor.execute("CREATE table t as select range a from range(3000);")
         duck_tbl = duckdb_cursor.table("t")
 
@@ -693,7 +693,7 @@ class TestPolars:
     )
     def test_expr_with_sql_in_string_node(self, input_str):
         """SQL in a String node in an expression is treated as a constant expression."""
-        expected = str(duckdb.ConstantExpression(input_str))
+        expected = str(quacklab.ConstantExpression(input_str))
 
         # Regular string
         tree = {"Scalar": {"String": input_str}}
@@ -804,7 +804,7 @@ class TestPolars:
 
     def test_polars_lazy_pushdown_decimal_with_cast(self):
         """End-to-end test: decimal columns with non-38 precision should push down filters."""
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("CREATE TABLE test_cast (a DECIMAL(20,0))")
         con.execute("INSERT INTO test_cast VALUES (1), (10), (100), (NULL)")
         rel = con.sql("FROM test_cast")
@@ -821,7 +821,7 @@ class TestPolars:
 
     def test_polars_lazy_cursor_lifetime(self):
         """Cursor should stay alive while a lazy polars frame derived from it exists (GH #161)."""
-        con = duckdb.connect(":memory:")
+        con = quacklab.connect(":memory:")
 
         def get_lazy_frame(con):
             cur = con.cursor()

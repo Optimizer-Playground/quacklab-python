@@ -7,14 +7,14 @@ from decimal import Decimal
 
 import pytest
 
-import duckdb
+import quacklab
 import numpy as np
 import pandas as pd
 
 
 class TestAppendDF:
     def test_df_to_table_append(self, duckdb_cursor):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("Create table integers (i integer)")
         df_in = pd.DataFrame(
             {
@@ -25,12 +25,12 @@ class TestAppendDF:
         assert conn.execute("select count(*) from integers").fetchone()[0] == 5
 
     def test_append_by_name(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("create table tbl (a integer, b bool, c varchar)")
         df_in = pd.DataFrame({"c": ["duck", "db"], "b": [False, True], "a": [4, 2]})
         # By default we append by position, causing the following exception:
         with pytest.raises(
-            duckdb.ConversionException, match="Conversion Error: Could not convert string 'duck' to INT32"
+            quacklab.ConversionException, match="Conversion Error: Could not convert string 'duck' to INT32"
         ):
             con.append("tbl", df_in)
 
@@ -40,7 +40,7 @@ class TestAppendDF:
         assert res == [(4, False, "duck"), (2, True, "db")]
 
     def test_append_by_name_quoted(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute(
             """
             create table tbl ("needs to be quoted" integer, other varchar)
@@ -52,11 +52,11 @@ class TestAppendDF:
         assert res == [(1, None), (2, None), (3, None)]
 
     def test_append_by_name_no_exact_match(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("create table tbl (a integer, b bool)")
         df_in = pd.DataFrame({"c": ["a", "b"], "b": [True, False], "a": [42, 1337]})
         # Too many columns raises an error, because the columns cant be found in the targeted table
-        with pytest.raises(duckdb.BinderException, match='Table "tbl" does not have a column with name "c"'):
+        with pytest.raises(quacklab.BinderException, match='Table "tbl" does not have a column with name "c"'):
             con.append("tbl", df_in, by_name=True)
 
         df_in = pd.DataFrame({"b": [False, False, False]})
@@ -83,7 +83,7 @@ NAIVE = datetime.datetime(2024, 5, 7, 7, 8, 9)
 AWARE = NAIVE.replace(tzinfo=P2)
 PATH = pathlib.PurePosixPath("/x")
 LABEL = "a label longer than a string the engine keeps inline"
-ENUM_VALUE = duckdb.Value(LABEL, f"ENUM('{LABEL}')")
+ENUM_VALUE = quacklab.Value(LABEL, f"ENUM('{LABEL}')")
 
 
 class _Color(enum.Enum):
@@ -406,26 +406,26 @@ class TestAppendObjectColumnsToDeclaredTypes:
     def test_object_value_the_table_column_type_refuses(self, duckdb_cursor, target, column, match):
         duckdb_cursor.execute(f"CREATE TABLE t (a {target})")
         frame = pd.DataFrame({"a": column})
-        with pytest.raises(duckdb.ConversionException, match=match):
+        with pytest.raises(quacklab.ConversionException, match=match):
             duckdb_cursor.append("t", frame)
 
     def test_numpy_long_double_is_refused_like_the_appender(self, duckdb_cursor):
         duckdb_cursor.execute("CREATE TABLE t (a DOUBLE)")
         frame = pd.DataFrame({"a": _outside_the_sample(1.5, np.longdouble("2.5"))})
-        with pytest.raises(duckdb.NotImplementedException, match="longdouble"):
+        with pytest.raises(quacklab.NotImplementedException, match="longdouble"):
             duckdb_cursor.append("t", frame)
 
     def test_keys_that_collapse_in_a_nested_map_are_refused(self, duckdb_cursor):
         duckdb_cursor.execute("CREATE TABLE t (a STRUCT(m MAP(INTEGER, INTEGER)))")
         # The same key set in every row, so one cast runs over the whole vector
         frame = pd.DataFrame({"a": _outside_the_sample({"m": {"01": 1, "1": 2}}, {"m": {"01": 10, "1": 20}})})
-        with pytest.raises(duckdb.InvalidInputException, match=r"(?i)duplicat|unique"):
+        with pytest.raises(quacklab.InvalidInputException, match=r"(?i)duplicat|unique"):
             duckdb_cursor.append("t", frame)
 
     def test_text_with_a_lone_surrogate_names_it(self, duckdb_cursor):
         duckdb_cursor.execute("CREATE TABLE t (a VARCHAR)")
         frame = pd.DataFrame({"a": _outside_the_sample("a", pathlib.PurePosixPath("/\udcff"))})
-        with pytest.raises(duckdb.InvalidInputException, match="surrogate"):
+        with pytest.raises(quacklab.InvalidInputException, match="surrogate"):
             duckdb_cursor.append("t", frame)
 
     def test_null_row_among_struct_values_the_cast_converts(self, duckdb_cursor):
@@ -557,7 +557,7 @@ class TestAppendObjectColumnsToDeclaredTypes:
     def test_column_count_mismatch_is_refused_by_the_insert(self, duckdb_cursor, table, columns):
         duckdb_cursor.execute(f"CREATE TABLE t ({table})")
         frame = pd.DataFrame({f"c{i}": _outside_the_sample(1, 2.5) for i in range(columns)})
-        with pytest.raises(duckdb.BinderException, match="values were supplied"):
+        with pytest.raises(quacklab.BinderException, match="values were supplied"):
             duckdb_cursor.append("t", frame)
 
 
@@ -639,7 +639,7 @@ class TestAppendMatchesTheAppender:
     def test_append_refuses_what_the_appender_refuses(self, duckdb_cursor, target, column):
         duckdb_cursor.execute(f"CREATE TABLE by_rows (a {target})")
         duckdb_cursor.execute(f"CREATE TABLE t (a {target})")
-        with pytest.raises(duckdb.Error) as refused:
+        with pytest.raises(quacklab.Error) as refused:
             _append_rows(duckdb_cursor, "by_rows", column)
         frame = pd.DataFrame({"a": column})
         with pytest.raises(type(refused.value)):
@@ -649,12 +649,12 @@ class TestAppendMatchesTheAppender:
 class TestRegisterDeclared:
     def test_declared_type_replaces_the_sampled_type(self, duckdb_cursor):
         frame = pd.DataFrame({"a": _outside_the_sample(1, 2.5), "b": _outside_the_sample("x", "y")})
-        duckdb_cursor._register_declared("declared", frame, [duckdb.sqltypes.DOUBLE, None])
+        duckdb_cursor._register_declared("declared", frame, [quacklab.sqltypes.DOUBLE, None])
         rel = duckdb_cursor.sql("SELECT a, b FROM declared WHERE a = 2.5")
-        assert rel.types == [duckdb.sqltypes.DOUBLE, duckdb.sqltypes.VARCHAR]
+        assert rel.types == [quacklab.sqltypes.DOUBLE, quacklab.sqltypes.VARCHAR]
         assert rel.fetchall() == [(2.5, "y")]
 
     def test_one_type_per_column_or_refused(self, duckdb_cursor):
         frame = pd.DataFrame({"a": [1], "b": [2]})
-        with pytest.raises(duckdb.InvalidInputException, match="1 types given for a DataFrame of 2 columns"):
-            duckdb_cursor._register_declared("declared", frame, [duckdb.sqltypes.DOUBLE])
+        with pytest.raises(quacklab.InvalidInputException, match="1 types given for a DataFrame of 2 columns"):
+            duckdb_cursor._register_declared("declared", frame, [quacklab.sqltypes.DOUBLE])

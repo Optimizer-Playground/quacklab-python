@@ -12,7 +12,7 @@ import weakref
 
 import pytest
 
-import duckdb
+import quacklab
 
 pytestmark = pytest.mark.skipif(
     platform.system() == "Emscripten",
@@ -22,12 +22,12 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture
 def bound_objects():
-    con = duckdb.connect()
+    con = quacklab.connect()
     objs = {
         "Connection": con,
         "Relation": con.sql("SELECT 42 AS a"),
-        "Expression": duckdb.ColumnExpression("a"),
-        "Type": duckdb.type("INTEGER"),
+        "Expression": quacklab.ColumnExpression("a"),
+        "Type": quacklab.type("INTEGER"),
         "Statement": con.extract_statements("SELECT 42")[0],
     }
     yield objs

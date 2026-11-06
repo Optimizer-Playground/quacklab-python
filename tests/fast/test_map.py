@@ -10,7 +10,7 @@ from typing import NoReturn
 import pytest
 from conftest import PANDAS_GE_3
 
-import duckdb
+import quacklab
 import numpy as np
 import pandas as pd
 
@@ -47,9 +47,9 @@ class TestMap:
 
     def test_map_function_takes_no_sql_arguments(self, duckdb_cursor):
         # The callable travels through the bind input, never through a value SQL text can forge
-        with pytest.raises(duckdb.BinderException, match="requires a subquery as its TABLE parameter"):
+        with pytest.raises(quacklab.BinderException, match="requires a subquery as its TABLE parameter"):
             duckdb_cursor.sql("select * from python_map_function(1, 2, 3)")
-        with pytest.raises(duckdb.BinderException, match="requires a callable bind input"):
+        with pytest.raises(quacklab.BinderException, match="requires a callable bind input"):
             duckdb_cursor.sql("select * from python_map_function((select 1))")
 
     def test_mapped_view_outlives_the_relation(self, duckdb_cursor):
@@ -63,13 +63,13 @@ class TestMap:
         assert duckdb_cursor.sql("select i from mapped").fetchall() == [(42,)]
 
     def test_evil_map(self, duckdb_cursor):
-        testrel = duckdb.values([1, 2])
+        testrel = quacklab.values([1, 2])
         rel = testrel.map(evil1, schema={"i": str})
-        with pytest.raises(duckdb.InvalidInputException, match="Expected 1 columns from UDF, got 2"):
+        with pytest.raises(quacklab.InvalidInputException, match="Expected 1 columns from UDF, got 2"):
             rel.df()
 
     def test_map(self, duckdb_cursor):
-        testrel = duckdb.values([1, 2])
+        testrel = quacklab.values([1, 2])
         conn = duckdb_cursor
         conn.execute("CREATE TABLE t (a integer)")
         empty_rel = conn.table("t")
@@ -111,21 +111,21 @@ class TestMap:
         def return_empty_df(df):
             return pd.DataFrame()
 
-        with pytest.raises(duckdb.InvalidInputException, match="Expected 1 columns from UDF, got 2"):
+        with pytest.raises(quacklab.InvalidInputException, match="Expected 1 columns from UDF, got 2"):
             print(testrel.map(evil1).df())
 
-        with pytest.raises(duckdb.InvalidInputException, match="UDF column type mismatch"):
+        with pytest.raises(quacklab.InvalidInputException, match="UDF column type mismatch"):
             print(testrel.map(evil2).df())
 
-        with pytest.raises(duckdb.InvalidInputException, match="UDF column name mismatch"):
+        with pytest.raises(quacklab.InvalidInputException, match="UDF column name mismatch"):
             print(testrel.map(evil3).df())
 
         with pytest.raises(
-            duckdb.InvalidInputException, match=r"Expected the UDF to return an object of type 'pandas\.DataFrame'"
+            quacklab.InvalidInputException, match=r"Expected the UDF to return an object of type 'pandas\.DataFrame'"
         ):
             print(testrel.map(evil4).df())
 
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             print(testrel.map(evil5).df())
 
         # not a function
@@ -139,16 +139,16 @@ class TestMap:
         testrel.map(return_dataframe).df().equals(pd.DataFrame({"A": [1]}))
 
         with pytest.raises(
-            duckdb.InvalidInputException, match="UDF returned more than 2048 rows, which is not allowed"
+            quacklab.InvalidInputException, match="UDF returned more than 2048 rows, which is not allowed"
         ):
             testrel.map(return_big_dataframe).df()
 
         empty_rel.map(return_dataframe).df().equals(pd.DataFrame({"A": []}))
 
-        with pytest.raises(duckdb.InvalidInputException, match="No return value from Python function"):
+        with pytest.raises(quacklab.InvalidInputException, match="No return value from Python function"):
             testrel.map(return_none).df()
 
-        with pytest.raises(duckdb.InvalidInputException, match="Need a DataFrame with at least one column"):
+        with pytest.raises(quacklab.InvalidInputException, match="Need a DataFrame with at least one column"):
             testrel.map(return_empty_df).df()
 
     def test_map_with_object_column(self, duckdb_cursor):
@@ -188,7 +188,7 @@ class TestMap:
         df = pd.DataFrame(
             {"date": pd.Series([date(2000, 1, 1), date(2000, 1, 2)], dtype="datetime64[us]"), "days_to_add": [1, 2]}
         )
-        rel = duckdb.from_df(df)
+        rel = quacklab.from_df(df)
         rel = process(rel)
         x = rel.fetchdf()
         assert x["days_to_add"].to_numpy()[0] == 1
@@ -198,22 +198,23 @@ class TestMap:
             df["i"] = df["i"].astype(str)
             return df
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         rel = con.sql("select i from range (10) tbl(i)")
-        assert rel.types[0] == duckdb.NUMBER
+        assert rel.types[0] == quacklab.NUMBER
         mapped_rel = rel.map(cast_to_string, schema={"i": str})
-        assert mapped_rel.types[0] == duckdb.STRING
+        assert mapped_rel.types[0] == quacklab.STRING
 
     def test_explicit_schema_returntype_mismatch(self):
         def does_nothing(df):
             return df
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         rel = con.sql("select i from range(10) tbl(i)")
         # expects the mapper to return a string column
         rel = rel.map(does_nothing, schema={"i": str})
         with pytest.raises(
-            duckdb.InvalidInputException, match=re.escape("UDF column type mismatch, expected [VARCHAR], got [BIGINT]")
+            quacklab.InvalidInputException,
+            match=re.escape("UDF column type mismatch, expected [VARCHAR], got [BIGINT]"),
         ):
             rel.fetchall()
 
@@ -221,20 +222,20 @@ class TestMap:
         def renames_column(df):
             return pd.DataFrame({"a": df["i"]})
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         rel = con.sql("select i from range(10) tbl(i)")
         rel = rel.map(renames_column, schema={"i": int})
-        with pytest.raises(duckdb.InvalidInputException, match=re.escape("UDF column name mismatch")):
+        with pytest.raises(quacklab.InvalidInputException, match=re.escape("UDF column name mismatch")):
             rel.fetchall()
 
     def test_explicit_schema_error(self):
         def no_op(df):
             return df
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         rel = con.sql("select 42")
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match=re.escape("Invalid Input Error: 'schema' should be given as a Dict[str, DuckDBType]"),
         ):
             rel.map(no_op, schema=[int])
@@ -243,10 +244,10 @@ class TestMap:
         def returns_series(df):
             return df.loc[:, "i"]
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         rel = con.sql("select i, i as j from range(10) tbl(i)")
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match=r"Expected the UDF to return an object of type 'pandas\.DataFrame', found "
             r"'<class 'pandas\.(core\.series\.)?Series'>' instead",
         ):
@@ -256,11 +257,11 @@ class TestMap:
         def returns_subset(df):
             return pd.DataFrame({"i": df.loc[:, "i"]})
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         rel = con.sql("select i, i as j from range(10) tbl(i)")
         rel = rel.map(returns_subset, schema={"i": int, "j": int})
         with pytest.raises(
-            duckdb.InvalidInputException, match="Invalid Input Error: Expected 2 columns from UDF, got 1"
+            quacklab.InvalidInputException, match="Invalid Input Error: Expected 2 columns from UDF, got 1"
         ):
             rel.fetchall()
 
@@ -273,8 +274,8 @@ class TestMap:
             df = pd.DataFrame({"a": [5, 3, 2, 1, 2]}).convert_dtypes(dtype_backend="pyarrow")
             return df
 
-        con = duckdb.connect()
-        with pytest.raises(duckdb.InvalidInputException):
+        con = quacklab.connect()
+        with pytest.raises(quacklab.InvalidInputException):
             con.sql("select 42").map(basic_function)
 
 
@@ -359,7 +360,7 @@ def test_map_result_column_names_equal_those_of_from_df(duckdb_cursor, labels):
 )
 def test_map_explicit_schema_names_are_str_of_keys_deduplicated(duckdb_cursor, labels, schema_names, names):
     source = duckdb_cursor.sql("select range::BIGINT as x from range(3)")
-    schema = dict.fromkeys(schema_names, duckdb.sqltypes.BIGINT)
+    schema = dict.fromkeys(schema_names, quacklab.sqltypes.BIGINT)
     mapped = source.map(_labelled(*labels), schema=schema)
     assert mapped.columns == names
     assert mapped.fetchall() == _rows_of(labels)
@@ -368,10 +369,10 @@ def test_map_explicit_schema_names_are_str_of_keys_deduplicated(duckdb_cursor, l
 
 def test_map_explicit_schema_str_key_does_not_match_a_bytes_label(duckdb_cursor):
     mapped = duckdb_cursor.sql("select range::BIGINT as x from range(3)").map(
-        _labelled(b"k"), schema={"k": duckdb.sqltypes.BIGINT}
+        _labelled(b"k"), schema={"k": quacklab.sqltypes.BIGINT}
     )
     mismatch = re.escape("UDF column name mismatch, expected [k], got [b'k']")
-    with pytest.raises(duckdb.InvalidInputException, match=mismatch):
+    with pytest.raises(quacklab.InvalidInputException, match=mismatch):
         mapped.fetchall()
     _assert_connection_answers(duckdb_cursor)
 
@@ -388,7 +389,7 @@ def _replace_last_row_of_second_chunk(make_value):
 
 
 MAP_SCHEMAS = pytest.mark.parametrize(
-    "schema", [None, {"a": duckdb.sqltypes.INTEGER}], ids=["inferred", "explicit_schema"]
+    "schema", [None, {"a": quacklab.sqltypes.INTEGER}], ids=["inferred", "explicit_schema"]
 )
 
 
@@ -401,7 +402,7 @@ def test_map_fractional_value_outside_the_chunk_sample_raises(duckdb_cursor, sch
     mapped = duckdb_cursor.sql("select i::INTEGER as a from range(4096) t(i)").map(
         _replace_last_row_of_second_chunk(lambda _: 2.5), schema=schema
     )
-    with pytest.raises(duckdb.InvalidInputException) as error:
+    with pytest.raises(quacklab.InvalidInputException) as error:
         mapped.fetchall()
     message = str(error.value)
     assert re.search(r"\b2047\b", message)
@@ -418,7 +419,7 @@ def test_map_integral_float_outside_the_chunk_sample_converts(duckdb_cursor, sch
         _replace_last_row_of_second_chunk(float), schema=schema
     )
     assert mapped.fetchall() == [(i,) for i in range(4096)]
-    assert mapped.types == [duckdb.sqltypes.INTEGER]
+    assert mapped.types == [quacklab.sqltypes.INTEGER]
 
 
 @pytest.mark.parametrize("schema_given", [True, False], ids=["explicit_schema", "inferred"])
@@ -426,13 +427,13 @@ def test_map_integral_float_outside_the_chunk_sample_converts(duckdb_cursor, sch
     ("make_value", "sql_type", "literal"),
     [
         pytest.param(
-            lambda: duckdb.Value([1, 2, 3], duckdb.sqltype("INTEGER[3]")),
-            duckdb.sqltypes.VARCHAR,
+            lambda: quacklab.Value([1, 2, 3], quacklab.sqltype("INTEGER[3]")),
+            quacklab.sqltypes.VARCHAR,
             "[1, 2, 3]::INTEGER[3]::VARCHAR",
             id="fixed_size_array_as_text",
         ),
         pytest.param(
-            lambda: duckdb.DoubleValue(2.5), duckdb.sqltypes.DOUBLE, "2.5::DOUBLE", id="double_as_its_own_type"
+            lambda: quacklab.DoubleValue(2.5), quacklab.sqltypes.DOUBLE, "2.5::DOUBLE", id="double_as_its_own_type"
         ),
     ],
 )
@@ -500,7 +501,7 @@ def test_map_str_column_is_read_as_arrow(duckdb_cursor, monkeypatch, dtype, chun
     shapes = [(type(array), len(array), array.__arrow_array__().num_chunks) for array in returned]
     assert shapes == [(arrow_string_array, 2048, chunks)] * 2
     assert converted == []
-    assert mapped.types == [duckdb.sqltypes.VARCHAR]
+    assert mapped.types == [quacklab.sqltypes.VARCHAR]
     assert rows == [(f"v{i}!",) for i in range(4096)]
 
 
@@ -512,7 +513,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-import duckdb
+import quacklab
 
 if sys.platform != "win32":
     import resource
@@ -545,13 +546,13 @@ def resize(df):
     return pd.DataFrame({"kept": kept, "resized": resized}, copy=False)
 
 
-con = duckdb.connect()
-resized_type = duckdb.sqltypes.VARCHAR if KIND == "str" else duckdb.sqltypes.BIGINT
-schema = {"kept": duckdb.sqltypes.BIGINT, "resized": resized_type} if EXPLICIT_SCHEMA else None
+con = quacklab.connect()
+resized_type = quacklab.sqltypes.VARCHAR if KIND == "str" else quacklab.sqltypes.BIGINT
+schema = {"kept": quacklab.sqltypes.BIGINT, "resized": resized_type} if EXPLICIT_SCHEMA else None
 mapped = con.sql("select range::BIGINT as x from range(ROWS)").map(resize, schema=schema)
 try:
     outcome = {"rows": len(mapped.fetchall())}
-except duckdb.Error as error:
+except quacklab.Error as error:
     outcome = {"error": type(error).__name__, "words": sorted(set(re.findall(r"\\w+", str(error))))}
 outcome["answers"] = [con.sql("select 42").fetchall(), con.cursor().sql("select 42").fetchall()]
 print("outcome " + json.dumps(outcome))

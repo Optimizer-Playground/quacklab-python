@@ -6,30 +6,30 @@ from typing import Any, NamedTuple
 
 import pytest
 
-import duckdb
-from duckdb.sqltypes import INTEGER
+import quacklab
+from quacklab.sqltypes import INTEGER
 
 
 @pytest.fixture
 def default_con():
-    previous = duckdb.connect(":default:")
-    con = duckdb.connect()
-    duckdb.set_default_connection(con)
+    previous = quacklab.connect(":default:")
+    con = quacklab.connect()
+    quacklab.set_default_connection(con)
     yield con
-    duckdb.set_default_connection(previous)
+    quacklab.set_default_connection(previous)
     con.close()
 
 
 def module(target, *args):
-    return duckdb.create_function(*args)
+    return quacklab.create_function(*args)
 
 
 def default_method(target, *args):
-    return duckdb.default_connection().create_function(*args)
+    return quacklab.default_connection().create_function(*args)
 
 
 def module_with_connection(target, *args):
-    return duckdb.create_function(*args, connection=target)
+    return quacklab.create_function(*args, connection=target)
 
 
 def method(target, *args):
@@ -46,7 +46,7 @@ ON_THE_DEFAULT_CONNECTION = {"module", "default_method"}
 
 
 def target_connection(entry, default_con):
-    return default_con if entry in ON_THE_DEFAULT_CONNECTION else duckdb.connect()
+    return default_con if entry in ON_THE_DEFAULT_CONNECTION else quacklab.connect()
 
 
 def signature(con, name):
@@ -158,7 +158,7 @@ class TestUDFTypeNames:
     @pytest.mark.parametrize("entry", ["module_with_connection", "method"])
     def test_a_name_on_both_connections_means_the_registering_ones(self, default_con, entry):
         default_con.execute("CREATE TYPE mood AS ENUM ('x', 'y')")
-        target = duckdb.connect()
+        target = quacklab.connect()
         target.execute("CREATE TYPE mood AS ENUM ('sad', 'happy')")
         ENTRY_POINTS[entry](target, "echo", identity, ["mood"], "mood")
         assert signature(target, "echo") == [(["ENUM('sad', 'happy')"], "ENUM('sad', 'happy')")]
@@ -168,14 +168,14 @@ class TestUDFTypeNames:
     @pytest.mark.parametrize("entry", ENTRY_POINTS)
     def test_an_unknown_type_name_reports_the_catalog_error(self, default_con, entry, parameters, return_type):
         target = target_connection(entry, default_con)
-        with pytest.raises(duckdb.CatalogException, match="Type with name no_such_type does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="Type with name no_such_type does not exist"):
             ENTRY_POINTS[entry](target, "f", identity, parameters, return_type)
 
     @pytest.mark.parametrize(("parameters", "return_type"), in_each_position("INTEGER("))
     @pytest.mark.parametrize("entry", ENTRY_POINTS)
     def test_a_malformed_type_name_reports_the_parse_error(self, default_con, entry, parameters, return_type):
         target = target_connection(entry, default_con)
-        with pytest.raises(duckdb.InvalidInputException, match=r'Value "INTEGER\(" can not be converted'):
+        with pytest.raises(quacklab.InvalidInputException, match=r'Value "INTEGER\(" can not be converted'):
             ENTRY_POINTS[entry](target, "f", identity, parameters, return_type)
 
     @pytest.mark.parametrize(
@@ -183,7 +183,7 @@ class TestUDFTypeNames:
         [
             pytest.param(
                 42,
-                duckdb.NotImplementedException,
+                quacklab.NotImplementedException,
                 "Could not convert from object of type '<class 'int'>' to DuckDBPyType",
                 id="an_int",
             ),
@@ -203,15 +203,15 @@ class TestUDFTypeNames:
     @pytest.mark.parametrize("entry", ["module_with_connection", "method"])
     def test_annotation_code_that_closes_the_connection_registers_nothing(self, entry):
         database = f":memory:annotation_closes_{entry}"
-        target = duckdb.connect(database)
-        observer = duckdb.connect(database)
+        target = quacklab.connect(database)
+        observer = quacklab.connect(database)
         ENTRY_POINTS[entry](target, "registered_before", plus_one, [INTEGER], INTEGER)
 
         def close_then_int():
             target.close()
             return int
 
-        with pytest.raises(duckdb.ConnectionException, match="Connection already closed"):
+        with pytest.raises(quacklab.ConnectionException, match="Connection already closed"):
             ENTRY_POINTS[entry](target, "closes", annotated_with_call("close_then_int", close_then_int), None, None)
         assert observer.sql(
             "SELECT function_name FROM duckdb_functions() WHERE function_name IN ('registered_before', 'closes')"
@@ -222,15 +222,15 @@ class TestUDFTypeNames:
     def test_a_duplicate_name_with_an_unknown_type_name_reports_the_type_error(self, default_con, entry):
         target = target_connection(entry, default_con)
         ENTRY_POINTS[entry](target, "f", identity, ["INTEGER"], "INTEGER")
-        with pytest.raises(duckdb.CatalogException, match="Type with name no_such_type does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="Type with name no_such_type does not exist"):
             ENTRY_POINTS[entry](target, "f", identity, ["no_such_type"], "INTEGER")
         assert target.sql("SELECT f(1)").fetchall() == [(1,)]
 
     @pytest.mark.parametrize(
         ("name", "error"),
         [
-            pytest.param("INTEGER(", duckdb.InvalidInputException, id="malformed"),
-            pytest.param("no_such_type", duckdb.CatalogException, id="unknown"),
+            pytest.param("INTEGER(", quacklab.InvalidInputException, id="malformed"),
+            pytest.param("no_such_type", quacklab.CatalogException, id="unknown"),
         ],
     )
     @pytest.mark.parametrize("entry", ENTRY_POINTS)
@@ -268,7 +268,7 @@ class TestUDFTypeNames:
         target.execute("INSERT INTO t VALUES (42)")
         target.execute("SELECT * FROM range(10000)")
         assert target.fetchone() == (0,)
-        with pytest.raises(duckdb.ResourceInUseException, match="unfinished result from execute"):
+        with pytest.raises(quacklab.ResourceInUseException, match="unfinished result from execute"):
             ENTRY_POINTS[entry](target, "f", identity, ["no_such_type"], INTEGER)
         assert len(target.fetchall()) == 9999
         target.execute("COMMIT")
@@ -285,13 +285,13 @@ class TestUDFTypeNames:
 
         target.execute("SELECT * FROM range(10000)")
         assert target.fetchone() == (0,)
-        with pytest.raises(duckdb.ResourceInUseException, match="unfinished result from execute"):
+        with pytest.raises(quacklab.ResourceInUseException, match="unfinished result from execute"):
             ENTRY_POINTS[entry](target, "f", annotated_with_call("query_then_int", query_then_int), None, None)
         assert ran == []
         assert len(target.fetchall()) == 9999
 
     def test_a_connection_held_by_another_thread_during_conversion_refuses(self):
-        target = duckdb.connect()
+        target = quacklab.connect()
         entered = threading.Event()
         release = threading.Event()
         held = []
@@ -333,7 +333,7 @@ class TestUDFTypeNames:
             return len(y)
 
         try:
-            with pytest.raises(duckdb.ResourceInUseException, match="connection is busy"):
+            with pytest.raises(quacklab.ResourceInUseException, match="connection is busy"):
                 target.create_function("f", f)
         finally:
             release.set()
@@ -349,7 +349,7 @@ class TestUDFTypeNames:
     def test_a_name_in_an_annotation_inside_an_aborted_transaction_refuses(self, default_con, entry):
         target = target_connection(entry, default_con)
         target.execute("BEGIN")
-        with pytest.raises(duckdb.BinderException):
+        with pytest.raises(quacklab.BinderException):
             target.execute("SELECT missing")
 
         # Converting a class annotation instantiates it, so a later annotation can end the aborted transaction
@@ -362,13 +362,13 @@ class TestUDFTypeNames:
         def f(x: list["INTEGER"], y: RollBack) -> int:
             return len(x)
 
-        with pytest.raises(duckdb.TransactionException, match="transaction is aborted"):
+        with pytest.raises(quacklab.TransactionException, match="transaction is aborted"):
             ENTRY_POINTS[entry](target, "f", f, None, None)
         target.rollback()
         assert signature(target, "f") == []
 
     def test_registering_from_inside_a_query_on_the_default_connection(self, default_con):
-        other = duckdb.connect()
+        other = quacklab.connect()
 
         def register_on_other(x):
             other.create_function("plus_one", plus_one, ["INTEGER"], "INTEGER")
@@ -394,7 +394,7 @@ class TestUDFTypeNames:
         query.start()
         try:
             assert entered.wait(10)
-            other = duckdb.connect()
+            other = quacklab.connect()
             other.create_function("plus_one", plus_one, ["INTEGER"], "INTEGER")
             assert other.sql("SELECT plus_one(1)").fetchall() == [(2,)]
         finally:
@@ -415,16 +415,16 @@ class TestTypeNameParseSites:
         ("name", "error", "message"),
         [
             pytest.param(
-                "INTEGER(", duckdb.InvalidInputException, r'Value "INTEGER\(" can not be converted', id="malformed"
+                "INTEGER(", quacklab.InvalidInputException, r'Value "INTEGER\(" can not be converted', id="malformed"
             ),
             pytest.param(
-                "no_such_type", duckdb.CatalogException, "Type with name no_such_type does not exist", id="unknown"
+                "no_such_type", quacklab.CatalogException, "Type with name no_such_type does not exist", id="unknown"
             ),
         ],
     )
     @pytest.mark.parametrize("site", TYPE_NAME_PARSE_SITES)
     def test_a_bad_type_name_leaves_the_open_transaction_usable(self, site, name, error, message):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("CREATE TABLE t (i INTEGER)")
         con.execute("BEGIN")
         con.execute("INSERT INTO t VALUES (42)")

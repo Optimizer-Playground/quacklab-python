@@ -8,13 +8,13 @@ import warnings
 
 import pytest
 
-import duckdb
-from duckdb import ColumnExpression, ConstantExpression, StarExpression
+import quacklab
+from quacklab import ColumnExpression, ConstantExpression, StarExpression
 
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     register_tick(connection)
     connection.execute("CREATE TABLE t AS SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (3, 'c')) v(i, x)")
     connection.execute("CREATE TABLE r AS SELECT * FROM (VALUES (2, 'B'), (3, 'C'), (4, 'D')) v(i, y)")
@@ -101,17 +101,17 @@ class TestErrorsRaiseWhereTheStepIsBuilt:
     @pytest.mark.parametrize(
         ("build", "error"),
         [
-            pytest.param(lambda con: con.table("t").filter("nope > 1"), duckdb.BinderException, id="filter_column"),
-            pytest.param(lambda con: con.table("t").project("i +"), duckdb.ParserException, id="project_syntax"),
-            pytest.param(lambda con: con.table("t").order("nope"), duckdb.BinderException, id="order_column"),
-            pytest.param(lambda con: con.table("t").aggregate("sum(nope)"), duckdb.BinderException, id="aggregate"),
+            pytest.param(lambda con: con.table("t").filter("nope > 1"), quacklab.BinderException, id="filter_column"),
+            pytest.param(lambda con: con.table("t").project("i +"), quacklab.ParserException, id="project_syntax"),
+            pytest.param(lambda con: con.table("t").order("nope"), quacklab.BinderException, id="order_column"),
+            pytest.param(lambda con: con.table("t").aggregate("sum(nope)"), quacklab.BinderException, id="aggregate"),
             pytest.param(
-                lambda con: con.table("t").join(con.table("r"), "t.nope = r.i"), duckdb.BinderException, id="join_on"
+                lambda con: con.table("t").join(con.table("r"), "t.nope = r.i"), quacklab.BinderException, id="join_on"
             ),
-            pytest.param(lambda con: con.table("t").join(con.table("r"), "nope"), duckdb.BinderException, id="using"),
-            pytest.param(lambda con: con.sql("SELECT * FROM nope"), duckdb.CatalogException, id="sql_table"),
+            pytest.param(lambda con: con.table("t").join(con.table("r"), "nope"), quacklab.BinderException, id="using"),
+            pytest.param(lambda con: con.sql("SELECT * FROM nope"), quacklab.CatalogException, id="sql_table"),
             pytest.param(
-                lambda con: con.table("t").filter("i > 0").project("x + 1"), duckdb.BinderException, id="types"
+                lambda con: con.table("t").filter("i > 0").project("x + 1"), quacklab.BinderException, id="types"
             ),
         ],
     )
@@ -120,9 +120,9 @@ class TestErrorsRaiseWhereTheStepIsBuilt:
             build(con)
 
     def test_the_error_is_the_one_the_engine_gives_for_the_same_sql(self, con):
-        with pytest.raises(duckdb.BinderException) as from_sql:
+        with pytest.raises(quacklab.BinderException) as from_sql:
             con.execute("SELECT * FROM t WHERE nope > 1")
-        with pytest.raises(duckdb.BinderException) as from_step:
+        with pytest.raises(quacklab.BinderException) as from_step:
             con.table("t").filter("nope > 1")
         assert re.sub(r"\n.*", "", str(from_step.value), flags=re.S) == re.sub(
             r"\n.*", "", str(from_sql.value), flags=re.S
@@ -130,7 +130,7 @@ class TestErrorsRaiseWhereTheStepIsBuilt:
 
     def test_a_failed_build_leaves_the_transaction_usable(self, con):
         con.execute("BEGIN")
-        with pytest.raises(duckdb.BinderException):
+        with pytest.raises(quacklab.BinderException):
             con.table("t").filter("nope > 1")
         assert con.table("t").filter("i > 2").fetchall() == [(3, "c")]
         con.execute("COMMIT")
@@ -152,7 +152,7 @@ class TestTheSchemaIsReadWithoutRunning:
         assert not ran(con)
 
     def test_a_derivation_binds_once_over_typed_empty_inputs_and_reads_nothing(self, con, monkeypatch):
-        from duckdb import _seam
+        from quacklab import _seam
 
         source = counter(con)
         binds, submits = [], []
@@ -185,7 +185,7 @@ class TestTheSchemaIsReadWithoutRunning:
 
     def test_shape_runs_one_count_and_reads_its_width_from_the_schema(self, con, monkeypatch):
         # Shape is a tuple, so its first item, len(), runs a count each time it is read.
-        from duckdb import _seam
+        from quacklab import _seam
 
         derived = counter(con).filter("v > 0")
         binds, submits = [], []
@@ -296,7 +296,7 @@ class TestDuplicateNames:
 
     def test_a_bare_name_of_a_key_both_join_sides_have_is_ambiguous(self, con):
         joined = con.table("t").join(con.table("r"), "t.i = r.i")
-        with pytest.raises(duckdb.BinderException, match="Ambiguous reference"):
+        with pytest.raises(quacklab.BinderException, match="Ambiguous reference"):
             joined.project("i")
 
 
@@ -533,7 +533,7 @@ class TestTypesThatDoNotParseBack:
     def test_two_collations_in_a_join_are_refused_at_construction(self, con):
         nocase = con.sql("SELECT 'a' COLLATE NOCASE AS s")
         noaccent = con.sql("SELECT 'a' COLLATE NOACCENT AS s")
-        with pytest.raises(duckdb.BinderException, match="collation"):
+        with pytest.raises(quacklab.BinderException, match="collation"):
             nocase.join(noaccent, "s")
 
     def test_one_collation_on_both_sides_joins(self, con):
@@ -548,7 +548,7 @@ class TestTypesThatDoNotParseBack:
         ],
     )
     def test_a_missing_column_in_a_step_over_it_still_raises_the_binder_error(self, con, source):
-        with pytest.raises(duckdb.BinderException, match="nope"):
+        with pytest.raises(quacklab.BinderException, match="nope"):
             source(self, con).filter("nope > 1")
 
 
@@ -556,7 +556,7 @@ class TestWhatAMistakeShows:
     """An error and a migration warning point at the user's own call, not at the client's files."""
 
     def test_a_misspelled_column_raises_a_short_traceback(self, con):
-        with pytest.raises(duckdb.BinderException) as error:
+        with pytest.raises(quacklab.BinderException) as error:
             con.table("t").filter("nope > 1")
         assert len(traceback.extract_tb(error.value.__traceback__)) <= 4
 
@@ -571,16 +571,16 @@ class TestTheEngineExceptionIsKept:
     """The traceback is cut, but the exception is the engine's own object with every attribute it carries."""
 
     def test_an_http_error_keeps_its_attributes_and_cause(self):
-        from duckdb import _relation
+        from quacklab import _relation
 
         cause = OSError("connection reset")
 
         def failing():
-            error = duckdb.HTTPException("HTTP Error: 404 (Not Found)")
+            error = quacklab.HTTPException("HTTP Error: 404 (Not Found)")
             error.status_code, error.reason, error.body, error.headers = 404, "Not Found", "", {"x": "y"}
             raise error from cause
 
-        with pytest.raises(duckdb.HTTPException) as caught:
+        with pytest.raises(quacklab.HTTPException) as caught:
             _relation._closed_as_relation(failing)()
         assert (caught.value.status_code, caught.value.reason, caught.value.headers) == (404, "Not Found", {"x": "y"})
         assert caught.value.__cause__ is cause
@@ -590,14 +590,14 @@ class TestTwoConnections:
     """A mistake reports its real cause, and probing a missing name answers rather than raises."""
 
     def test_joining_relations_of_two_connections_names_the_connections_whatever_the_table_names(self):
-        first, second = duckdb.connect(), duckdb.connect()
+        first, second = quacklab.connect(), quacklab.connect()
         first.execute("CREATE TABLE t AS SELECT 1 AS i")
         second.execute("CREATE TABLE t AS SELECT 1 AS i")
-        with pytest.raises(duckdb.InvalidInputException, match="different connections"):
+        with pytest.raises(quacklab.InvalidInputException, match="different connections"):
             first.table("t").join(second.table("t"), "i")
 
     def test_hasattr_of_a_missing_name_on_a_closed_connection_is_false(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("CREATE TABLE t AS SELECT 1 AS i")
         rel = con.table("t")
         con.close()
@@ -682,7 +682,7 @@ def engine_reads(con, sql):
     """The column names the engine gives a statement, or None when the engine finds no such column."""
     try:
         cursor = con.execute(sql)
-    except duckdb.BinderException:
+    except quacklab.BinderException:
         return None
     names = [column[0] for column in cursor.description]
     cursor.fetchall()
@@ -716,7 +716,7 @@ class TestIdentifierCaseFoldsAsTheEngineDoes:
             getattr(keyed, KELVIN_KEY)
 
     def test_with_columns_of_a_kelvin_name_adds_a_column(self, con, keyed):
-        rel = keyed.with_columns(**{KELVIN_KEY: duckdb.ConstantExpression(2)})
+        rel = keyed.with_columns(**{KELVIN_KEY: quacklab.ConstantExpression(2)})
         assert rel.columns == engine_reads(con, f'SELECT *, 2 AS "{KELVIN_KEY}" FROM keyed') == ["key", KELVIN_KEY]
         assert rel.fetchall() == [(1, 2)]
 

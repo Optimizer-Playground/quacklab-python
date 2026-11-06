@@ -1,7 +1,7 @@
 import pytest
 
-import duckdb
-from duckdb import (
+import quacklab
+from quacklab import (
     ColumnExpression,
     ConstantExpression,
     SQLExpression,
@@ -89,16 +89,16 @@ class TestSQLExpression:
 
     def test_sql_expression_errors(self, duckdb_cursor):
         # Test empty string
-        with pytest.raises(duckdb.ParserException, match="SELECT clause without selection list"):
+        with pytest.raises(quacklab.ParserException, match="SELECT clause without selection list"):
             SQLExpression("")
 
         # Test invalid SQL
-        with pytest.raises(duckdb.ParserException, match='Parser Error: syntax error at or near "SELECT"'):
+        with pytest.raises(quacklab.ParserException, match='Parser Error: syntax error at or near "SELECT"'):
             SQLExpression("SELECT *")
 
         # Test multiple expressions
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match="Please provide only a single expression to SQLExpression, found 2 expressions in the parsed string",
         ):
             SQLExpression("1, 2")

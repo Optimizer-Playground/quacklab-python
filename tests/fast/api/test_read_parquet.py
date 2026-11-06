@@ -4,13 +4,13 @@ from typing import NoReturn
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 @pytest.fixture
 def parquet_file(tmp_path):
     path = tmp_path / "integers.parquet"
-    duckdb.sql("SELECT i FROM range(10) t(i)").write_parquet(str(path))
+    quacklab.sql("SELECT i FROM range(10) t(i)").write_parquet(str(path))
     return path
 
 
@@ -20,8 +20,8 @@ def parquet_files(tmp_path):
     directory.mkdir()
     file1 = directory / "file1.parquet"
     file2 = directory / "file2.parquet"
-    duckdb.sql("SELECT 1 AS i").write_parquet(str(file1))
-    duckdb.sql("SELECT 2 AS i").write_parquet(str(file2))
+    quacklab.sql("SELECT 1 AS i").write_parquet(str(file1))
+    quacklab.sql("SELECT 2 AS i").write_parquet(str(file2))
     return file1, file2
 
 
@@ -49,7 +49,7 @@ class TestReadParquet:
 
     def test_path_not_mangled(self, duckdb_cursor):
         # The path string should be forwarded verbatim to the engine
-        with pytest.raises(duckdb.IOException, match="no_such_directory"):
+        with pytest.raises(quacklab.IOException, match="no_such_directory"):
             duckdb_cursor.read_parquet("no_such_directory/*.parquet").fetchall()
 
     def test_options_still_thread_through(self, duckdb_cursor, parquet_file):
@@ -66,7 +66,7 @@ class TestReadParquet:
     def test_compression_option(self, duckdb_cursor, parquet_file):
         res = duckdb_cursor.read_parquet(str(parquet_file), compression="snappy").fetchall()
         assert res == [(i,) for i in range(10)]
-        with pytest.raises(duckdb.InvalidInputException, match="only accepts 'compression' as a string"):
+        with pytest.raises(quacklab.InvalidInputException, match="only accepts 'compression' as a string"):
             duckdb_cursor.read_parquet(str(parquet_file), compression=42)
 
     # New capability: pathlib.Path
@@ -144,27 +144,27 @@ class TestReadParquet:
     # All four entry points
 
     def test_module_read_parquet(self, parquet_file):
-        assert duckdb.read_parquet(parquet_file).fetchall() == [(i,) for i in range(10)]
+        assert quacklab.read_parquet(parquet_file).fetchall() == [(i,) for i in range(10)]
 
     def test_module_from_parquet(self, parquet_file):
-        assert duckdb.from_parquet(parquet_file).fetchall() == [(i,) for i in range(10)]
+        assert quacklab.from_parquet(parquet_file).fetchall() == [(i,) for i in range(10)]
 
     def test_connection_from_parquet(self, duckdb_cursor, parquet_file):
         assert duckdb_cursor.from_parquet(parquet_file).fetchall() == [(i,) for i in range(10)]
 
     def test_module_level_with_connection_kwarg(self, duckdb_cursor, parquet_file):
-        res = duckdb.read_parquet(parquet_file, connection=duckdb_cursor).fetchall()
+        res = quacklab.read_parquet(parquet_file, connection=duckdb_cursor).fetchall()
         assert res == [(i,) for i in range(10)]
 
     # Error handling
 
     def test_nonexistent_file(self, duckdb_cursor, tmp_path):
         missing = tmp_path / "missing.parquet"
-        with pytest.raises(duckdb.IOException, match=r"missing\.parquet"):
+        with pytest.raises(quacklab.IOException, match=r"missing\.parquet"):
             duckdb_cursor.read_parquet(str(missing)).fetchall()
 
     def test_empty_list(self, duckdb_cursor):
-        with pytest.raises(duckdb.InvalidInputException, match="non-empty list of paths or file-like objects"):
+        with pytest.raises(quacklab.InvalidInputException, match="non-empty list of paths or file-like objects"):
             duckdb_cursor.read_parquet([])
 
     def test_filelike_exception(self, duckdb_cursor):
@@ -189,5 +189,5 @@ class TestReadParquet:
             duckdb_cursor.read_parquet(ReadError())
 
         # 'seek' is never called on the object itself; the copied content is just not valid parquet
-        with pytest.raises(duckdb.InvalidInputException, match="too small to be a Parquet file"):
+        with pytest.raises(quacklab.InvalidInputException, match="too small to be a Parquet file"):
             duckdb_cursor.read_parquet(SeekError())

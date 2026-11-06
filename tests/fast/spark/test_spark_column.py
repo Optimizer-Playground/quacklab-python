@@ -1,6 +1,6 @@
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 import datetime
 import re
@@ -392,7 +392,7 @@ class TestCastTypeStrings:
     def test_bare_interval_raises(self, spark):
         df = spark.createDataFrame([("1 day",)], "s string")
         if not USE_ACTUAL_SPARK:
-            from duckdb.experimental.spark.exception import ContributionsAcceptedError as expected
+            from quacklab.experimental.spark.exception import ContributionsAcceptedError as expected
         elif pyspark.__version__.startswith("3."):
             expected = PySparkValueError
         else:

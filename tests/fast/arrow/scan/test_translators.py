@@ -14,8 +14,8 @@ import uuid
 
 import pytest
 
-from duckdb._sources import to_arrow as to_arrow_module
-from duckdb._sources.nodes import Binary, Col, In, Lit, Postfix, Unary, Untranslatable, fragment
+from quacklab._sources import to_arrow as to_arrow_module
+from quacklab._sources.nodes import Binary, Col, In, Lit, Postfix, Unary, Untranslatable, fragment
 
 pa = pytest.importorskip("pyarrow")
 ds = pytest.importorskip("pyarrow.dataset")
@@ -72,14 +72,14 @@ def arrow_table(values, kind):
 
 
 def arrow_ids(table, node):
-    from duckdb._sources.to_arrow import to_arrow
+    from quacklab._sources.to_arrow import to_arrow
 
     expression = to_arrow(node, table.schema)
     return sorted(ds.dataset(table).to_table(filter=expression).column("id").to_pylist())
 
 
 def refused_by_arrow(schema, node):
-    from duckdb._sources.to_arrow import to_arrow
+    from quacklab._sources.to_arrow import to_arrow
 
     with pytest.raises(Untranslatable):
         to_arrow(node, schema)
@@ -218,7 +218,7 @@ def chain(depth):
 
 class TestDepth:
     def test_a_chain_deeper_than_python_recursion_is_refused(self, pl):
-        from duckdb._sources.to_polars import to_polars
+        from quacklab._sources.to_polars import to_polars
 
         refused_by_arrow(pa.schema([("c", pa.int32())]), chain(DEEP))
         with pytest.raises(Untranslatable):
@@ -239,9 +239,9 @@ class TestSelectorNames:
     )
 
     def native_ids(self, predicate):
-        import duckdb
+        import quacklab
 
-        with duckdb.connect() as con:
+        with quacklab.connect() as con:
             con.execute(
                 'CREATE TABLE t (id INTEGER, "^x$" BIGINT, x BIGINT, "*" BIGINT, '
                 's STRUCT("^x$" BIGINT, x BIGINT, "*" BIGINT))'
@@ -299,9 +299,9 @@ class TestPolarsCategories:
     VALUES = ("a", "b", None, "a")
 
     def native_ids(self, predicate):
-        import duckdb
+        import quacklab
 
-        with duckdb.connect() as con:
+        with quacklab.connect() as con:
             con.execute("CREATE TABLE t (id INTEGER, c VARCHAR)")
             con.executemany("INSERT INTO t VALUES (?, ?)", list(enumerate(self.VALUES)))
             return [row[0] for row in con.execute(f"SELECT id FROM t WHERE {predicate} ORDER BY id").fetchall()]
@@ -347,7 +347,7 @@ class TestDictionaryKernels:
 
     @pytest.mark.parametrize(("fixed_in", "accepted"), [(0, True), (10_000, False)], ids=["fixed", "defective"])
     def test_the_dataset_source_follows_the_pyarrow_version(self, monkeypatch, fixed_in, accepted):
-        from duckdb._sources import adapt
+        from quacklab._sources import adapt
 
         monkeypatch.setattr(to_arrow_module, "DICTIONARY_KERNELS_FIXED_IN", fixed_in)
         table = pa.table({"id": [0, 1, 2], "d": pa.array(["a", "b", "a"]).dictionary_encode(), "n": [1, 2, 3]})
@@ -755,13 +755,13 @@ class TestArrowNullness:
 
 
 def polars_ids(frame, node):
-    from duckdb._sources.to_polars import to_polars
+    from quacklab._sources.to_polars import to_polars
 
     return sorted(frame.lazy().filter(to_polars(node, frame.schema)).collect()["id"].to_list())
 
 
 def refused_by_polars(schema, node):
-    from duckdb._sources.to_polars import to_polars
+    from quacklab._sources.to_polars import to_polars
 
     with pytest.raises(Untranslatable):
         to_polars(node, schema)
@@ -1020,15 +1020,15 @@ class TestFragments:
         ],
     )
     def test_every_literal_reads_back_as_its_value_in_duckdb(self, constant):
-        import duckdb
+        import quacklab
 
-        with duckdb.connect() as con:
+        with quacklab.connect() as con:
             assert con.execute(f"SELECT {constant.fragment()}").fetchone()[0] == constant.value
 
     def test_a_zoned_literal_reads_back_as_its_instant_in_duckdb(self):
-        import duckdb
+        import quacklab
 
-        with duckdb.connect() as con:
+        with quacklab.connect() as con:
             for micros in (HALF, -1, 0, 253402300799999999):
                 constant = Lit(micros, "TIMESTAMP WITH TIME ZONE")
                 assert con.execute(f"SELECT epoch_us({constant.fragment()})").fetchone()[0] == micros

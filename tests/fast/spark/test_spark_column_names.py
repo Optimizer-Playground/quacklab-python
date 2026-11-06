@@ -1,6 +1,6 @@
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 import datetime
 from decimal import Decimal
@@ -502,7 +502,7 @@ class TestAliasNames:
         if USE_ACTUAL_SPARK:
             assert all("" in make().columns for make in makes)
             return
-        from duckdb.experimental.spark.exception import ContributionsAcceptedError
+        from quacklab.experimental.spark.exception import ContributionsAcceptedError
 
         # DuckDB has no column with an empty name.
         for make in makes:
@@ -524,7 +524,7 @@ class TestAliasNames:
             res = df.select(F.struct(F.lit(1).alias(""), F.lit(2).alias("b")).alias("s"))
             assert res.schema.simpleString() == "struct<s:struct<:int,b:int>>"
         else:
-            from duckdb.experimental.spark.exception import ContributionsAcceptedError
+            from quacklab.experimental.spark.exception import ContributionsAcceptedError
 
             with pytest.raises(ContributionsAcceptedError, match="both empty and other field names"):
                 F.struct(F.lit(1).alias(""), F.lit(2).alias("b"))
@@ -760,7 +760,7 @@ class TestSparkColumnMethods:
         if USE_ACTUAL_SPARK:
             assert callable(getattr(df.a, method))
         else:
-            from duckdb.experimental.spark.exception import ContributionsAcceptedError
+            from quacklab.experimental.spark.exception import ContributionsAcceptedError
 
             with pytest.raises(ContributionsAcceptedError, match=f"Column.{method} is not implemented"):
                 getattr(df.a, method)
@@ -775,7 +775,7 @@ class TestSparkColumnMethods:
     @pytest.mark.skipif(USE_ACTUAL_SPARK, reason="checks the module's list against the installed PySpark")
     def test_method_list_covers_pyspark(self):
         pyspark_sql = pytest.importorskip("pyspark.sql")
-        from duckdb.experimental.spark.sql.column import _SPARK_COLUMN_METHODS
+        from quacklab.experimental.spark.sql.column import _SPARK_COLUMN_METHODS
 
         spark_methods = {n for n in dir(pyspark_sql.Column) if not n.startswith("_")}
         assert spark_methods <= _SPARK_COLUMN_METHODS
@@ -786,8 +786,8 @@ def test_every_function_gives_a_spark_name(spark):
     import contextlib
     import inspect
 
-    from duckdb.experimental.spark.sql import functions
-    from duckdb.experimental.spark.sql.column import Column
+    from quacklab.experimental.spark.sql import functions
+    from quacklab.experimental.spark.sql.column import Column
 
     generic = {int: 1, float: 0.5, bool: True, str: "a"}
     calls = {

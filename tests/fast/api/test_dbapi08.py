@@ -1,11 +1,11 @@
 # test fetchdf with various types
-import duckdb
+import quacklab
 import pandas as pd
 
 
 class TestType:
     def test_fetchdf(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("CREATE TABLE items(item VARCHAR)")
         con.execute("INSERT INTO items VALUES ('jeans'), (''), (NULL)")
         res = con.execute("SELECT item FROM items").fetchdf()

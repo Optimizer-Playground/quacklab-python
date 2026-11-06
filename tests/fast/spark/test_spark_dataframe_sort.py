@@ -1,6 +1,6 @@
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 import spark_namespace.errors
 from spark_namespace import USE_ACTUAL_SPARK

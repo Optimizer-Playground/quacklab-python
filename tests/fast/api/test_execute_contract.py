@@ -9,8 +9,8 @@ import time
 
 import pytest
 
-import duckdb
-from duckdb.sqltypes import BIGINT
+import quacklab
+from quacklab.sqltypes import BIGINT
 
 ROWS = 1_000_000
 VECTOR = 2048
@@ -31,7 +31,7 @@ needs_pyarrow = pytest.mark.skipif(importlib.util.find_spec("pyarrow") is None, 
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     # One thread bounds how far a statement runs before it is read.
     connection.execute("SET threads = 1")
     yield connection
@@ -71,26 +71,26 @@ def run_isolated(script, timeout=15):
 
 class TestExecuteSettles:
     def test_an_error_in_the_first_chunk_raises_from_execute(self, con):
-        with pytest.raises(duckdb.InvalidInputException, match="boom"):
+        with pytest.raises(quacklab.InvalidInputException, match="boom"):
             con.execute("SELECT error('boom')")
 
     def test_a_parameterized_error_raises_from_execute(self, con):
-        with pytest.raises(duckdb.InvalidInputException, match="boom"):
+        with pytest.raises(quacklab.InvalidInputException, match="boom"):
             con.execute("SELECT error(?)", ["boom"])
 
     def test_the_last_statement_of_a_script_settles_too(self, con):
-        with pytest.raises(duckdb.InvalidInputException, match="boom"):
+        with pytest.raises(quacklab.InvalidInputException, match="boom"):
             con.execute("SELECT 1; SELECT error('boom')")
 
     def test_a_failing_statement_inside_a_script_stops_it(self, con):
-        with pytest.raises(duckdb.InvalidInputException, match="boom"):
+        with pytest.raises(quacklab.InvalidInputException, match="boom"):
             con.execute("CREATE TABLE a (i INT); SELECT error('boom'); CREATE TABLE b (i INT)")
         tables = con.execute("SELECT table_name FROM duckdb_tables() ORDER BY 1").fetchall()
         assert tables == [("a",)]
 
     @pytest.mark.parametrize(("parameter_sets", "ran"), [([[1], [2]], 0), ([[2], [1]], 1)])
     def test_executemany_stops_at_the_failing_parameter_set(self, con, produced, parameter_sets, ran):
-        with pytest.raises(duckdb.InvalidInputException, match="boom"):
+        with pytest.raises(quacklab.InvalidInputException, match="boom"):
             con.executemany("SELECT tally(CASE WHEN ? = 1 THEN error('boom')::BIGINT ELSE 0 END)", parameter_sets)
         assert produced[0] == ran
 
@@ -115,9 +115,9 @@ class TestExecuteSettles:
     def test_an_error_after_the_first_chunk_waits_for_the_fetch(self, con):
         con.execute("BEGIN")
         con.execute(f"SELECT CASE WHEN i = {ROWS - 1} THEN error('late') ELSE i END FROM range({ROWS}) t(i)")
-        with pytest.raises(duckdb.InvalidInputException, match="late"):
+        with pytest.raises(quacklab.InvalidInputException, match="late"):
             con.fetchall()
-        with pytest.raises(duckdb.TransactionException):
+        with pytest.raises(quacklab.TransactionException):
             con.execute("SELECT 1")
         con.execute("ROLLBACK")
         assert con.execute("SELECT 42").fetchall() == [(42,)]
@@ -127,7 +127,7 @@ class TestExecuteSettles:
         timer = threading.Timer(0.5, con.interrupt)
         timer.start()
         try:
-            with pytest.raises(duckdb.InterruptException):
+            with pytest.raises(quacklab.InterruptException):
                 # An aggregate emits its only row at the end and needs no memory while it runs.
                 con.execute("SELECT sum(a.range * b.range) FROM range(200000) a, range(200000) b")
         finally:
@@ -168,7 +168,7 @@ class TestExecuteSettles:
     def test_a_write_that_fails_late_raises_from_execute_and_leaves_no_trace(self, con, statement):
         con.execute(f"CREATE TABLE t AS SELECT range AS i FROM range({ROWS})")
         late = f"CASE WHEN i = {ROWS - 1} THEN error('boom')::BIGINT ELSE i + 1 END"
-        with pytest.raises(duckdb.InvalidInputException, match="boom"):
+        with pytest.raises(quacklab.InvalidInputException, match="boom"):
             con.execute(statement.format(late=late, rows=ROWS))
         assert con.execute("SELECT count(*), sum(i) FROM t").fetchall() == [(ROWS, ROWS * (ROWS - 1) // 2)]
         assert con.execute("SELECT count(*) FROM duckdb_tables() WHERE table_name = 'u'").fetchall() == [(0,)]
@@ -180,15 +180,15 @@ class TestExecuteSettles:
     @pytest.mark.timeout(60, method="thread")
     def test_a_copy_that_fails_late_raises_from_execute(self, con, tmp_path):
         late = f"CASE WHEN i = {ROWS - 1} THEN error('boom')::BIGINT ELSE i END"
-        with pytest.raises(duckdb.InvalidInputException, match="boom"):
+        with pytest.raises(quacklab.InvalidInputException, match="boom"):
             con.execute(f"COPY (SELECT {late} FROM range({ROWS}) t(i)) TO '{(tmp_path / 'out.csv').as_posix()}'")
 
     def test_a_failed_select_aborts_the_transaction(self, con):
         con.execute("BEGIN")
         con.execute("CREATE TABLE t AS SELECT 1 AS a")
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             con.execute("SELECT error('boom')")
-        with pytest.raises(duckdb.TransactionException):
+        with pytest.raises(quacklab.TransactionException):
             con.execute("SELECT 1")
         con.execute("ROLLBACK")
         assert con.execute("SELECT count(*) FROM duckdb_tables() WHERE table_name = 't'").fetchall() == [(0,)]
@@ -225,9 +225,9 @@ class TestSupersede:
         late = f"CASE WHEN i = {ROWS - 1} THEN error('late')::BIGINT ELSE 0 END"
         con.execute(f"SELECT nextval('s') + {late} FROM range({ROWS}) t(i)")
         con.fetchone()
-        with pytest.raises(duckdb.InvalidInputException, match="late"):
+        with pytest.raises(quacklab.InvalidInputException, match="late"):
             con.execute("SELECT 42")
-        with pytest.raises(duckdb.TransactionException):
+        with pytest.raises(quacklab.TransactionException):
             con.execute("SELECT 1")
         con.execute("ROLLBACK")
 
@@ -287,7 +287,7 @@ class TestSupersede:
         con.execute("CREATE SEQUENCE s")
         con.execute(f"SELECT nextval('s') FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.ResourceInUseException, match=UNFINISHED_EXECUTE):
+        with pytest.raises(quacklab.ResourceInUseException, match=UNFINISHED_EXECUTE):
             con.sql("SELECT 1").fetchall()
         assert con.execute("SELECT 2").fetchall() == [(2,)]
         assert con.execute("SELECT currval('s')").fetchall() == [(ROWS,)]
@@ -328,7 +328,7 @@ class TestOpenResultIsExclusive:
         con.fetchone()
         # Building a relation only binds, so it succeeds; running it is what conflicts with the open result.
         target = prepare(con)
-        with pytest.raises(duckdb.ResourceInUseException, match=UNFINISHED_EXECUTE):
+        with pytest.raises(quacklab.ResourceInUseException, match=UNFINISHED_EXECUTE):
             run(target)
         assert con.fetchone() == (1,)
 
@@ -347,13 +347,13 @@ class TestOpenResultIsExclusive:
         frame = pd.DataFrame({"a": [1]})
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.ResourceInUseException, match=UNFINISHED_EXECUTE):
+        with pytest.raises(quacklab.ResourceInUseException, match=UNFINISHED_EXECUTE):
             con.register("v", frame)
         assert con.fetchone() == (1,)
 
     @pytest.mark.parametrize("release", ["complete", "abort", "fetchall"])
     def test_releasing_the_result_frees_the_connection(self, open_result, release):
-        with pytest.raises(duckdb.ResourceInUseException, match=UNFINISHED_EXECUTE):
+        with pytest.raises(quacklab.ResourceInUseException, match=UNFINISHED_EXECUTE):
             open_result.sql("SELECT 1").fetchall()
         getattr(open_result, release)()
         assert open_result.sql("SELECT 42").fetchall() == [(42,)]
@@ -377,7 +377,7 @@ class TestOpenResultIsExclusive:
         con.execute(f"SELECT nextval('s') FROM range({ROWS})")
         con.fetchone()
         con.abort()
-        with pytest.raises(duckdb.TransactionException):
+        with pytest.raises(quacklab.TransactionException):
             con.execute("SELECT 1")
         con.execute("ROLLBACK")
 
@@ -414,7 +414,7 @@ class TestOpenResultIsExclusive:
         reader = con.sql(f"SELECT * FROM range({ROWS})").to_arrow_reader(1000)
         try:
             reader.read_next_batch()
-            with pytest.raises(duckdb.ResourceInUseException, match=OPEN_RESULT):
+            with pytest.raises(quacklab.ResourceInUseException, match=OPEN_RESULT):
                 use(con)
         finally:
             reader.close()
@@ -425,14 +425,14 @@ class TestOpenResultIsExclusive:
     def test_a_lazy_polars_frame_scanned_on_its_own_connection_errors(self):
         code, output = run_isolated(
             """
-            import duckdb
-            con = duckdb.connect()
+            import quacklab
+            con = quacklab.connect()
             con.execute("CREATE TABLE t AS SELECT range AS x FROM range(10)")
             lf = con.table("t").pl(lazy=True)
             print("started", flush=True)
             try:
                 con.execute("SELECT count(*) FROM lf").fetchall()
-            except duckdb.Error as error:
+            except quacklab.Error as error:
                 print("refused:", error)
             print("usable after:", con.execute("SELECT 42").fetchall())
             """
@@ -445,9 +445,9 @@ class TestOpenResultIsExclusive:
     def test_a_udf_that_reenters_its_connection_errors(self):
         code, output = run_isolated(
             """
-            import duckdb
-            from duckdb.sqltypes import BIGINT
-            con = duckdb.connect()
+            import quacklab
+            from quacklab.sqltypes import BIGINT
+            con = quacklab.connect()
             con.create_function("inner", lambda x: con.execute("SELECT 1").fetchone()[0], [BIGINT], BIGINT)
             print("started", flush=True)
             try:
@@ -503,7 +503,7 @@ class TestOpenResultIsExclusive:
             pytest.param('len(rel.select_types(["INTEGER"]).columns)', id="selects_by_type"),
             pytest.param("len(rel.map(lambda df: df).columns)", id="maps_a_relation"),
             pytest.param("rel.insert([5]) or 0", id="inserts"),
-            pytest.param('rel.update({"a": duckdb.ConstantExpression(3)}) or 0', id="updates"),
+            pytest.param('rel.update({"a": quacklab.ConstantExpression(3)}) or 0', id="updates"),
             pytest.param('len(rel.explain(type="analyze"))', id="explains"),
             pytest.param('con.execute("SELECT 1").fetchall()[0][0]', id="executes"),
             pytest.param("con.close() or 0", id="closes"),
@@ -512,16 +512,16 @@ class TestOpenResultIsExclusive:
     def test_a_udf_that_uses_its_connection_while_the_query_runs_errors(self, callback):
         code, output = run_isolated(
             f"""
-            import duckdb
-            from duckdb.sqltypes import BIGINT
-            con = duckdb.connect()
+            import quacklab
+            from quacklab.sqltypes import BIGINT
+            con = quacklab.connect()
             con.execute("CREATE TABLE t AS SELECT 1 AS a")
             rel = con.table("t")
             con.create_function("inner", lambda x: {callback}, [BIGINT], BIGINT)
             print("started", flush=True)
             try:
                 con.execute("SELECT inner(i) FROM range(3) t(i)").fetchall()
-            except duckdb.Error as error:
+            except quacklab.Error as error:
                 print("refused:", error)
             print("usable after:", con.execute("SELECT 42").fetchall())
             """
@@ -536,9 +536,9 @@ class TestOpenResultIsExclusive:
         code, output = run_isolated(
             """
             import threading
-            import duckdb
-            from duckdb.sqltypes import BIGINT
-            con = duckdb.connect()
+            import quacklab
+            from quacklab.sqltypes import BIGINT
+            con = quacklab.connect()
             # Workers are what runs the scan between fetches, so a one-CPU host must still get some
             con.execute("SET threads = 4")
             # An unordered result lets any chunk answer the fetch, so the worker held below cannot stall it
@@ -553,7 +553,7 @@ class TestOpenResultIsExclusive:
                     try:
                         con.execute("SELECT 1")
                         print("ran", flush=True)
-                    except duckdb.Error as error:
+                    except quacklab.Error as error:
                         print("refused:", error, flush=True)
                     finally:
                         called.set()
@@ -593,7 +593,7 @@ class TestOpenResultIsExclusive:
             try:
                 con.execute("SELECT 1")
                 outcome.append("ran")
-            except duckdb.ResourceInUseException as error:
+            except quacklab.ResourceInUseException as error:
                 outcome.append(str(error))
             finally:
                 release.set()
@@ -618,7 +618,7 @@ class TestOpenResultIsExclusive:
         timer = threading.Timer(0.5, poll)
         timer.start()
         try:
-            with pytest.raises(duckdb.InterruptException):
+            with pytest.raises(quacklab.InterruptException):
                 con.execute("SELECT sum(a.range * b.range) FROM range(200000) a, range(200000) b")
         finally:
             timer.cancel()
@@ -638,7 +638,7 @@ class TestOpenResultIsExclusive:
         con.register("v", con.sql("SELECT 1"))
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.ResourceInUseException, match=UNFINISHED_EXECUTE):
+        with pytest.raises(quacklab.ResourceInUseException, match=UNFINISHED_EXECUTE):
             call(con)
         assert con.fetchone() == (1,)
 
@@ -648,7 +648,7 @@ class TestOpenResultIsExclusive:
         con.execute("INSERT INTO t VALUES (1)")
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.OperationalError, match=UNFINISHED_EXECUTE):
+        with pytest.raises(quacklab.OperationalError, match=UNFINISHED_EXECUTE):
             con.sql("INSERT INTO t VALUES (2)")
         assert len(con.fetchall()) == ROWS - 1
         con.execute("COMMIT")
@@ -665,7 +665,7 @@ class TestOpenResultIsExclusive:
     def test_materializing_a_relation_while_a_result_is_open_errors(self, con):
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.ResourceInUseException, match=UNFINISHED_EXECUTE):
+        with pytest.raises(quacklab.ResourceInUseException, match=UNFINISHED_EXECUTE):
             con.sql("SELECT 1").materialize()
         assert con.fetchone() == (1,)
 
@@ -676,14 +676,14 @@ class TestOpenResultIsExclusive:
         con.execute("CREATE TABLE t (a BIGINT)")
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.ResourceInUseException, match=UNFINISHED_EXECUTE):
+        with pytest.raises(quacklab.ResourceInUseException, match=UNFINISHED_EXECUTE):
             con.append("t", pd.DataFrame({"a": [1]}))
         assert con.fetchone() == (1,)
 
     def test_the_refusal_says_how_to_end_the_result(self, con):
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.ResourceInUseException) as refusal:
+        with pytest.raises(quacklab.ResourceInUseException) as refusal:
             con.sql("SELECT 1").fetchall()
         assert re.search(r"complete\(\) or abort\(\).*cursor\(\)", str(refusal.value))
 
@@ -699,7 +699,7 @@ class TestOpenResultIsExclusive:
         con.execute("CREATE TABLE t (a BIGINT)")
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.ResourceInUseException, match=UNFINISHED_EXECUTE):
+        with pytest.raises(quacklab.ResourceInUseException, match=UNFINISHED_EXECUTE):
             run(con)
         assert con.fetchone() == (1,)
 
@@ -710,7 +710,7 @@ class TestOpenResultIsExclusive:
         assert con.fetchone() is None
         reader = con.sql(f"SELECT * FROM range({ROWS})").to_arrow_reader(1024)
         reader.read_next_batch()
-        with pytest.raises(duckdb.ResourceInUseException, match=OPEN_RESULT):
+        with pytest.raises(quacklab.ResourceInUseException, match=OPEN_RESULT):
             con.sql("SELECT 1").fetchall()
         reader.close()
         assert con.sql("SELECT 42").fetchall() == [(42,)]
@@ -718,7 +718,7 @@ class TestOpenResultIsExclusive:
     def test_a_single_row_result_holds_the_connection_until_a_fetch_finds_its_end(self, con):
         con.execute("SELECT count(*) FROM range(10)")
         assert con.fetchone() == (10,)
-        with pytest.raises(duckdb.ResourceInUseException, match=UNFINISHED_EXECUTE):
+        with pytest.raises(quacklab.ResourceInUseException, match=UNFINISHED_EXECUTE):
             con.sql("SELECT 1").fetchall()
         assert con.fetchone() is None
         assert con.sql("SELECT 42").fetchall() == [(42,)]
@@ -728,7 +728,7 @@ class TestOpenResultIsExclusive:
         cursor.execute(f"SELECT * FROM range({ROWS})")
         cursor.fetchone()
         assert con.sql("SELECT 42").fetchall() == [(42,)]
-        with pytest.raises(duckdb.ResourceInUseException, match=UNFINISHED_EXECUTE):
+        with pytest.raises(quacklab.ResourceInUseException, match=UNFINISHED_EXECUTE):
             cursor.sql("SELECT 1").fetchall()
         assert cursor.fetchone() == (1,)
 
@@ -739,11 +739,11 @@ class TestOpenResultIsExclusive:
             import signal
             import threading
             import time
-            import duckdb
-            from duckdb.sqltypes import BIGINT
+            import quacklab
+            from quacklab.sqltypes import BIGINT
             # A background job starts with SIGINT ignored, which would turn the simulated Ctrl-C into nothing
             signal.signal(signal.SIGINT, signal.default_int_handler)
-            con = duckdb.connect()
+            con = quacklab.connect()
             con.execute("SET threads = 4")
             con.execute("CREATE TABLE t AS SELECT range AS i FROM range(2000000)")
             # A builtin runs no bytecode, so the Ctrl-C reaches the client's signal check while the scan's
@@ -785,7 +785,7 @@ class TestRowFetches:
         assert [con.fetchone() for _ in range(5)] == [(i,) for i in range(5)]
         con.interrupt()
         rows = []
-        with pytest.raises(duckdb.InterruptException):
+        with pytest.raises(quacklab.InterruptException):
             fetch_rows_into(con, rows, 2 * VECTOR)
         # A row fetch asks the engine only for the next chunk, so the rest of the first one comes back first
         assert rows == [(i,) for i in range(5, VECTOR)]
@@ -797,7 +797,7 @@ class TestRowFetches:
         assert con.fetchone() == (0,)
         con.interrupt()
         assert con.fetch_df_chunk(1)["range"].tolist() == list(range(1, VECTOR))
-        with pytest.raises(duckdb.InterruptException):
+        with pytest.raises(quacklab.InterruptException):
             con.fetch_df_chunk(1)
         assert con.execute("SELECT 42").fetchall() == [(42,)]
 
@@ -823,7 +823,7 @@ class TestRowFetches:
         failing.set()
         assert failed.wait(10)
         rows = []
-        with pytest.raises(duckdb.InvalidInputException, match="failed between fetches"):
+        with pytest.raises(quacklab.InvalidInputException, match="failed between fetches"):
             fetch_rows_into(con, rows, ROWS)
         assert len(rows) >= VECTOR - 1
         assert rows == [(i,) for i in range(1, len(rows) + 1)]

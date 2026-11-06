@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 
 class TestRAPIDescription:
@@ -11,7 +11,7 @@ class TestRAPIDescription:
         types = [x[1] for x in desc]
         assert names == ["a", "b"]
         assert types == ["INTEGER", "BIGINT"]
-        assert all(x == duckdb.NUMBER for x in types)
+        assert all(x == quacklab.NUMBER for x in types)
 
     def test_rapi_describe(self, duckdb_cursor):
         np = pytest.importorskip("numpy")

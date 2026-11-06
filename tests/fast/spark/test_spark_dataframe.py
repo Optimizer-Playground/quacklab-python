@@ -1,6 +1,6 @@
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 
 from spark_namespace import USE_ACTUAL_SPARK
@@ -91,7 +91,7 @@ class TestDataFrame:
         if USE_ACTUAL_SPARK:
             from pyspark.sql import Row as SqlRow
         else:
-            from duckdb.experimental.spark.sql import Row as SqlRow
+            from quacklab.experimental.spark.sql import Row as SqlRow
         assert SqlRow is Row
 
     def test_dataframe_from_list_of_tuples(self, spark):

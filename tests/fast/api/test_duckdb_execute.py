@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 
 class TestDuckDBExecute:
@@ -54,7 +54,7 @@ class TestDuckDBExecute:
 
         # Prepared parameter used in a statement that is not the last
         with pytest.raises(
-            duckdb.NotImplementedException, match="Prepared parameters are only supported for the last statement"
+            quacklab.NotImplementedException, match="Prepared parameters are only supported for the last statement"
         ):
             duckdb_cursor.execute(
                 """

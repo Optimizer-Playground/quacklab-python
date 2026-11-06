@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 
 @pytest.fixture(autouse=True)
@@ -110,9 +110,9 @@ class TestRAPIAggregations:
         expected = [(1, "0011000000000"), (2, "0000000000011"), (3, "1000001000000")]
         assert len(result) == len(expected)
         assert all(r == e for r, e in zip(result, expected, strict=False))
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             table.bitstring_agg("v", min="1")
-        with pytest.raises(duckdb.InvalidTypeException):
+        with pytest.raises(quacklab.InvalidTypeException):
             table.bitstring_agg("v", min="1", max=11)
 
     def test_bool_and(self, table):
@@ -486,13 +486,13 @@ class TestRAPIAggregationsWithInvalidInput:
     def test_injection_with_semicolon_is_neutralized(self, duckdb_cursor):
         # Semicolon injection fails to parse as expression, gets quoted as identifier
         rel = duckdb_cursor.sql("select 1 as v")
-        with pytest.raises(duckdb.BinderException, match="not found in FROM clause"):
+        with pytest.raises(quacklab.BinderException, match="not found in FROM clause"):
             rel.sum("v; drop table agg; --").fetchall()
 
     def test_injection_with_union_is_neutralized(self, duckdb_cursor):
         # UNION fails to parse as single expression, gets quoted
         rel = duckdb_cursor.sql("select 1 as v")
-        with pytest.raises(duckdb.BinderException, match="not found in FROM clause"):
+        with pytest.raises(quacklab.BinderException, match="not found in FROM clause"):
             rel.sum("v union select * from agg").fetchall()
 
     def test_subquery_is_contained(self, duckdb_cursor):
@@ -506,7 +506,7 @@ class TestRAPIAggregationsWithInvalidInput:
     def test_injection_closing_paren_is_neutralized(self, duckdb_cursor):
         # Adding a closing paren fails to parse, gets quoted
         rel = duckdb_cursor.sql("select 1 as v")
-        with pytest.raises(duckdb.BinderException, match="not found in FROM clause"):
+        with pytest.raises(quacklab.BinderException, match="not found in FROM clause"):
             rel.sum("v) from agg; drop table agg; --").fetchall()
 
     def test_comment_is_harmless(self, duckdb_cursor):
@@ -518,13 +518,13 @@ class TestRAPIAggregationsWithInvalidInput:
     def test_empty_expression_rejected(self, duckdb_cursor):
         # Empty or whitespace-only expressions should be rejected
         rel = duckdb_cursor.sql("select 1 as v")
-        with pytest.raises(duckdb.ParserException):
+        with pytest.raises(quacklab.ParserException):
             rel.sum("").fetchall()
 
     def test_whitespace_only_expression_rejected(self, duckdb_cursor):
         # Whitespace-only expressions should be rejected
         rel = duckdb_cursor.sql("select 1 as v")
-        with pytest.raises(duckdb.ParserException):
+        with pytest.raises(quacklab.ParserException):
             rel.sum("   ").fetchall()
 
 

@@ -3,21 +3,21 @@ import tempfile
 
 import pytest
 
-import duckdb
+import quacklab
 import pandas as pd
 
 
 class TestPandasUnregister:
     def test_pandas_unregister1(self, duckdb_cursor):
         df = pd.DataFrame([[1, 2, 3], [4, 5, 6]])
-        connection = duckdb.connect(":memory:")
+        connection = quacklab.connect(":memory:")
         connection.register("dataframe", df)
 
         df2 = connection.execute("SELECT * FROM dataframe;").fetchdf()  # noqa: F841
         connection.unregister("dataframe")
-        with pytest.raises(duckdb.CatalogException, match="Table with name dataframe does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="Table with name dataframe does not exist"):
             connection.execute("SELECT * FROM dataframe;").fetchdf()
-        with pytest.raises(duckdb.CatalogException, match="View with name dataframe does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="View with name dataframe does not exist"):
             connection.execute("DROP VIEW dataframe;")
         connection.execute("DROP VIEW IF EXISTS dataframe;")
 
@@ -25,7 +25,7 @@ class TestPandasUnregister:
         with tempfile.NamedTemporaryFile() as tmp:
             db = tmp.name
 
-        connection = duckdb.connect(db)
+        connection = quacklab.connect(db)
         df = pd.DataFrame([[1, 2, 3], [4, 5, 6]])
 
         connection.register("dataframe", df)
@@ -33,10 +33,10 @@ class TestPandasUnregister:
         connection.close()
 
         # Reconnecting while DataFrame still in mem.
-        connection = duckdb.connect(db)
+        connection = quacklab.connect(db)
         assert len(connection.execute("PRAGMA show_tables;").fetchall()) == 0
 
-        with pytest.raises(duckdb.CatalogException, match="Table with name dataframe does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="Table with name dataframe does not exist"):
             connection.execute("SELECT * FROM dataframe;").fetchdf()
 
         connection.close()
@@ -45,8 +45,8 @@ class TestPandasUnregister:
         gc.collect()
 
         # Reconnecting after DataFrame freed.
-        connection = duckdb.connect(db)
+        connection = quacklab.connect(db)
         assert len(connection.execute("PRAGMA show_tables;").fetchall()) == 0
-        with pytest.raises(duckdb.CatalogException, match="Table with name dataframe does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="Table with name dataframe does not exist"):
             connection.execute("SELECT * FROM dataframe;").fetchdf()
         connection.close()

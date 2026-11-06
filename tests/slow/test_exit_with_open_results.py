@@ -20,7 +20,7 @@ DEADLINE = 60
 BODY_DONE = "BODY_DONE"
 
 FRAME = f"""
-import duckdb
+import quacklab
 import pandas as pd
 
 df = pd.DataFrame({{"s": pd.Series([f"v{{i}}" for i in range({ROWS})], dtype=object), "i": range({ROWS})}})
@@ -28,7 +28,7 @@ df = pd.DataFrame({{"s": pd.Series([f"v{{i}}" for i in range({ROWS})], dtype=obj
 
 DECIMAL_FRAME = f"""
 import decimal
-import duckdb
+import quacklab
 import pandas as pd
 
 df = pd.DataFrame({{"d": pd.Series([decimal.Decimal(i) for i in range({ROWS})], dtype=object), "i": range({ROWS})}})
@@ -62,21 +62,21 @@ def _assert_exit(proc: subprocess.CompletedProcess[str], *, status: int = 0, bod
 OPEN_RESULT_CASES = [
     pytest.param(
         """
-        con = duckdb.connect()
+        con = quacklab.connect()
         print(con.execute("SELECT * FROM df").fetchone())
         """,
         id="dbapi_fetchone",
     ),
     pytest.param(
         """
-        con = duckdb.connect()
+        con = quacklab.connect()
         print(len(con.execute("SELECT * FROM df").fetchmany(10)))
         """,
         id="dbapi_fetchmany",
     ),
     pytest.param(
         """
-        con = duckdb.connect()
+        con = quacklab.connect()
         cur = con.cursor()
         print(cur.execute("SELECT * FROM df").fetchone())
         """,
@@ -84,13 +84,13 @@ OPEN_RESULT_CASES = [
     ),
     pytest.param(
         """
-        print(duckdb.execute("SELECT * FROM df").fetchone())
+        print(quacklab.execute("SELECT * FROM df").fetchone())
         """,
         id="default_connection",
     ),
     pytest.param(
         """
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("SELECT * FROM df")
         print(len(con.fetch_df_chunk()))
         """,
@@ -98,7 +98,7 @@ OPEN_RESULT_CASES = [
     ),
     pytest.param(
         """
-        con = duckdb.connect()
+        con = quacklab.connect()
         capsule = con.sql("SELECT * FROM df").__arrow_c_stream__()
         print(type(capsule).__name__)
         """,
@@ -106,7 +106,7 @@ OPEN_RESULT_CASES = [
     ),
     pytest.param(
         """
-        con = duckdb.connect()
+        con = quacklab.connect()
         reader = con.sql("SELECT * FROM df").to_arrow_reader(1000)
         print(reader.read_next_batch().num_rows)
         """,
@@ -115,7 +115,7 @@ OPEN_RESULT_CASES = [
     ),
     pytest.param(
         """
-        con = duckdb.connect(config={"threads": 4})
+        con = quacklab.connect(config={"threads": 4})
         print(con.execute("SELECT * FROM df WHERE i % 2 = 0").fetchone())
         """,
         id="filter_four_threads",
@@ -123,7 +123,7 @@ OPEN_RESULT_CASES = [
     pytest.param(
         """
         import sys
-        con = duckdb.connect()
+        con = quacklab.connect()
         print(con.execute("SELECT * FROM df").fetchone())
         print("BODY_DONE", flush=True)
         sys.exit(0)
@@ -140,14 +140,14 @@ class TestOpenResultAtExit:
 
     def test_exits_with_an_open_result_over_decimal_cells(self) -> None:
         body = """
-        con = duckdb.connect()
+        con = quacklab.connect()
         print(con.execute("SELECT * FROM df").fetchone())
         """
         _assert_exit(_run(body, head=DECIMAL_FRAME))
 
     def test_an_exception_after_the_fetch_exits_with_status_one(self) -> None:
         body = """
-        con = duckdb.connect()
+        con = quacklab.connect()
         print(con.execute("SELECT * FROM df").fetchone())
         raise RuntimeError("boom")
         """
@@ -162,7 +162,7 @@ class TestOpenResultAtExit:
     def test_a_result_open_on_a_busy_thread_does_not_block_the_exit(self) -> None:
         body = """
         import threading
-        con = duckdb.connect()
+        con = quacklab.connect()
         started = threading.Event()
 
         def work():
@@ -172,7 +172,7 @@ class TestOpenResultAtExit:
             try:
                 while True:
                     cursor.fetchmany(1)
-            except duckdb.Error:
+            except quacklab.Error:
                 pass
 
         threading.Thread(target=work, daemon=True).start()
@@ -196,7 +196,7 @@ class TestAfterTheHook:
         """
         head = textwrap.dedent(handler) + FRAME
         body = """
-        con = duckdb.connect()
+        con = quacklab.connect()
         state["con"] = con
         print(con.execute("SELECT * FROM df").fetchone())
         """
@@ -217,7 +217,7 @@ class TestAfterTheHook:
         atexit.register(after)
         """
         body = """
-        con = duckdb.connect(config={"threads": 4})
+        con = quacklab.connect(config={"threads": 4})
         state["con"] = con
         """
         proc = _run(body, head=textwrap.dedent(handler) + FRAME)
@@ -240,13 +240,13 @@ class TestAfterTheHook:
         atexit.register(after)
         """
         body = """
-        con = duckdb.connect(config={"threads": 4})
+        con = quacklab.connect(config={"threads": 4})
 
         def query_after_the_hook():
             state["go"].wait()
             try:
                 state["outcome"] = con.cursor().execute("SELECT count(s), min(s) FROM df").fetchone()
-            except duckdb.Error as error:
+            except quacklab.Error as error:
                 state["outcome"] = f"{type(error).__name__}: {error}"
             state["done"].set()
 
@@ -265,7 +265,7 @@ class TestUnchangedExits:
         [
             pytest.param(
                 """
-                con = duckdb.connect()
+                con = quacklab.connect()
                 print(con.execute("SELECT * FROM df").fetchone())
                 con.close()
                 """,
@@ -273,7 +273,7 @@ class TestUnchangedExits:
             ),
             pytest.param(
                 """
-                con = duckdb.connect()
+                con = quacklab.connect()
                 print(len(con.execute("SELECT * FROM df").fetchall()))
                 """,
                 id="fetched_to_the_end",
@@ -281,7 +281,7 @@ class TestUnchangedExits:
             pytest.param(
                 """
                 def read():
-                    con = duckdb.connect()
+                    con = quacklab.connect()
                     return con.execute("SELECT * FROM df").fetchone()
 
                 print(read())

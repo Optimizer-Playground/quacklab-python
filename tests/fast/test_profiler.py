@@ -1,12 +1,12 @@
 import pytest
 
-import duckdb
-from duckdb.query_graph import ProfilingInfo
+import quacklab
+from quacklab.query_graph import ProfilingInfo
 
 
 @pytest.fixture(scope="session")
 def profiling_connection():
-    con = duckdb.connect()
+    con = quacklab.connect()
     con.enable_profiling()
     con.execute("SELECT 42;").fetchall()
     yield con

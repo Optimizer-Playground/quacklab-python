@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-import duckdb
+import quacklab
 
 pyarrow = pytest.importorskip("pyarrow")
 pyarrow.parquet = pytest.importorskip("pyarrow.parquet")
@@ -14,7 +14,7 @@ CONSUMED = "has already been consumed and cannot be scanned again"
 
 class TestArrowRecordBatchReader:
     def test_parallel_reader(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("PRAGMA threads=4")
 
         parquet_filename = str(Path(__file__).parent / "data" / "userdata1.parquet")
@@ -34,11 +34,11 @@ class TestArrowRecordBatchReader:
         rel = duckdb_conn.from_arrow(reader)
 
         assert rel.filter("first_name='Jose' and salary > 134708.82").aggregate("count(*)").fetchall()[0][0] == 12
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             rel.filter("first_name='Jose' and salary > 134708.82").aggregate("count(*)").fetchall()
 
     def test_parallel_reader_replacement_scans(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("PRAGMA threads=4")
 
         parquet_filename = str(Path(__file__).parent / "data" / "userdata1.parquet")
@@ -61,13 +61,13 @@ class TestArrowRecordBatchReader:
             ).fetchone()[0]
             == 12
         )
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             duckdb_conn.execute(
                 "select count(*) r2 from reader where first_name='Jose' and salary > 134708.82"
             ).fetchone()
 
     def test_parallel_reader_register(self, duckdb_cursor):
-        duckdb_conn = duckdb.connect()
+        duckdb_conn = quacklab.connect()
         duckdb_conn.execute("PRAGMA threads=4")
 
         parquet_filename = str(Path(__file__).parent / "data" / "userdata1.parquet")
@@ -90,7 +90,7 @@ class TestArrowRecordBatchReader:
             duckdb_conn.execute("select count(*) from bla where first_name='Jose' and salary > 134708.82").fetchone()[0]
             == 12
         )
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             duckdb_conn.execute("select count(*) from bla where first_name='Jose' and salary > 134708.82").fetchone()
 
     def test_parallel_reader_default_conn(self, duckdb_cursor):
@@ -108,8 +108,8 @@ class TestArrowRecordBatchReader:
         batches = list(userdata_parquet_dataset.to_batches())
         reader = pyarrow.dataset.Scanner.from_batches(batches, schema=userdata_parquet_dataset.schema).to_reader()
 
-        rel = duckdb.from_arrow(reader)
+        rel = quacklab.from_arrow(reader)
 
         assert rel.filter("first_name='Jose' and salary > 134708.82").aggregate("count(*)").fetchall()[0][0] == 12
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             rel.filter("first_name='Jose' and salary > 134708.82").aggregate("count(*)").fetchall()

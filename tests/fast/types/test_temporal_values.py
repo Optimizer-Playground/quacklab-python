@@ -8,7 +8,7 @@ import datetime
 
 import pytest
 
-import duckdb
+import quacklab
 import numpy as np
 
 YEARS = [1, 255, 256, 1970, 2024, 9999]
@@ -72,7 +72,7 @@ class TestTemporalValues:
         # the fold flag, 256 wraps to 0)
         pa = pytest.importorskip("pyarrow")
         table = pa.table({"t": pa.array([hours * 3_600_000_000], type=pa.time64("us"))})
-        with pytest.raises(duckdb.Error):
+        with pytest.raises(quacklab.Error):
             duckdb_cursor.from_arrow(table).fetchall()
 
     def test_infinities_are_the_extremes(self, duckdb_cursor):
@@ -111,9 +111,9 @@ class TestTemporalSubclasses:
     @pytest.mark.parametrize(
         ("kind", "field", "value", "error", "message"),
         [
-            (datetime.time, "hour", 256, duckdb.InvalidInputException, "Time out of range"),
-            (datetime.datetime, "minute", 60, duckdb.InvalidInputException, "Time out of range"),
-            (datetime.date, "month", 13, duckdb.ConversionException, "Date out of range"),
+            (datetime.time, "hour", 256, quacklab.InvalidInputException, "Time out of range"),
+            (datetime.datetime, "minute", 60, quacklab.InvalidInputException, "Time out of range"),
+            (datetime.date, "month", 13, quacklab.ConversionException, "Date out of range"),
         ],
     )
     def test_an_invalid_field_is_refused(self, duckdb_cursor, kind, field, value, error, message):

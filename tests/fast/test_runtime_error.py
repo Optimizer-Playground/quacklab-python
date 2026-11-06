@@ -1,51 +1,51 @@
 import pytest
 
-import duckdb
+import quacklab
 import pandas as pd
 
 
 def closed():
-    return pytest.raises(duckdb.ConnectionException, match="Connection already closed")
+    return pytest.raises(quacklab.ConnectionException, match="Connection already closed")
 
 
 def closed_relation():
     # Changed: a relation method reports the engine's text for a closed connection.
-    return pytest.raises(duckdb.ConnectionException, match="Connection has already been closed")
+    return pytest.raises(quacklab.ConnectionException, match="Connection has already been closed")
 
 
 def no_result_set():
-    return pytest.raises(duckdb.InvalidInputException, match="No open result set")
+    return pytest.raises(quacklab.InvalidInputException, match="No open result set")
 
 
 class TestRuntimeError:
     def test_fetch_error(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("create table tbl as select 'hello' i")
-        with pytest.raises(duckdb.ConversionException):
+        with pytest.raises(quacklab.ConversionException):
             con.execute("select i::int from tbl").fetchall()
 
     def test_df_error(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("create table tbl as select 'hello' i")
-        with pytest.raises(duckdb.ConversionException):
+        with pytest.raises(quacklab.ConversionException):
             con.execute("select i::int from tbl").df()
 
     def test_arrow_error(self):
         pytest.importorskip("pyarrow")
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("create table tbl as select 'hello' i")
-        with pytest.raises(duckdb.ConversionException):
+        with pytest.raises(quacklab.ConversionException):
             con.sql("select i::int from tbl").to_arrow_table()
 
     def test_register_error(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         py_obj = "this is a string"
-        with pytest.raises(duckdb.InvalidInputException, match='Python Object "this is a string" of type "str"'):
+        with pytest.raises(quacklab.InvalidInputException, match='Python Object "this is a string" of type "str"'):
             con.register(py_obj, "v")
 
     def test_relation_cache_fetchall(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         df_in = pd.DataFrame(
             {
                 "numbers": [1, 2, 3, 4, 5],
@@ -54,14 +54,14 @@ class TestRuntimeError:
         conn.execute("create view x as select * from df_in")
         rel = conn.query("select * from x")
         del df_in
-        with pytest.raises(duckdb.ProgrammingError, match="Table with name df_in does not exist"):
+        with pytest.raises(quacklab.ProgrammingError, match="Table with name df_in does not exist"):
             # Even when we preserve ExternalDependency objects correctly, this is not supported
             # Relations only save dependencies for their immediate TableRefs,
             # so the dependency of 'x' on 'df_in' is not registered in 'rel'
             rel.fetchall()
 
     def test_relation_query_error(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         df_in = pd.DataFrame(
             {
                 "numbers": [1, 2, 3, 4, 5],
@@ -70,11 +70,11 @@ class TestRuntimeError:
         conn.execute("create view x as select * from df_in")
         rel = conn.query("select * from x")
         del df_in
-        with pytest.raises(duckdb.CatalogException, match="Table with name df_in does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="Table with name df_in does not exist"):
             rel.query("bla", "select * from bla")
 
     def test_conn_broken_statement_error(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         df_in = pd.DataFrame(
             {
                 "numbers": [1, 2, 3, 4, 5],
@@ -82,20 +82,20 @@ class TestRuntimeError:
         )
         conn.execute("create view x as select * from df_in")
         del df_in
-        with pytest.raises(duckdb.CatalogException, match="Table with name df_in does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="Table with name df_in does not exist"):
             conn.execute("select 1; select * from x; select 3;")
 
     def test_conn_prepared_statement_error(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("create table integers (a integer, b integer)")
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match="Values were not provided for the following parameters: 2",
         ):
             conn.execute("select * from integers where a =? and b=?", [1])
 
     def test_closed_conn_exceptions(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.close()
         df_in = pd.DataFrame(
             {
@@ -137,7 +137,7 @@ class TestRuntimeError:
             conn.from_arrow("bla")
 
     def test_missing_result_from_conn_exceptions(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
 
         with no_result_set():
             conn.fetchone()

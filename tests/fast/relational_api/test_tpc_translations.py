@@ -22,8 +22,8 @@ from pathlib import Path
 
 import pytest
 
-import duckdb
-from duckdb import col, count_all, fn, rank, sql_expr, when
+import quacklab
+from quacklab import col, count_all, fn, rank, sql_expr, when
 
 D = decimal.Decimal
 DAYS = ("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
@@ -31,7 +31,7 @@ DAYS = ("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 
 @dataclasses.dataclass
 class Benchmark:
-    con: duckdb.DuckDBPyConnection
+    con: quacklab.DuckDBPyConnection
     queries: dict[int, str]
     answers: dict[int, str]
 
@@ -43,7 +43,7 @@ def _read_csv(path, column):
 
 def _from_files(name, generator):
     root = os.environ.get("DUCKDB_PYTHON_TPC_DATA")
-    con = duckdb.connect()
+    con = quacklab.connect()
     if root:
         directory = Path(root).expanduser() / name
         tables = sorted((directory / "sf0.01").glob("*.parquet"))
@@ -58,7 +58,7 @@ def _from_files(name, generator):
         return Benchmark(con, queries, answers)
     try:
         con.execute(f"LOAD {name}")
-    except duckdb.Error:
+    except quacklab.Error:
         con.close()
         pytest.skip(f"the {name} extension does not load")
     con.execute(f"CALL {generator}(sf=0.01)")

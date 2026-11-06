@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 
@@ -8,8 +8,8 @@ pa = pytest.importorskip("pyarrow")
 class TestArrowFetchRecordBatch:
     # Test with basic numeric conversion (integers, floats, and others fall this code-path)
     def test_record_batch_next_batch_numeric(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
-        duckdb_cursor_check = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
+        duckdb_cursor_check = quacklab.connect()
         duckdb_cursor.execute("CREATE table t as select range a from range(3000);")
         query = duckdb_cursor.sql("SELECT a FROM t")
         record_batch_reader = query.to_arrow_reader(1024)
@@ -32,8 +32,8 @@ class TestArrowFetchRecordBatch:
 
     # Test With Bool
     def test_record_batch_next_batch_bool(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
-        duckdb_cursor_check = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
+        duckdb_cursor_check = quacklab.connect()
         duckdb_cursor.execute(
             "CREATE table t as SELECT CASE WHEN i % 2 = 0 THEN true ELSE false END AS a from range(3000) as tbl(i);"
         )
@@ -59,8 +59,8 @@ class TestArrowFetchRecordBatch:
 
     # Test with Varchar
     def test_record_batch_next_batch_varchar(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
-        duckdb_cursor_check = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
+        duckdb_cursor_check = quacklab.connect()
         duckdb_cursor.execute("CREATE table t as select range::varchar a from range(3000);")
         query = duckdb_cursor.sql("SELECT a FROM t")
         record_batch_reader = query.to_arrow_reader(1024)
@@ -84,8 +84,8 @@ class TestArrowFetchRecordBatch:
 
     # Test with Struct
     def test_record_batch_next_batch_struct(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
-        duckdb_cursor_check = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
+        duckdb_cursor_check = quacklab.connect()
         duckdb_cursor.execute(
             "CREATE table t as select {'x': i, 'y': i::varchar, 'z': i+1} as a from range(3000)  as tbl(i);"
         )
@@ -111,8 +111,8 @@ class TestArrowFetchRecordBatch:
 
     # Test with List
     def test_record_batch_next_batch_list(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
-        duckdb_cursor_check = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
+        duckdb_cursor_check = quacklab.connect()
         duckdb_cursor.execute("CREATE table t as select [i,i+1] as a from range(3000)  as tbl(i);")
         query = duckdb_cursor.sql("SELECT a FROM t")
         record_batch_reader = query.to_arrow_reader(1024)
@@ -137,8 +137,8 @@ class TestArrowFetchRecordBatch:
 
     # Test with Map
     def test_record_batch_next_batch_map(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
-        duckdb_cursor_check = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
+        duckdb_cursor_check = quacklab.connect()
         duckdb_cursor.execute("CREATE table t as select map([i], [i+1]) as a from range(3000)  as tbl(i);")
         query = duckdb_cursor.sql("SELECT a FROM t")
         record_batch_reader = query.to_arrow_reader(1024)
@@ -163,8 +163,8 @@ class TestArrowFetchRecordBatch:
 
     # Test with Null Values
     def test_record_batch_next_batch_with_null(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
-        duckdb_cursor_check = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
+        duckdb_cursor_check = quacklab.connect()
         duckdb_cursor.execute(
             "CREATE table t as SELECT CASE WHEN i % 2 = 0 THEN i ELSE NULL END AS a from range(3000) as tbl(i);"
         )
@@ -190,7 +190,7 @@ class TestArrowFetchRecordBatch:
         assert res == correct
 
     def test_record_batch_read_default(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
         duckdb_cursor.execute("CREATE table t as select range a from range(3000);")
         query = duckdb_cursor.sql("SELECT a FROM t")
         record_batch_reader = query.to_arrow_reader()
@@ -198,7 +198,7 @@ class TestArrowFetchRecordBatch:
         assert len(chunk) == 3000
 
     def test_record_batch_next_batch_multiple_vectors_per_chunk(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
         duckdb_cursor.execute("CREATE table t as select range a from range(5000);")
         query = duckdb_cursor.sql("SELECT a FROM t")
         record_batch_reader = query.to_arrow_reader(2048)
@@ -223,7 +223,7 @@ class TestArrowFetchRecordBatch:
         assert len(chunk) == 2000
 
     def test_record_batch_next_batch_multiple_vectors_per_chunk_error(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
         duckdb_cursor.execute("CREATE table t as select range a from range(5000);")
         query = duckdb_cursor.sql("SELECT a FROM t")
         with pytest.raises(RuntimeError, match="Approximate Batch Size of Record Batch MUST be higher than 0"):
@@ -232,7 +232,7 @@ class TestArrowFetchRecordBatch:
             query.to_arrow_reader(-1)
 
     def test_record_batch_reader_from_relation(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
         duckdb_cursor.execute("CREATE table t as select range a from range(3000);")
         relation = duckdb_cursor.table("t")
         record_batch_reader = relation.to_arrow_reader()
@@ -240,7 +240,7 @@ class TestArrowFetchRecordBatch:
         assert len(chunk) == 3000
 
     def test_record_coverage(self, duckdb_cursor):
-        duckdb_cursor = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
         duckdb_cursor.execute("CREATE table t as select range a from range(2048);")
         query = duckdb_cursor.sql("SELECT a FROM t")
         record_batch_reader = query.to_arrow_reader(1024)
@@ -249,14 +249,14 @@ class TestArrowFetchRecordBatch:
         assert len(chunk) == 2048
 
     def test_record_batch_query_error(self):
-        duckdb_cursor = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
         duckdb_cursor.execute("CREATE table t as select 'foo' as a;")
         # execute() runs a query to its first rows, so an error there is reported by execute() itself
-        with pytest.raises(duckdb.ConversionException, match="Conversion Error"):
+        with pytest.raises(quacklab.ConversionException, match="Conversion Error"):
             duckdb_cursor.execute("SELECT cast(a as double) FROM t")
 
     def test_many_list_batches(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
 
         conn.execute(
             """
@@ -275,7 +275,7 @@ class TestArrowFetchRecordBatch:
 
     def test_many_chunk_sizes(self):
         object_size = 1000000
-        duckdb_cursor = duckdb.connect()
+        duckdb_cursor = quacklab.connect()
         query = duckdb_cursor.execute(f"CREATE table t as select range a from range({object_size});")
         # The engine also ends a batch at a row group and at the end of each producer's input, so the batch size
         # is a maximum

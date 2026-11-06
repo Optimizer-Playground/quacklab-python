@@ -2,7 +2,7 @@ from io import StringIO
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 def TestFile(name):
@@ -13,33 +13,33 @@ def TestFile(name):
 
 class TestReadJSON:
     def test_read_json_columns(self):
-        rel = duckdb.read_json(TestFile("example.json"), columns={"id": "integer", "name": "varchar"})
+        rel = quacklab.read_json(TestFile("example.json"), columns={"id": "integer", "name": "varchar"})
         [res] = rel.limit(1).fetchall()
         print(res)
         assert res == (1, "O Brother, Where Art Thou?")
 
     def test_read_json_auto(self):
-        rel = duckdb.read_json(TestFile("example.json"))
+        rel = quacklab.read_json(TestFile("example.json"))
         [res] = rel.limit(1).fetchall()
         print(res)
         assert res == (1, "O Brother, Where Art Thou?")
 
     def test_read_json_maximum_depth(self):
-        rel = duckdb.read_json(TestFile("example.json"), maximum_depth=4)
+        rel = quacklab.read_json(TestFile("example.json"), maximum_depth=4)
         [res] = rel.limit(1).fetchall()
         print(res)
         assert res == (1, "O Brother, Where Art Thou?")
 
     def test_read_json_sample_size(self):
-        rel = duckdb.read_json(TestFile("example.json"), sample_size=2)
+        rel = quacklab.read_json(TestFile("example.json"), sample_size=2)
         [res] = rel.limit(1).fetchall()
         print(res)
         assert res == (1, "O Brother, Where Art Thou?")
 
     def test_read_json_format(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         # Wrong option
-        with pytest.raises(duckdb.BinderException, match=r"format must be one of .* not 'test'"):
+        with pytest.raises(quacklab.BinderException, match=r"format must be one of .* not 'test'"):
             rel = con.read_json(TestFile("example.json"), format="test")
 
         rel = con.read_json(TestFile("example.json"), format="unstructured")
@@ -73,9 +73,9 @@ class TestReadJSON:
         assert res[0][2] != res[1][2]
 
     def test_read_json_records(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         # Wrong option
-        with pytest.raises(duckdb.BinderException, match="""read_json requires "records" to be one of"""):
+        with pytest.raises(quacklab.BinderException, match="""read_json requires "records" to be one of"""):
             rel = con.read_json(TestFile("example.json"), records="none")
 
         rel = con.read_json(TestFile("example.json"), records="true")
@@ -119,7 +119,7 @@ class TestReadJSON:
         option_name, option_value = option
         keyword_arguments[option_name] = option_value
         if option_name == "hive_types":
-            with pytest.raises(duckdb.InvalidInputException, match=r"Unknown hive_type:"):
+            with pytest.raises(quacklab.InvalidInputException, match=r"Unknown hive_type:"):
                 rel = duckdb_cursor.read_json(TestFile("example.json"), **keyword_arguments)
         else:
             rel = duckdb_cursor.read_json(TestFile("example.json"), **keyword_arguments)

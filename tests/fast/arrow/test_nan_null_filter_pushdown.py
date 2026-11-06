@@ -28,7 +28,7 @@ from _pushdown_helpers import (
     was_pushed,
 )
 
-import duckdb
+import quacklab
 
 try:
     import pyarrow as pa
@@ -124,7 +124,7 @@ def _make_factory_params_with_xfail(xfail_on_dict):
             marks = [
                 *factory_param.marks,
                 pytest.mark.xfail(
-                    strict=True, raises=duckdb.Error, reason="follow up: pyarrow is_nan has no dictionary kernel"
+                    strict=True, raises=quacklab.Error, reason="follow up: pyarrow is_nan has no dictionary kernel"
                 ),
             ]
             result.append(pytest.param(factory, marks=marks, id=factory_param.id))
@@ -151,7 +151,7 @@ def _make_combined_params_coltype_op(coltype_op_tuples):
                 marks = [
                     *factory_param.marks,
                     pytest.mark.xfail(
-                        strict=True, raises=duckdb.Error, reason="follow up: pyarrow is_nan has no dictionary kernel"
+                        strict=True, raises=quacklab.Error, reason="follow up: pyarrow is_nan has no dictionary kernel"
                     ),
                 ]
                 result.append(pytest.param(coltype, op, factory, marks=marks, id=param_id))
@@ -179,7 +179,7 @@ def _make_combined_params_coltype_op_const(coltype_op_const_tuples):
                 marks = [
                     *factory_param.marks,
                     pytest.mark.xfail(
-                        strict=True, raises=duckdb.Error, reason="follow up: pyarrow is_nan has no dictionary kernel"
+                        strict=True, raises=quacklab.Error, reason="follow up: pyarrow is_nan has no dictionary kernel"
                     ),
                 ]
                 result.append(pytest.param(coltype, op, const, factory, marks=marks, id=param_id))

@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 import pandas as pd
 
 WRITES = "CREATE TABLE memory.main.writes (k INTEGER)"
@@ -177,13 +177,13 @@ READS = [
 ]
 
 FAILURES = [
-    case("missing", BASE, "missing", duckdb.CatalogException),
-    case("missing_in_schema", BASE, "s.missing", duckdb.CatalogException),
-    case("neither_schema_nor_database", BASE, "nosuch.v", duckdb.CatalogException, sql='"nosuch.v"'),
-    case("ambiguous_view", AMBIGUOUS, "s.v", duckdb.BinderException),
-    case("ambiguous_table", AMBIGUOUS, "s.t", duckdb.BinderException),
+    case("missing", BASE, "missing", quacklab.CatalogException),
+    case("missing_in_schema", BASE, "s.missing", quacklab.CatalogException),
+    case("neither_schema_nor_database", BASE, "nosuch.v", quacklab.CatalogException, sql='"nosuch.v"'),
+    case("ambiguous_view", AMBIGUOUS, "s.v", quacklab.BinderException),
+    case("ambiguous_table", AMBIGUOUS, "s.t", quacklab.BinderException),
     # A schema wins over a frame registered with the whole dotted name, as in SQL.
-    case("dotted_frame_beside_schema", BASE, "s.r", duckdb.CatalogException),
+    case("dotted_frame_beside_schema", BASE, "s.r", quacklab.CatalogException),
 ]
 
 FILES = [
@@ -208,7 +208,7 @@ def params(cases, inside_a_transaction, with_sql=False):
 
 
 def connect(setup):
-    con = duckdb.connect()
+    con = quacklab.connect()
     for step in setup:
         if callable(step):
             step(con)
@@ -227,7 +227,7 @@ def writes_after_second_insert(con, in_transaction):
         con.execute("INSERT INTO memory.main.writes VALUES (2)")
         if in_transaction:
             con.execute("COMMIT")
-    except duckdb.TransactionException:
+    except quacklab.TransactionException:
         con.execute("ROLLBACK")
     return con.execute("SELECT k FROM memory.main.writes ORDER BY k").fetchall()
 
@@ -236,7 +236,7 @@ def failure(setup, read, in_transaction):
     with connect(setup) as con:
         if in_transaction:
             begin(con)
-        with pytest.raises(duckdb.Error) as raised:
+        with pytest.raises(quacklab.Error) as raised:
             read(con).fetchall()
         return raised.type, str(raised.value).splitlines()[0], writes_after_second_insert(con, in_transaction)
 
@@ -336,4 +336,4 @@ def test_name_with_an_empty_part_reads_the_file_not_the_table_its_parts_name():
 
 def test_module_function_reads_a_qualified_view():
     with connect(BASE) as con:
-        assert duckdb.table("s.v", connection=con).fetchall() == [("s.v",)]
+        assert quacklab.table("s.v", connection=con).fetchall() == [("s.v",)]

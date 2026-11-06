@@ -1,6 +1,6 @@
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 
 from spark_namespace.errors import AnalysisException, error_condition
@@ -8,7 +8,7 @@ from spark_namespace.sql.types import (
     Row,
 )
 
-import duckdb
+import quacklab
 
 
 @pytest.fixture
@@ -92,7 +92,7 @@ class TestDataFrameUnion:
         first = spark.createDataFrame([(1, 2)], ["a", "b"])
         second = spark.createDataFrame([(3,)], ["a"])
         # Spark raises AnalysisException; DuckDB's binder does not find the column.
-        with pytest.raises((AnalysisException, duckdb.BinderException)):
+        with pytest.raises((AnalysisException, quacklab.BinderException)):
             first.unionByName(second).collect()
 
     def test_union_by_name_of_names_with_a_backtick_or_a_dot(self, spark):

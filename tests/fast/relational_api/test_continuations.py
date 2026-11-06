@@ -11,12 +11,12 @@ import json
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     connection.execute(
         "CREATE TABLE t AS SELECT * FROM (VALUES (1, 'c'), (2, 'b'), (3, 'a'), (3, 'a'), (4, 'b')) v(i, x)"
     )
@@ -454,7 +454,7 @@ class TestOneSelectUnderConstruction:
                 id="expression_after_aggregate",
             ),
             pytest.param(
-                lambda kv: kv.with_columns(v=duckdb.SQLExpression("k * 100")).order("abs(v)").limit(1),
+                lambda kv: kv.with_columns(v=quacklab.SQLExpression("k * 100")).order("abs(v)").limit(1),
                 "SELECT * FROM (SELECT * REPLACE (k * 100 AS v) FROM kv) ORDER BY abs(v) LIMIT 1",
                 [(1, 100)],
                 id="expression_after_with_columns",
@@ -583,7 +583,7 @@ class TestNamesAreTheEngines:
         assert_same(con, build(con).limit(10).filter("true"), closed)
 
     def test_a_bare_name_both_sides_have_is_ambiguous_in_the_open_select(self, con):
-        with pytest.raises(duckdb.BinderException, match="Ambiguous reference"):
+        with pytest.raises(quacklab.BinderException, match="Ambiguous reference"):
             joined(con).filter("i = 1")
 
     def test_after_the_boundary_the_suffixed_name_is_the_right_side_s_key(self, con):
@@ -652,7 +652,7 @@ class TestAnInputAliasAfterTheSelectClosedIsLoud:
         ],
     )
     def test_the_engine_error_at_the_call(self, con, build, alias):
-        with pytest.raises(duckdb.BinderException, match=side_error(alias)):
+        with pytest.raises(quacklab.BinderException, match=side_error(alias)):
             build(joined(con))
 
     @pytest.mark.parametrize(
@@ -705,7 +705,7 @@ class TestAnInputAliasAfterTheSelectClosedIsLoud:
         ],
     )
     def test_an_inner_join_that_entered_closed_hides_its_inputs(self, con, build, alias):
-        with pytest.raises(duckdb.BinderException, match=side_error(alias)):
+        with pytest.raises(quacklab.BinderException, match=side_error(alias)):
             build(con)
 
     @pytest.mark.parametrize(
@@ -725,7 +725,7 @@ class TestAnInputAliasAfterTheSelectClosedIsLoud:
         ],
     )
     def test_the_name_set_alias_replaced_is_out_of_scope(self, con, build, alias):
-        with pytest.raises(duckdb.BinderException, match=side_error(alias)):
+        with pytest.raises(quacklab.BinderException, match=side_error(alias)):
             build(con)
 
     def test_a_column_a_derived_side_projected_away(self, con):
@@ -733,19 +733,19 @@ class TestAnInputAliasAfterTheSelectClosedIsLoud:
         source = con.sql("SELECT 1 AS k, 30 AS z", alias="t")
         other = con.sql("SELECT 1 AS k, 10 AS x", alias="l")
         joined_sides = source.project("k").join(other, "t.k = l.k")
-        with pytest.raises(duckdb.BinderException, match=engine_only('does not have a column named "z"')):
+        with pytest.raises(quacklab.BinderException, match=engine_only('does not have a column named "z"')):
             joined_sides.filter("t.z > 0")
 
     def test_a_name_the_boundary_made_on_a_shadowed_alias(self, con):
         p = con.sql("SELECT 1 AS k, 10 AS x", alias="p")
         pair = p.join(con.sql("SELECT 2 AS x, 3 AS x", alias="q"), "TRUE")
-        with pytest.raises(duckdb.BinderException, match=engine_only('does not have a column named "x_1"')):
+        with pytest.raises(quacklab.BinderException, match=engine_only('does not have a column named "x_1"')):
             pair.join(con.sql("SELECT 4 AS z", alias="q"), "q.x_1 = z")
 
     def test_an_alias_that_shadows_a_closed_input(self, con):
         p = con.sql("SELECT 1 AS k, 10 AS x", alias="p")
         named = p.join(con.sql("SELECT 2 AS x", alias="q"), "TRUE").project("p.k").set_alias("q")
-        with pytest.raises(duckdb.BinderException, match=engine_only('does not have a column named "x"')):
+        with pytest.raises(quacklab.BinderException, match=engine_only('does not have a column named "x"')):
             named.filter("q.x > 0")
 
     @pytest.mark.parametrize(
@@ -814,7 +814,7 @@ class TestJoinsAsInputs:
 
     def test_a_join_with_a_filled_slot_hides_its_input_aliases(self, con):
         inner = con.table("a").join(con.table("b"), "a.id = b.id").filter("a.x > 0")
-        with pytest.raises(duckdb.BinderException, match='Referenced table "a" not found'):
+        with pytest.raises(quacklab.BinderException, match='Referenced table "a" not found'):
             inner.join(con.table("c"), "a.id = c.id")
 
     def test_a_named_join_with_a_filled_slot_joins_under_its_name(self, con):
@@ -854,7 +854,7 @@ class TestInnerJoinsThatEnterClosed:
         # A join with suffix= closes both sides, so the inner a is out of scope.
         con.execute("CREATE TABLE e AS SELECT * FROM (VALUES (1, 7), (2, 8)) v(id, x)")
         pair = con.table("a").join(con.table("b"), "a.id = b.id")
-        with pytest.raises(duckdb.BinderException, match=side_error("a")):
+        with pytest.raises(quacklab.BinderException, match=side_error("a")):
             pair.join(con.table("e"), "a.id = e.id", suffix="_e")
 
     def test_a_suffix_over_a_bare_join_reads_it_as_a_subquery(self, con):
@@ -862,7 +862,9 @@ class TestInnerJoinsThatEnterClosed:
         con.execute("CREATE TABLE e AS SELECT * FROM (VALUES (1, 7), (2, 8)) v(id, x)")
         pair = con.table("a").join(con.table("b"), "a.id = b.id")
         rel = pair.join(
-            con.table("e"), duckdb.ColumnExpression(pair.alias, "id") == duckdb.ColumnExpression("e", "id"), suffix="_e"
+            con.table("e"),
+            quacklab.ColumnExpression(pair.alias, "id") == quacklab.ColumnExpression("e", "id"),
+            suffix="_e",
         )
         direct = (
             "SELECT l.*, e.* RENAME (id AS id_e, x AS x_e) "
@@ -943,14 +945,14 @@ class TestWhatASuffixRenames:
     def test_a_suffixed_name_the_right_side_already_has_is_refused(self, con, right, suffix, name):
         # Every output column counts, the right side's own exposed names as much as the left side's.
         left = con.sql("SELECT 1 AS k, 10 AS x", alias="l")
-        with pytest.raises(duckdb.InvalidInputException, match=name):
+        with pytest.raises(quacklab.InvalidInputException, match=name):
             left.join(con.sql(right, alias="r"), "k", suffix=suffix)
 
     def test_a_suffixed_name_the_left_side_already_has_is_refused(self, con):
         # The option exists to avoid a duplicate name, so one it would create is refused at the call.
         left = con.sql("SELECT 1 AS k, 10 AS x, 11 AS x_r", alias="l")
         right = con.sql("SELECT 1 AS k, 20 AS x", alias="r")
-        with pytest.raises(duckdb.InvalidInputException, match="x_r"):
+        with pytest.raises(quacklab.InvalidInputException, match="x_r"):
             left.join(right, "l.k = r.k", suffix="_r")
 
     def test_a_side_whose_type_does_not_parse_back_still_takes_a_suffix(self, con):
@@ -984,7 +986,7 @@ class TestStepsAfterARenamingSuffixJoin:
 
     @pytest.fixture
     def pair(self):
-        connection = duckdb.connect()
+        connection = quacklab.connect()
         connection.execute("CREATE TABLE l AS SELECT * FROM (VALUES (1, 10), (2, 20)) v(k, x)")
         connection.execute("CREATE TABLE r AS SELECT * FROM (VALUES (1, 100), (2, 200)) v(k, x)")
         yield connection
@@ -1014,7 +1016,7 @@ class TestStepsAfterARenamingSuffixJoin:
 
     def test_an_input_alias_after_it_is_the_engine_s_error(self, pair):
         # The suffix fills the join's select list, so the filter opens a new SELECT where r is out of scope.
-        with pytest.raises(duckdb.BinderException, match=side_error("r")):
+        with pytest.raises(quacklab.BinderException, match=side_error("r")):
             self.suffixed(pair).filter("r.x > 100")
 
     def test_a_step_appended_to_a_reader_with_a_select_list_stays_in_its_select(self, con, tmp_path):
@@ -1034,7 +1036,7 @@ class TestUsingAndAsofJoinsWithASuffix:
 
     @pytest.fixture
     def pair(self):
-        connection = duckdb.connect()
+        connection = quacklab.connect()
         connection.execute("CREATE TABLE l AS SELECT * FROM (VALUES (1, 10), (2, 20)) v(k, x)")
         connection.execute("CREATE TABLE r AS SELECT * FROM (VALUES (1, 100), (3, 300)) v(k, x)")
         connection.execute("CREATE TABLE trades AS SELECT * FROM (VALUES (1, 10, 'a'), (2, 20, 'b')) v(id, t, x)")
@@ -1094,7 +1096,7 @@ class TestADeepSetOperation:
         for _ in range(22):
             u = u.union(u)
         assert u.filter("a = 1").columns == ["a"]
-        with pytest.raises(duckdb.BinderException):
+        with pytest.raises(quacklab.BinderException):
             u.filter("zz.a = 1")
 
 
@@ -1132,7 +1134,7 @@ class TestTheLastAliasIsTheName:
     def test_a_filter_reads_it_under_the_later_alias(self, con, named):
         assert named.alias == "r"
         assert named.filter("r.k > 1").fetchall() == [(2, 20)]
-        with pytest.raises(duckdb.BinderException, match='Referenced table "qk" not found'):
+        with pytest.raises(quacklab.BinderException, match='Referenced table "qk" not found'):
             named.filter("qk.k > 1")
 
     def test_a_join_with_a_table_of_the_earlier_alias_has_no_clash(self, con, named):
@@ -1216,7 +1218,7 @@ class TestOneAliasPerFromItem:
         return con.table("q").filter("k2 < 2").project("k2 AS key")
 
     def test_two_direct_inputs_under_one_name_are_refused(self, keyed):
-        with pytest.raises(duckdb.InvalidInputException, match="same alias"):
+        with pytest.raises(quacklab.InvalidInputException, match="same alias"):
             keyed.table("q").join(keyed.table("q"), "k2")
 
     @pytest.mark.parametrize(
@@ -1269,5 +1271,5 @@ class TestOneAliasPerFromItem:
     def test_an_inner_input_named_in_the_condition_of_a_join_that_could_not_inline_is_loud(self, keyed):
         # The bare join entered closed, so q is keys there and the inner q.k2 is reached by its name k2.
         pair = keyed.table("p").join(keyed.table("q"), "k = k2")
-        with pytest.raises(duckdb.BinderException, match=engine_only('does not have a column named "k2"')):
+        with pytest.raises(quacklab.BinderException, match=engine_only('does not have a column named "k2"')):
             pair.join(self.keys(keyed), "q.k2 = key", how="semi")

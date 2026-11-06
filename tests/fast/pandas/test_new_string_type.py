@@ -3,7 +3,7 @@ import warnings
 import pytest
 from packaging.version import Version
 
-import duckdb
+import quacklab
 import pandas as pd
 
 
@@ -12,7 +12,7 @@ import pandas as pd
 )
 def test_new_str_type_pandas_3_0():
     df = pd.DataFrame({"s": ["DuckDB"]})  # noqa: F841
-    duckdb.sql("select * from df")
+    quacklab.sql("select * from df")
 
 
 def _infer_string_frame(values):

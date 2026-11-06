@@ -5,7 +5,7 @@ import textwrap
 
 import pytest
 
-import duckdb
+import quacklab
 import pandas as pd
 
 
@@ -25,7 +25,7 @@ def test_import_cache_explicit_dtype(string_dtype):
             "value": pd.Series(["123.123", pd.NaT, pd.NA], dtype=pd.StringDtype(storage=string_dtype)),
         }
     )
-    con = duckdb.connect()
+    con = quacklab.connect()
     result_df = con.query("select id, value from df").df()
 
     assert pd.isna(result_df["value"][1])
@@ -34,7 +34,7 @@ def test_import_cache_explicit_dtype(string_dtype):
 
 def test_import_cache_implicit_dtype():
     df = pd.DataFrame({"id": [1, 2, 3], "value": pd.Series(["123.123", pd.NaT, pd.NA])})  # noqa: F841
-    con = duckdb.connect()
+    con = quacklab.connect()
     result_df = con.query("select id, value from df").df()
 
     assert pd.isna(result_df["value"][1])
@@ -56,8 +56,8 @@ def test_converting_values_does_not_import_pandas(pandas_state):
         """
         import builtins
         import sys
-        import duckdb
-        from duckdb.sqltypes import BIGINT
+        import quacklab
+        from quacklab.sqltypes import BIGINT
 
         if sys.argv[1] == "blocked":
             sys.modules["pandas"] = None
@@ -70,7 +70,7 @@ def test_converting_values_does_not_import_pandas(pandas_state):
             return real_import(name, *args, **kwargs)
 
         builtins.__import__ = recording_import
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("SET threads = 4")
         con.create_function("identity", abs, [BIGINT], BIGINT)
         assert con.execute("SELECT sum(identity(i)) FROM range(10000) t(i)").fetchall() == [(49995000,)]
@@ -86,10 +86,10 @@ def test_converting_values_does_not_import_pandas(pandas_state):
 def test_nat_and_na_convert_to_null_once_pandas_is_imported():
     output = run_without_pandas(
         """
-        import duckdb
-        from duckdb.sqltypes import BIGINT, TIMESTAMP
+        import quacklab
+        from quacklab.sqltypes import BIGINT, TIMESTAMP
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("identity", abs, [BIGINT], BIGINT)
         con.execute("SELECT identity(1)").fetchall()
 
@@ -111,14 +111,14 @@ def test_nat_and_na_in_a_string_object_column_scan_as_null(source):
     output = run_without_pandas(
         """
         import sys
-        import duckdb
+        import quacklab
         import numpy as np
         import pandas as pd
 
         values = np.array(["x"] * 100000, dtype=object)
         values[1], values[2], values[-1] = pd.NA, pd.NaT, pd.NA
         frame = {"a": values} if sys.argv[1] == "numpy_dict" else pd.DataFrame({"a": values})
-        con = duckdb.connect()
+        con = quacklab.connect()
         query = "SELECT count(*) FILTER (a IS NULL), count(*) FILTER (a IN ('<NA>', 'NaT')) FROM frame"
         rows = con.execute(query).fetchall()
         print("nulls, strings:", rows)

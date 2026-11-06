@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-import duckdb
+import quacklab
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -19,23 +19,23 @@ def generator(monkeypatch, name):
 
 
 def committed(module):
-    return (ROOT / "duckdb" / f"{module}.py").read_text()
+    return (ROOT / "quacklab" / f"{module}.py").read_text()
 
 
 def test_the_keyword_module_is_current(monkeypatch):
     gen_keywords = generator(monkeypatch, "gen_keywords")
-    assert committed("_sql_keywords") == gen_keywords.render(duckdb.connect()), "run scripts/gen_keywords.py"
+    assert committed("_sql_keywords") == gen_keywords.render(quacklab.connect()), "run scripts/gen_keywords.py"
 
 
 def test_the_aggregate_module_is_current(monkeypatch):
     gen_aggregates = generator(monkeypatch, "gen_aggregates")
-    assert gen_aggregates.verify(duckdb.connect()) == []
+    assert gen_aggregates.verify(quacklab.connect()) == []
     assert committed("_expression_aggregates") == gen_aggregates.render(), "run scripts/gen_aggregates.py"
 
 
 def test_the_function_family_module_is_current(monkeypatch):
     gen_func_namespaces = generator(monkeypatch, "gen_func_namespaces")
-    resolved, report = gen_func_namespaces.build(duckdb.connect())
+    resolved, report = gen_func_namespaces.build(quacklab.connect())
     assert report["problems"] == []
     assert committed("_expression_namespaces") == gen_func_namespaces.render(resolved), (
         "run scripts/gen_func_namespaces.py"

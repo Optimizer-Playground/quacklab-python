@@ -15,7 +15,7 @@ import gc
 
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 
@@ -40,7 +40,7 @@ class TestMaterializedToArrowTable:
     """A materialized relation reads as Arrow like a fresh one."""
 
     def test_materialized_relation_to_arrow_table_matches_fresh(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         expected = conn.sql(RICH_SQL).to_arrow_table()
         rel = conn.sql(RICH_SQL)
         rel = rel.materialize()
@@ -52,13 +52,13 @@ class TestLazyCapsuleStreaming:
     """``__arrow_c_stream__`` is now a lazy streaming object."""
 
     def test_fresh_capsule_matches_to_arrow_table(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         expected = conn.sql(RICH_SQL).to_arrow_table()
         actual = pa.table(conn.sql(RICH_SQL))
         assert actual.equals(expected)
 
     def test_materialized_capsule_matches_to_arrow_table(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         expected = conn.sql(RICH_SQL).to_arrow_table()
         rel = conn.sql(RICH_SQL)
         rel = rel.materialize()
@@ -67,27 +67,27 @@ class TestLazyCapsuleStreaming:
 
     def test_fresh_capsule_survives_del_conn(self):
         """Fresh capsule survives ``del conn``: the StreamQueryResult owns the context (#492)."""
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         capsule = conn.sql(RICH_SQL).__arrow_c_stream__()  # noqa: F841
         del conn
         gc.collect()
-        out = duckdb.connect().sql("SELECT * FROM capsule").to_arrow_table()
+        out = quacklab.connect().sql("SELECT * FROM capsule").to_arrow_table()
         assert out.num_rows == 1000
 
     def test_materialized_capsule_survives_del_conn(self):
         """A capsule over a materialized relation survives ``del conn``: its stream owns the context."""
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         rel = conn.sql(RICH_SQL)
         rel = rel.materialize()
         capsule = rel.__arrow_c_stream__()  # noqa: F841
         del rel, conn
         gc.collect()
-        out = duckdb.connect().sql("SELECT * FROM capsule").to_arrow_table()
+        out = quacklab.connect().sql("SELECT * FROM capsule").to_arrow_table()
         assert out.num_rows == 1000
 
     def test_fresh_capsule_consume_then_reuse_same_connection(self):
         """Streaming-object contract: consume the fresh capsule before reusing the connection."""
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         sql = "SELECT i FROM range(100) t(i)"
         c1 = conn.sql(sql).__arrow_c_stream__()
         first = pa.RecordBatchReader._import_from_c_capsule(c1).read_all()
@@ -102,7 +102,7 @@ class TestRecordBatchReaderStreaming:
     """A relation reader over a stream: not materialized, survives del conn, shares the active-stream slot."""
 
     def test_reader_consume_then_reuse_connection(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("CREATE TABLE t AS SELECT range AS a FROM range(3000)")
         reader = conn.sql("SELECT a FROM t").to_arrow_reader(1024)
         tbl = reader.read_all()  # consume before reusing the connection
@@ -112,7 +112,7 @@ class TestRecordBatchReaderStreaming:
         assert conn.execute("SELECT 42").fetchone()[0] == 42
 
     def test_reader_survives_del_conn(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("CREATE TABLE t AS SELECT range AS a FROM range(3000)")
         reader = conn.sql("SELECT a FROM t").to_arrow_reader(1024)
         del conn
@@ -121,7 +121,7 @@ class TestRecordBatchReaderStreaming:
         assert tbl.num_rows == 3000
 
     def test_reader_exact_batch_sizes(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("CREATE TABLE t AS SELECT range AS a FROM range(3000)")
         reader = conn.sql("SELECT a FROM t").to_arrow_reader(1024)
         assert reader.read_next_batch().num_rows == 1024
@@ -137,7 +137,7 @@ class TestDuplicateColumnNames:
     DUP_SQL = "SELECT i AS a, i + 1 AS a, i + 2 AS a FROM range(50) t(i)"
 
     def test_to_arrow_table_duplicate_columns(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         tbl = conn.sql(self.DUP_SQL).to_arrow_table()
         assert tbl.num_rows == 50
         assert tbl.num_columns == 3
@@ -148,13 +148,13 @@ class TestDuplicateColumnNames:
 
     @pytest.mark.xfail(strict=True, reason="core's MaterializedRelation renames duplicate column names")
     def test_materialized_to_arrow_table_keeps_duplicate_columns(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         rel = conn.sql(self.DUP_SQL)
         rel = rel.materialize()
         assert rel.to_arrow_table().column_names == ["a", "a", "a"]
 
     def test_materialized_capsule_duplicate_columns(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         rel = conn.sql(self.DUP_SQL)
         rel = rel.materialize()
         tbl = pa.table(rel)
@@ -162,7 +162,7 @@ class TestDuplicateColumnNames:
         assert tbl.num_columns == 3
 
     def test_reader_duplicate_columns(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         reader = conn.sql(self.DUP_SQL).to_arrow_reader()
         tbl = reader.read_all()
         assert tbl.num_rows == 50
@@ -170,7 +170,7 @@ class TestDuplicateColumnNames:
 
     def test_pl_duplicate_columns_dedups(self):
         pl = pytest.importorskip("polars")
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         df = conn.sql(self.DUP_SQL).pl()
         # polars requires unique column names; the dedup must still apply.
         assert isinstance(df, pl.DataFrame)
@@ -182,13 +182,13 @@ class TestEdgeCaseShapes:
     # parser error), so the "0 columns" risk from CONTEXT.md is not reachable here.
 
     def test_single_row_single_column(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         tbl = conn.sql("SELECT 42 AS x").to_arrow_table()
         assert tbl.num_rows == 1
         assert tbl.column("x").to_pylist() == [42]
 
     def test_enum_categorical_roundtrip(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy')")
         conn.execute("CREATE TABLE t AS SELECT 'happy'::mood AS m FROM range(100)")
         actual = conn.sql("SELECT m FROM t").to_arrow_table()
@@ -196,7 +196,7 @@ class TestEdgeCaseShapes:
         assert pa.types.is_dictionary(actual.schema.field("m").type)
 
     def test_enum_via_reader(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy')")
         conn.execute("CREATE TABLE t AS SELECT 'ok'::mood AS m FROM range(100)")
         reader = conn.sql("SELECT m FROM t").to_arrow_reader()
@@ -209,14 +209,14 @@ class TestConfigFidelity:
     """Re-fed / directly-wrapped results reproduce the user's Arrow output config (e.g. TimeZone)."""
 
     def test_timezone_preserved_through_reader(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("SET TimeZone = 'America/New_York'")
         reader = conn.sql("SELECT TIMESTAMPTZ '2021-06-01 12:00:00' AS ts").to_arrow_reader()
         tbl = reader.read_all()
         assert tbl.schema.field("ts").type.tz == "America/New_York"
 
     def test_timezone_preserved_through_materialized_capsule(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("SET TimeZone = 'Asia/Kathmandu'")
         rel = conn.sql("SELECT TIMESTAMPTZ '2021-06-01 12:00:00' AS ts")
         rel = rel.materialize()
@@ -225,7 +225,7 @@ class TestConfigFidelity:
 
     def test_large_buffer_size_preserved_through_reader(self):
         # arrow_large_buffer_size promotes string/blob/list offsets to 64-bit.
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("SET arrow_large_buffer_size = true")
         reader = conn.sql("SELECT 'hello' AS s FROM range(10)").to_arrow_reader()
         tbl = reader.read_all()
@@ -236,7 +236,7 @@ class TestLazyStreamMechanism:
     """Mechanism behind the GEOMETRY-after-close win: an Arrow stream is correct after del conn."""
 
     def test_stream_data_correct_after_del_conn(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("CREATE TABLE t AS SELECT i, i::VARCHAR AS s FROM range(2000) t(i)")
         reader = conn.sql("SELECT * FROM t ORDER BY i").to_arrow_reader(512)
         del conn
@@ -261,7 +261,7 @@ class TestGeometryAfterClose:
 
     def _expected(self):
         # deterministic query -> compute the reference on an independent connection
-        return duckdb.connect().sql(self.GEOM_SQL).to_arrow_table()
+        return quacklab.connect().sql(self.GEOM_SQL).to_arrow_table()
 
     @staticmethod
     def _assert_geoarrow(tbl) -> None:
@@ -277,7 +277,7 @@ class TestGeometryAfterClose:
 
     def test_fresh_capsule_geometry_after_del_conn(self):
         expected = self._expected()
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         capsule = conn.sql(self.GEOM_SQL).__arrow_c_stream__()
         del conn
         gc.collect()
@@ -288,7 +288,7 @@ class TestGeometryAfterClose:
     def test_materialized_capsule_geometry_after_del_conn(self):
         # The conversion runs after del conn
         expected = self._expected()
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         rel = conn.sql(self.GEOM_SQL)
         rel = rel.materialize()
         capsule = rel.__arrow_c_stream__()
@@ -301,7 +301,7 @@ class TestGeometryAfterClose:
     def test_reader_geometry_after_del_conn(self):
         # A streaming relation is wrapped directly; conversion runs after del conn
         expected = self._expected()
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         reader = conn.sql(self.GEOM_SQL).to_arrow_reader()
         del conn
         gc.collect()
@@ -311,7 +311,7 @@ class TestGeometryAfterClose:
 
     def test_materialized_to_arrow_table_geometry(self):
         expected = self._expected()
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         rel = conn.sql(self.GEOM_SQL)
         rel = rel.materialize()
         actual = rel.to_arrow_table()

@@ -1,4 +1,4 @@
-import duckdb
+import quacklab
 import numpy as np
 import pandas as pd
 
@@ -24,7 +24,7 @@ class TestPandasMergeSameName:
             }
         )
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("df1", df1)
         con.register("df2", df2)
         query = """SELECT * from df1
@@ -73,7 +73,7 @@ class TestPandasMergeSameName:
             }
         )
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("df1", df1)
         con.register("df2", df2)
         query = """SELECT * from df1
@@ -103,7 +103,7 @@ class TestPandasMergeSameName:
             }
         )
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("df1", df1)
         con.register("df2", df2)
 

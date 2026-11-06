@@ -5,7 +5,7 @@ from spark_namespace.sql.types import (
     Row,
 )
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 if USE_ACTUAL_SPARK:
     import pyspark

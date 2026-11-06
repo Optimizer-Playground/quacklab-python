@@ -1,10 +1,10 @@
 import json
 
-import duckdb
+import quacklab
 
 
 def parsed(sql):
-    tree = json.loads(duckdb.connect().execute("SELECT json_serialize_sql(?)", [sql]).fetchall()[0][0])
+    tree = json.loads(quacklab.connect().execute("SELECT json_serialize_sql(?)", [sql]).fetchall()[0][0])
     return [without_locations(statement) for statement in tree["statements"]]
 
 
@@ -27,6 +27,6 @@ class TestRAPIFunctions:
         assert capsys.readouterr().out.strip() == drawn.strip()
 
     def test_rapi_relation_sql_query(self):
-        res = duckdb.table_function("range", [10])
+        res = quacklab.table_function("range", [10])
         assert parsed(res.sql_query()) == parsed("SELECT * FROM range(10)")
-        assert duckdb.sql(res.sql_query()).fetchall() == res.fetchall()
+        assert quacklab.sql(res.sql_query()).fetchall() == res.fetchall()

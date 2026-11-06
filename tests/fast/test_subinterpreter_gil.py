@@ -73,7 +73,7 @@ import pandas as pd
 PANDAS_SCAN = f"""
 df = pd.DataFrame({{"a": [1, 2, 3]}})
 print({STARTED!r})
-con = duckdb.connect()
+con = quacklab.connect()
 con.execute("SET enable_progress_bar = false")
 print(con.sql("SELECT sum(a) FROM df").fetchall())
 """
@@ -81,12 +81,12 @@ print(con.sql("SELECT sum(a) FROM df").fetchall())
 ARROW_IMPORTS = """
 import pyarrow
 
-from duckdb.sqltypes import BIGINT
+from quacklab.sqltypes import BIGINT
 """
 
 # The UDF makes ending the query wait for a task that needs the GIL.
 ARROW_READER = f"""
-con = duckdb.connect()
+con = quacklab.connect()
 con.execute("SET enable_progress_bar = false")
 con.execute("SET max_streaming_buffer_size='1MB'")
 con.create_function("identity", lambda i: i, [BIGINT], BIGINT)
@@ -138,7 +138,7 @@ import re
 
 try:
     print(con.sql("SELECT sum(amount) FROM mismatched").fetchall())
-except duckdb.Error as error:
+except quacklab.Error as error:
     pieces = ("amount", "299999", "float", "INTEGER")
     named = all(re.search(rf"(?<![\\w.]){piece}(?!\\w)", str(error)) for piece in pieces)
     print(type(error).__name__, named)
@@ -152,7 +152,7 @@ t = pyarrow.table(
 
 # A pyarrow Table never asks for the GIL around its pulls and batch releases; this source does.
 HELD_SOURCE = """
-from duckdb._sources import ArrowScanSource
+from quacklab._sources import ArrowScanSource
 
 
 class HeldSource(ArrowScanSource):
@@ -184,7 +184,7 @@ MASKED_MAX_QUERY = "SELECT (SELECT max(a) FROM ints), (SELECT max(CAST(a AS BIGI
 def _at_four_threads(*statements: str) -> str:
     setup = f"""
 print({STARTED!r})
-con = duckdb.connect()
+con = quacklab.connect()
 con.execute("SET enable_progress_bar = false")
 con.execute("SET threads = 4")
 """
@@ -198,7 +198,7 @@ def _run(imports: str, body: str) -> subprocess.CompletedProcess[str]:
             NO_CORE_DUMP if sys.platform != "win32" else "",
             "import sys\n",
             SUBINTERPRETER,
-            "import duckdb\n",
+            "import quacklab\n",
             imports,
             SPINNER,
             body,

@@ -789,23 +789,23 @@ class TestDuckDBDevVersion(unittest.TestCase):
 
 
 class TestPackageCommitAtRuntime(unittest.TestCase):
-    """duckdb.build_info() degrades to unknown without a usable generated module."""
+    """quacklab.build_info() degrades to unknown without a usable generated module."""
 
     def setUp(self):
-        self.version_module = pytest.importorskip("duckdb._version")
+        self.version_module = pytest.importorskip("quacklab._version")
 
     def test_missing_module(self):
-        with patch.dict(sys.modules, {"duckdb._build_info": None}):
+        with patch.dict(sys.modules, {"quacklab._build_info": None}):
             assert self.version_module._package_commit() == "unknown"
 
     def test_module_without_the_symbol(self):
-        with patch.dict(sys.modules, {"duckdb._build_info": types.ModuleType("duckdb._build_info")}):
+        with patch.dict(sys.modules, {"quacklab._build_info": types.ModuleType("quacklab._build_info")}):
             assert self.version_module._package_commit() == "unknown"
 
     def test_generated_module(self):
-        generated = types.ModuleType("duckdb._build_info")
+        generated = types.ModuleType("quacklab._build_info")
         generated.PACKAGE_COMMIT = PACKAGE_COMMIT
-        with patch.dict(sys.modules, {"duckdb._build_info": generated}):
+        with patch.dict(sys.modules, {"quacklab._build_info": generated}):
             assert self.version_module._package_commit() == PACKAGE_COMMIT
 
 

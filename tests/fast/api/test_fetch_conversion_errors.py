@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 
@@ -13,10 +13,10 @@ needs_pandas = pytest.mark.skipif(importlib.util.find_spec("pandas") is None, re
 
 
 def _icu_loads():
-    with duckdb.connect() as con:
+    with quacklab.connect() as con:
         try:
             con.execute("LOAD icu")
-        except duckdb.Error:
+        except quacklab.Error:
             return False
     return True
 
@@ -41,7 +41,7 @@ def strings_with_one_invalid_row(row):
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     yield connection
     connection.close()
 
@@ -72,7 +72,7 @@ class TestAConversionErrorEndsTheResult:
     def test_the_next_statement_runs(self, con, fetch, row):
         con.register("strings", strings_with_one_invalid_row(row))
         con.execute("SELECT s FROM strings")
-        with pytest.raises(duckdb.InvalidInputException, match=INVALID_UNICODE):
+        with pytest.raises(quacklab.InvalidInputException, match=INVALID_UNICODE):
             fetch(con)
         assert con.sql("SELECT 42").fetchall() == [(42,)]
 
@@ -80,10 +80,10 @@ class TestAConversionErrorEndsTheResult:
     def test_a_later_fetch_raises_the_same_error(self, con, fetch):
         con.register("strings", strings_with_one_invalid_row(3000))
         con.execute("SELECT s FROM strings")
-        with pytest.raises(duckdb.InvalidInputException, match=INVALID_UNICODE) as first:
+        with pytest.raises(quacklab.InvalidInputException, match=INVALID_UNICODE) as first:
             fetch(con)
         for later in (con.fetchall, con.fetchone):
-            with pytest.raises(duckdb.InvalidInputException) as again:
+            with pytest.raises(quacklab.InvalidInputException) as again:
                 later()
             assert str(again.value) == str(first.value)
         assert con.sql("SELECT 42").fetchall() == [(42,)]
@@ -93,7 +93,7 @@ class TestAConversionErrorEndsTheResult:
         con.execute("SELECT INTERVAL 1000000000 DAYS")
         with pytest.raises(OverflowError) as first:
             con.fetchone()
-        with pytest.raises(duckdb.InvalidInputException, match=re.escape(str(first.value))):
+        with pytest.raises(quacklab.InvalidInputException, match=re.escape(str(first.value))):
             con.fetchall()
         assert con.sql("SELECT 42").fetchall() == [(42,)]
 
@@ -105,7 +105,7 @@ class TestAConversionErrorEndsTheResult:
         con.execute("SELECT TIMESTAMPTZ '2024-01-01 00:00:00+00' + INTERVAL (i) SECOND FROM range(10000) t(i)")
         with pytest.raises(KeyError) as first:
             con.fetch_df_chunk(1)
-        with pytest.raises(duckdb.InvalidInputException, match=re.escape(str(first.value))):
+        with pytest.raises(quacklab.InvalidInputException, match=re.escape(str(first.value))):
             con.fetchall()
         assert con.sql("SELECT 42").fetchall() == [(42,)]
 
@@ -114,7 +114,7 @@ class TestAConversionErrorEndsTheResult:
         con.execute("BEGIN")
         con.execute("CREATE TABLE kept (i INTEGER)")
         con.execute("SELECT s FROM strings")
-        with pytest.raises(duckdb.InvalidInputException, match=INVALID_UNICODE):
+        with pytest.raises(quacklab.InvalidInputException, match=INVALID_UNICODE):
             con.fetchall()
         con.sql("INSERT INTO kept VALUES (1)")
         con.execute("COMMIT")
@@ -130,6 +130,6 @@ class TestNumpyConversionOfInvalidUtf8:
     @pytest.mark.parametrize("source", ["execute", "sql"])
     def test_raises_invalid_input_like_fetchall(self, con, source, method, query):
         con.register("strings", strings([b"ok", INVALID_UTF8, None]))
-        with pytest.raises(duckdb.InvalidInputException, match=INVALID_UNICODE):
+        with pytest.raises(quacklab.InvalidInputException, match=INVALID_UNICODE):
             getattr(getattr(con, source)(query), method)()
         assert con.sql("SELECT 42").fetchall() == [(42,)]

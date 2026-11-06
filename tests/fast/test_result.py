@@ -1,11 +1,11 @@
 import datetime
 
-import duckdb
+import quacklab
 
 
 class TestPythonResult:
     def test_result_describe_types(self, duckdb_cursor):
-        connection = duckdb.connect("")
+        connection = quacklab.connect("")
         cursor = connection.cursor()
         cursor.execute("CREATE TABLE test (i bool, j TIME, k VARCHAR)")
         cursor.execute("INSERT INTO test VALUES (TRUE, '01:01:01', 'bla' )")
@@ -17,7 +17,7 @@ class TestPythonResult:
         ]
 
     def test_result_timestamps(self, duckdb_cursor):
-        connection = duckdb.connect("")
+        connection = quacklab.connect("")
         cursor = connection.cursor()
         cursor.execute(
             "CREATE TABLE IF NOT EXISTS timestamps (sec TIMESTAMP_S, milli TIMESTAMP_MS,micro TIMESTAMP_US, nano TIMESTAMP_NS );"  # noqa: E501
@@ -37,7 +37,7 @@ class TestPythonResult:
         ]
 
     def test_result_interval(self):
-        connection = duckdb.connect()
+        connection = quacklab.connect()
         cursor = connection.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS intervals (ivals INTERVAL)")
         cursor.execute("INSERT INTO intervals VALUES ('1 day'), ('2 second'), ('1 microsecond')")
@@ -51,6 +51,6 @@ class TestPythonResult:
         ]
 
     def test_description_uuid(self):
-        connection = duckdb.connect()
+        connection = quacklab.connect()
         connection.execute("select uuid();")
         connection.description  # noqa: B018

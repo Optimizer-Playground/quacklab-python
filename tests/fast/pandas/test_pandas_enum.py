@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 import pandas as pd
 
 
@@ -39,7 +39,7 @@ class TestPandasEnum:
         )
         duckdb_cursor.register("df", df)
         with pytest.raises(
-            duckdb.ConversionException,
+            quacklab.ConversionException,
             match="with value berlioz can't be cast to the destination type ENUM",
         ):
             duckdb_cursor.execute("INSERT INTO tab SELECT * FROM df;")

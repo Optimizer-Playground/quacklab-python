@@ -30,12 +30,12 @@ import unittest
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 class DuckDBTypeTests(unittest.TestCase):
     def setUp(self):
-        self.con = duckdb.connect(":memory:")
+        self.con = quacklab.connect(":memory:")
         self.cur = self.con.cursor()
         self.cur.execute("create table test(i bigint, s varchar, f double, b BLOB)")
 
@@ -165,7 +165,7 @@ class DuckDBTypeTests(unittest.TestCase):
 
 class CommonTableExpressionTests(unittest.TestCase):
     def setUp(self):
-        self.con = duckdb.connect(":memory:")
+        self.con = quacklab.connect(":memory:")
         self.cur = self.con.cursor()
         self.cur.execute("create table test(x int)")
 
@@ -197,7 +197,7 @@ class CommonTableExpressionTests(unittest.TestCase):
 
 class DateTimeTests(unittest.TestCase):
     def setUp(self):
-        self.con = duckdb.connect(":memory:")
+        self.con = quacklab.connect(":memory:")
         self.cur = self.con.cursor()
         self.cur.execute("create table test(d date, t time, ts timestamp)")
 
@@ -259,7 +259,7 @@ class DateTimeTests(unittest.TestCase):
 
 class ListTests(unittest.TestCase):
     def setUp(self):
-        self.con = duckdb.connect(":memory:")
+        self.con = quacklab.connect(":memory:")
         self.cur = self.con.cursor()
         self.cur.execute("create table test(single INTEGER[], nested INTEGER[][])")
 

@@ -1,13 +1,13 @@
 import pytest
 
-import duckdb
+import quacklab
 import pandas as pd
 
 pyarrow = pytest.importorskip("pyarrow")
 
 
 def test_6796():
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     input_df = pd.DataFrame({"foo": ["bar"]})
     conn.register("input_df", input_df)
 

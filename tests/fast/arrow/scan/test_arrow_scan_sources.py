@@ -1,7 +1,7 @@
 """The object families read through the Arrow scan: pyarrow datasets and scanners, polars frames, series.
 
 The tests read through con.register and the replacement scan, or through con._register_arrow_source for a source a
-test wraps, and compare rows with a native DuckDB table holding the same data. Nothing imports duckdb._sources at
+test wraps, and compare rows with a native DuckDB table holding the same data. Nothing imports quacklab._sources at
 module level.
 """
 
@@ -16,7 +16,7 @@ import time
 import pytest
 from _pushdown_helpers import scan_of
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 ds = pytest.importorskip("pyarrow.dataset")
@@ -26,13 +26,13 @@ pc = pytest.importorskip("pyarrow.compute")
 
 @pytest.fixture
 def con():
-    with duckdb.connect() as connection:
+    with quacklab.connect() as connection:
         yield connection
 
 
 @pytest.fixture
 def sources():
-    from duckdb import _sources
+    from quacklab import _sources
 
     return _sources
 
@@ -73,20 +73,20 @@ def columns_of(capsule):
 
 
 def fragments(predicates):
-    from duckdb._sources.nodes import fragment
+    from quacklab._sources.nodes import fragment
 
     return [fragment(predicate) for predicate in predicates]
 
 
 def greater_than(name, value, type_text):
-    from duckdb._sources.nodes import Binary, Col, Lit
+    from quacklab._sources.nodes import Binary, Col, Lit
 
     return Binary(">", Col((name,)), Lit(value, type_text))
 
 
 def wrapped(mixin, obj):
     """`obj` adapted, with `mixin` layered over the source class the adapter picked for it."""
-    from duckdb._sources import adapt
+    from quacklab._sources import adapt
 
     base = type(adapt(obj))
     return type(mixin.__name__, (mixin, base), {})(obj)
@@ -134,12 +134,12 @@ class TestClassification:
         class RecordBatchReader:
             pass
 
-        with pytest.raises(duckdb.InvalidInputException, match="not suitable for replacement scans"):
+        with pytest.raises(quacklab.InvalidInputException, match="not suitable for replacement scans"):
             con.register("fake", RecordBatchReader())
 
     def test_a_fragment_is_not_a_dataset(self, con, parquet_dir):
         fragment = next(iter(ds.dataset(parquet_dir).get_fragments()))
-        with pytest.raises(duckdb.InvalidInputException, match="not suitable for replacement scans"):
+        with pytest.raises(quacklab.InvalidInputException, match="not suitable for replacement scans"):
             con.register("fragment", fragment)
 
     def test_a_dataset_shaped_class_that_is_not_a_dataset_is_refused(self, con, parquet_dir):
@@ -151,7 +151,7 @@ class TestClassification:
             def scanner(self, **kwargs) -> object:
                 return inner.scanner(**kwargs)
 
-        with pytest.raises(duckdb.InvalidInputException, match="not suitable for replacement scans"):
+        with pytest.raises(quacklab.InvalidInputException, match="not suitable for replacement scans"):
             con.register("mine", Mine())
 
     def test_an_export_attribute_that_raises_is_reported_on_every_entry_point(self, con):
@@ -163,13 +163,15 @@ class TestClassification:
 
         raising = Raising()
         refusal = "as Arrow data failed: ValueError: classification sentinel"
-        with pytest.raises(duckdb.InvalidInputException, match=f"reading the Python object 'raising' {refusal}"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"reading the Python object 'raising' {refusal}"):
             con.sql("SELECT * FROM raising")
-        with pytest.raises(duckdb.InvalidInputException, match=f"reading the Python object 'raising' {refusal}"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"reading the Python object 'raising' {refusal}"):
             con.execute("SELECT * FROM raising")
-        with pytest.raises(duckdb.InvalidInputException, match=f"reading the object registered as 'raised' {refusal}"):
+        with pytest.raises(
+            quacklab.InvalidInputException, match=f"reading the object registered as 'raised' {refusal}"
+        ):
             con.register("raised", raising)
-        with pytest.raises(duckdb.InvalidInputException, match=f"reading the Arrow source {refusal}"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"reading the Arrow source {refusal}"):
             con.from_arrow(raising)
 
     def test_a_dict_whose_attribute_lookup_raises_key_error_is_read_as_columns(self, con):
@@ -191,11 +193,11 @@ class TestClassification:
                 raise AttributeError(message)
 
         missing = Missing()
-        with pytest.raises(duckdb.InvalidInputException, match="not suitable for replacement scans"):
+        with pytest.raises(quacklab.InvalidInputException, match="not suitable for replacement scans"):
             con.sql("SELECT * FROM missing")
-        with pytest.raises(duckdb.InvalidInputException, match="not suitable for replacement scans"):
+        with pytest.raises(quacklab.InvalidInputException, match="not suitable for replacement scans"):
             con.register("absent", missing)
-        with pytest.raises(duckdb.InvalidInputException, match="Python Object Type Missing is not an accepted Arrow"):
+        with pytest.raises(quacklab.InvalidInputException, match="Python Object Type Missing is not an accepted Arrow"):
             con.from_arrow(missing)
 
 
@@ -229,7 +231,7 @@ class TestSchemaProbes:
                 raise ValueError(sentinel)
 
         refusal = "reading the schema of the object registered as 'hooked' failed: ValueError: schema sentinel"
-        with pytest.raises(duckdb.InvalidInputException, match=refusal):
+        with pytest.raises(quacklab.InvalidInputException, match=refusal):
             con._register_arrow_source("hooked", Hooked(pa.table({"n": [1, 2, 3]})))
 
     def test_a_raising_schema_of_the_wrapped_object_is_reported(self, con):
@@ -240,7 +242,7 @@ class TestSchemaProbes:
                 raise ValueError(sentinel)
 
         refusal = "reading the schema of the object registered as 'wrapped' failed: ValueError: wrapped schema sentinel"
-        with pytest.raises(duckdb.InvalidInputException, match=refusal):
+        with pytest.raises(quacklab.InvalidInputException, match=refusal):
             con._register_arrow_source("wrapped", SchemaProbed(Wrapped()))
 
     def test_a_schema_hook_raising_attribute_error_is_no_hook(self, con):
@@ -392,7 +394,7 @@ class TestLazyFrames:
     def test_a_lazy_frame_that_cannot_run_fails(self, con, tmp_path):
         pl = pytest.importorskip("polars")
         missing = tmp_path / "nope.parquet"
-        with pytest.raises(duckdb.Error, match=r"nope\.parquet"):
+        with pytest.raises(quacklab.Error, match=r"nope\.parquet"):
             register_and_read(con, "missing", pl.scan_parquet(missing))
 
     def test_a_plan_whose_output_differs_from_its_declared_schema_fails_at_the_query(self, con):
@@ -406,7 +408,7 @@ class TestLazyFrames:
         con.register("wrong", lazy)
         assert schema(con, "wrong") == [("i", "BIGINT")]
         expected = "answered with column 'i' of type VARCHAR where BIGINT was declared"
-        with pytest.raises(duckdb.InvalidInputException, match=expected):
+        with pytest.raises(quacklab.InvalidInputException, match=expected):
             rows(con, "SELECT * FROM wrong")
         con.register("wrong", pl.DataFrame({"i": [1, 2]}).lazy())
         assert rows(con, "SELECT sum(i) FROM wrong") == [(3,)]
@@ -748,15 +750,15 @@ class TestPolarsShapes:
         pl = pytest.importorskip("polars")
         frame = pl.DataFrame({"n": [1, 2], "o": pl.Series([object(), object()], dtype=pl.Object)})
         refusal = r"as Arrow data failed: TypeError: the polars column 'o' holds Python objects"
-        with pytest.raises(duckdb.InvalidInputException, match=f"reading the object registered as 'eager' {refusal}"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"reading the object registered as 'eager' {refusal}"):
             con.register("eager", frame)
-        with pytest.raises(duckdb.InvalidInputException, match=f"reading the Python object 'frame' {refusal}"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"reading the Python object 'frame' {refusal}"):
             con.sql("SELECT * FROM frame")
-        with pytest.raises(duckdb.InvalidInputException, match=f"reading the Python object 'frame' {refusal}"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"reading the Python object 'frame' {refusal}"):
             con.execute("SELECT * FROM frame")
-        with pytest.raises(duckdb.InvalidInputException, match=f"reading the Arrow source {refusal}"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"reading the Arrow source {refusal}"):
             con.from_arrow(frame)
-        with pytest.raises(duckdb.InvalidInputException, match="the polars column 'o' holds Python objects"):
+        with pytest.raises(quacklab.InvalidInputException, match="the polars column 'o' holds Python objects"):
             register_and_read(con, "lazy", frame.lazy())
         con.register("fine", frame.select("n"))
         assert rows(con, "SELECT sum(n) FROM fine") == [(3,)]
@@ -1019,7 +1021,7 @@ MIDNIGHT_MICROS = 1_577_836_800_000_000
 
 def translation_cases():
     """(predicate node, the same predicate in SQL) pairs a translator must evaluate as the engine does."""
-    from duckdb._sources.nodes import Binary, Col, In, Lit, Postfix, Unary
+    from quacklab._sources.nodes import Binary, Col, In, Lit, Postfix, Unary
 
     def column(name):
         return Col((name,))
@@ -1054,7 +1056,7 @@ def translation_cases():
 
 def refused_cases():
     """Predicates no translator may accept: the constant's type is not the column's, or the shape is not exact."""
-    from duckdb._sources.nodes import Binary, Col, In, Lit
+    from quacklab._sources.nodes import Binary, Col, In, Lit
 
     def column(name):
         return Col((name,))
@@ -1087,7 +1089,7 @@ def engine_rows(con):
 
 class TestArrowTranslation:
     def test_each_form_selects_the_rows_the_engine_selects(self, sources, engine_rows):
-        from duckdb._sources.to_arrow import to_arrow
+        from quacklab._sources.to_arrow import to_arrow
 
         table, keep = engine_rows
         for node, where in translation_cases():
@@ -1095,8 +1097,8 @@ class TestArrowTranslation:
             assert kept == keep(where), where
 
     def test_the_rest_is_refused(self, sources):
-        from duckdb._sources.nodes import Untranslatable
-        from duckdb._sources.to_arrow import to_arrow
+        from quacklab._sources.nodes import Untranslatable
+        from quacklab._sources.to_arrow import to_arrow
 
         arrow_schema = pa.table(TRANSLATION_DATA).schema
         for node in refused_cases():
@@ -1107,7 +1109,7 @@ class TestArrowTranslation:
 class TestPolarsTranslation:
     def test_each_form_selects_the_rows_the_engine_selects(self, sources, engine_rows):
         pl = pytest.importorskip("polars")
-        from duckdb._sources.to_polars import to_polars
+        from quacklab._sources.to_polars import to_polars
 
         table, keep = engine_rows
         frame = pl.from_arrow(table)
@@ -1117,8 +1119,8 @@ class TestPolarsTranslation:
 
     def test_the_rest_is_refused(self, sources):
         pl = pytest.importorskip("polars")
-        from duckdb._sources.nodes import Untranslatable
-        from duckdb._sources.to_polars import to_polars
+        from quacklab._sources.nodes import Untranslatable
+        from quacklab._sources.to_polars import to_polars
 
         frame_schema = pl.from_arrow(pa.table(TRANSLATION_DATA)).schema
         for node in refused_cases():

@@ -2,7 +2,7 @@ import warnings
 
 import pytest
 
-import duckdb
+import quacklab
 
 pytest.importorskip("pyarrow")
 
@@ -57,29 +57,29 @@ class TestArrowDeprecation:
         assert reader.read_all().num_rows == 1
 
     def test_from_arrow_not_deprecated(self):
-        """duckdb.arrow(arrow_object) should NOT emit a deprecation warning."""
+        """quacklab.arrow(arrow_object) should NOT emit a deprecation warning."""
         import pyarrow as pa
 
         table = pa.table({"a": [1, 2, 3]})
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            rel = duckdb.arrow(table)
+            rel = quacklab.arrow(table)
         assert rel.fetchall() == [(1,), (2,), (3,)]
 
     def test_the_dbapi_has_to_arrow_table_and_to_arrow_reader_and_no_deprecated_arrow_names(self):
         pa = pytest.importorskip("pyarrow")
         present = ["to_arrow_table", "to_arrow_reader"]
         gone = ["fetch_arrow_table", "fetch_record_batch", "pl"]
-        with duckdb.connect() as con:
+        with quacklab.connect() as con:
             for name in [*gone, "arrow"]:
                 assert not hasattr(con, name)
             for name in present:
                 assert callable(getattr(con, name))
         for name in gone:
-            assert not hasattr(duckdb, name)
+            assert not hasattr(quacklab, name)
         for name in present:
-            assert callable(getattr(duckdb, name))
-        # duckdb.arrow() builds a relation from an Arrow object and has no reader form.
+            assert callable(getattr(quacklab, name))
+        # quacklab.arrow() builds a relation from an Arrow object and has no reader form.
         with pytest.raises(TypeError):
-            duckdb.arrow()
-        assert isinstance(duckdb.arrow(pa.table({"a": [1]})), duckdb.DuckDBPyRelation)
+            quacklab.arrow()
+        assert isinstance(quacklab.arrow(pa.table({"a": [1]})), quacklab.DuckDBPyRelation)

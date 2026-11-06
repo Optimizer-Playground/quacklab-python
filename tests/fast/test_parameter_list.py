@@ -1,19 +1,19 @@
 import pytest
 
-import duckdb
+import quacklab
 import pandas as pd
 
 
 class TestParameterList:
     def test_bool(self, duckdb_cursor):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("create table bool_table (a bool)")
         conn.execute("insert into bool_table values (TRUE)")
         res = conn.execute("select count(*) from bool_table where a =?", [True])
         assert res.fetchone()[0] == 1
 
     def test_exception(self, duckdb_cursor):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         df_in = pd.DataFrame(
             {
                 "numbers": [1, 2, 3, 4, 5],
@@ -21,11 +21,11 @@ class TestParameterList:
         )
         conn.execute("create table bool_table (a bool)")
         conn.execute("insert into bool_table values (TRUE)")
-        with pytest.raises(duckdb.NotImplementedException, match="Unable to transform"):
+        with pytest.raises(quacklab.NotImplementedException, match="Unable to transform"):
             conn.execute("select count(*) from bool_table where a =?", [df_in])
 
     def test_explicit_nan_param(self):
-        con = duckdb.default_connection()
+        con = quacklab.default_connection()
         res = con.execute("select isnan(cast(? as double))", (float("nan"),))
         assert res.fetchone()[0]
 
@@ -40,34 +40,37 @@ class TestParameterList:
         ],
     )
     def test_nested_nan_param(self, param, query):
-        con = duckdb.connect()
+        con = quacklab.connect()
         assert con.execute(query, [param]).fetchone() == (True,)
 
     @pytest.mark.parametrize(
         ("value", "query"),
         [
-            (duckdb.Value(float("nan"), duckdb.sqltype("DOUBLE")), "select isnan(?)"),
-            (duckdb.Value({"k": float("nan")}, duckdb.sqltype("MAP(VARCHAR, DOUBLE)")), "select isnan(?['k'])"),
-            (duckdb.Value({"a": float("nan")}, duckdb.sqltype("STRUCT(a DOUBLE)")), "select isnan(?.a)"),
-            (duckdb.Value([float("nan"), 1.0], duckdb.sqltype("DOUBLE[2]")), "select isnan(?[1])"),
-            (duckdb.Value({float("nan"): 1}, duckdb.sqltype("MAP(DOUBLE, INTEGER)")), "select isnan(map_keys(?)[1])"),
+            (quacklab.Value(float("nan"), quacklab.sqltype("DOUBLE")), "select isnan(?)"),
+            (quacklab.Value({"k": float("nan")}, quacklab.sqltype("MAP(VARCHAR, DOUBLE)")), "select isnan(?['k'])"),
+            (quacklab.Value({"a": float("nan")}, quacklab.sqltype("STRUCT(a DOUBLE)")), "select isnan(?.a)"),
+            (quacklab.Value([float("nan"), 1.0], quacklab.sqltype("DOUBLE[2]")), "select isnan(?[1])"),
             (
-                duckdb.Value((float("nan"), [float("nan")]), duckdb.sqltype("STRUCT(a DOUBLE, b DOUBLE[])")),
+                quacklab.Value({float("nan"): 1}, quacklab.sqltype("MAP(DOUBLE, INTEGER)")),
+                "select isnan(map_keys(?)[1])",
+            ),
+            (
+                quacklab.Value((float("nan"), [float("nan")]), quacklab.sqltype("STRUCT(a DOUBLE, b DOUBLE[])")),
                 "select isnan(?.b[1])",
             ),
         ],
     )
     def test_nan_typed_value_param(self, value, query):
-        con = duckdb.connect()
+        con = quacklab.connect()
         assert con.execute(query, [value]).fetchone() == (True,)
 
     def test_nested_nan_typed_param(self):
-        con = duckdb.connect()
-        value = duckdb.Value((float("nan"), 1.0), duckdb.sqltype("STRUCT(a DOUBLE, b DOUBLE)"))
+        con = quacklab.connect()
+        value = quacklab.Value((float("nan"), 1.0), quacklab.sqltype("STRUCT(a DOUBLE, b DOUBLE)"))
         assert con.execute("select isnan(?.a)", [value]).fetchone() == (True,)
 
     def test_string_parameter(self, duckdb_cursor):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("create table orders (o_orderdate date)")
         conn.execute("insert into orders values (date '1992-01-01'), (date '1994-01-01')")
         conn.execute(

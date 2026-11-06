@@ -10,7 +10,7 @@ import uuid
 
 import pytest
 
-import duckdb
+import quacklab
 
 pd = pytest.importorskip("pandas")
 
@@ -27,7 +27,7 @@ except ImportError:
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     connection.execute("CREATE TABLE t AS SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (3, 'c')) v(i, x)")
     connection.execute("CREATE TABLE r AS SELECT * FROM (VALUES (2, 'B'), (3, 'C')) v(i, y)")
     connection.execute("CREATE TABLE c AS SELECT * FROM (VALUES (2, 'Z')) v(i, z)")
@@ -65,7 +65,7 @@ def read_through_sql(con):
 
 def read_through_the_module(con):
     local_frame = pd.DataFrame({"i": [2, 3]})  # noqa: F841
-    return duckdb.sql("SELECT i FROM local_frame")
+    return quacklab.sql("SELECT i FROM local_frame")
 
 
 def read_through_a_filter(con):
@@ -171,7 +171,7 @@ class TestFunctionLocalFrames:
         df = pd.DataFrame({"a": [1, 2]})
         first = joined.filter("lk.k IN (SELECT a FROM df)")
         df = pd.DataFrame({"a": [100]})  # noqa: F841
-        with pytest.raises(duckdb.BinderException, match='Referenced table "rk" not found'):
+        with pytest.raises(quacklab.BinderException, match='Referenced table "rk" not found'):
             first.filter("rk.x IN (SELECT a FROM df)")
 
     def test_frames_bound_in_turn_to_an_uppercase_name_by_two_steps_close_the_select(self, con):
@@ -222,14 +222,14 @@ class TestFunctionLocalFrames:
         first = self.join_reading_one_frame(con)
         z = con.sql("SELECT * FROM (VALUES (1), (2), (3)) v(c)").set_alias("z")
         df = pd.DataFrame({"a": [2, 3]})  # noqa: F841
-        with pytest.raises(duckdb.BinderException, match='Referenced table "y" not found'):
+        with pytest.raises(quacklab.BinderException, match='Referenced table "y" not found'):
             first.join(z, "y.b = z.c AND z.c IN (SELECT a FROM df)")
 
     def test_frames_whose_names_differ_only_in_case_in_one_statement_meet_the_engine_s_ambiguity(self, con):
         # The engine refuses the statement before any capture runs, so its own error is the answer.
         tbl = pd.DataFrame({"a": [1]})  # noqa: F841
         TBL = pd.DataFrame({"a": [2]})  # noqa: F841
-        with pytest.raises(duckdb.BinderException, match='Ambiguous reference to table "tbl"'):
+        with pytest.raises(quacklab.BinderException, match='Ambiguous reference to table "tbl"'):
             con.sql("SELECT * FROM tbl, TBL")
 
     @pytest.mark.parametrize(
@@ -282,10 +282,10 @@ class TestAggregatesInAProjection:
         [
             pytest.param(lambda: "sum(i) AS s", id="sql_text"),
             pytest.param(
-                lambda: duckdb.FunctionExpression("sum", duckdb.ColumnExpression("i")).alias("s"), id="constructor"
+                lambda: quacklab.FunctionExpression("sum", quacklab.ColumnExpression("i")).alias("s"), id="constructor"
             ),
-            pytest.param(lambda: duckdb.fn("sum", duckdb.col("i")).alias("s"), id="fn"),
-            pytest.param(lambda: duckdb.col("i").sum().alias("s"), id="aggregate_method"),
+            pytest.param(lambda: quacklab.fn("sum", quacklab.col("i")).alias("s"), id="fn"),
+            pytest.param(lambda: quacklab.col("i").sum().alias("s"), id="aggregate_method"),
         ],
     )
     def test_a_projection_may_hold_an_aggregate(self, con, spelling):
@@ -294,7 +294,7 @@ class TestAggregatesInAProjection:
         assert rel.fetchall() == con.execute("SELECT sum(i) AS s FROM t").fetchall()
 
     def test_a_projection_binds_once_whatever_its_text_holds(self, con, monkeypatch):
-        from duckdb import _seam
+        from quacklab import _seam
 
         source = con.table("t")
         original = _seam.bind
@@ -319,7 +319,7 @@ class TestReaderOptions:
         (tmp_path / "b.csv").write_text("i,s,extra\n2,b,9\n")
         rel = con.read_csv(str(tmp_path / "*.csv"), files_to_sniff=1)
         assert rel.columns == ["i", "s"]
-        with pytest.raises(duckdb.InvalidInputException, match="CSV Error"):
+        with pytest.raises(quacklab.InvalidInputException, match="CSV Error"):
             rel.fetchall()
 
 
@@ -420,36 +420,36 @@ class TestModuleLevelFunctions:
     @pytest.mark.parametrize(
         ("call", "direct"),
         [
-            pytest.param(lambda f: duckdb.filter(f, "a > 1"), "SELECT * FROM f WHERE a > 1", id="filter"),
-            pytest.param(lambda f: duckdb.project(f, "a + 1 AS b"), "SELECT a + 1 AS b FROM f", id="project"),
-            pytest.param(lambda f: duckdb.aggregate(f, "sum(a) AS s"), "SELECT sum(a) AS s FROM f", id="aggregate"),
-            pytest.param(lambda f: duckdb.distinct(f), "SELECT DISTINCT * FROM f", id="distinct"),
-            pytest.param(lambda f: duckdb.limit(f, 2), "SELECT * FROM f LIMIT 2", id="limit"),
-            pytest.param(lambda f: duckdb.order(f, "a DESC"), "SELECT * FROM f ORDER BY a DESC", id="order"),
+            pytest.param(lambda f: quacklab.filter(f, "a > 1"), "SELECT * FROM f WHERE a > 1", id="filter"),
+            pytest.param(lambda f: quacklab.project(f, "a + 1 AS b"), "SELECT a + 1 AS b FROM f", id="project"),
+            pytest.param(lambda f: quacklab.aggregate(f, "sum(a) AS s"), "SELECT sum(a) AS s FROM f", id="aggregate"),
+            pytest.param(lambda f: quacklab.distinct(f), "SELECT DISTINCT * FROM f", id="distinct"),
+            pytest.param(lambda f: quacklab.limit(f, 2), "SELECT * FROM f LIMIT 2", id="limit"),
+            pytest.param(lambda f: quacklab.order(f, "a DESC"), "SELECT * FROM f ORDER BY a DESC", id="order"),
             pytest.param(
-                lambda f: duckdb.query_df(f, "fr", "SELECT sum(a) FROM fr"), "SELECT sum(a) FROM f", id="query_df"
+                lambda f: quacklab.query_df(f, "fr", "SELECT sum(a) FROM fr"), "SELECT sum(a) FROM f", id="query_df"
             ),
         ],
     )
     def test_a_verb_over_a_data_frame(self, call, direct):
         f = pd.DataFrame({"a": [1, 2, 3]})
-        expected = duckdb.connect().execute(direct).fetchall()
+        expected = quacklab.connect().execute(direct).fetchall()
         assert rows(call(f).fetchall()) == rows(expected)
 
     def test_df_of_a_data_frame_is_a_relation(self):
-        assert duckdb.df(pd.DataFrame({"a": [1, 2]})).fetchall() == [(1,), (2,)]
+        assert quacklab.df(pd.DataFrame({"a": [1, 2]})).fetchall() == [(1,), (2,)]
 
     def test_alias_over_a_data_frame(self):
-        assert duckdb.alias(pd.DataFrame({"a": [1]}), "fr").alias == "fr"
+        assert quacklab.alias(pd.DataFrame({"a": [1]}), "fr").alias == "fr"
 
     def test_write_csv_of_a_data_frame(self, tmp_path):
         path = str(tmp_path / "out.csv")
-        duckdb.write_csv(pd.DataFrame({"a": [1, 2]}), path)
-        assert duckdb.connect().execute(f"SELECT a FROM read_csv('{path}')").fetchall() == [(1,), (2,)]
+        quacklab.write_csv(pd.DataFrame({"a": [1, 2]}), path)
+        assert quacklab.connect().execute(f"SELECT a FROM read_csv('{path}')").fetchall() == [(1,), (2,)]
 
     def test_arrow_of_an_arrow_table(self):
         pa = pytest.importorskip("pyarrow")
-        assert duckdb.arrow(pa.table({"a": [1, 2]})).fetchall() == [(1,), (2,)]
+        assert quacklab.arrow(pa.table({"a": [1, 2]})).fetchall() == [(1,), (2,)]
 
 
 class TestAGroupsText:
@@ -469,7 +469,7 @@ class TestAGroupsText:
         ],
     )
     def test_a_clause_after_the_list_is_refused(self, grouped, build):
-        with pytest.raises(duckdb.ParserException, match="GROUP BY list"):
+        with pytest.raises(quacklab.ParserException, match="GROUP BY list"):
             build(grouped)
 
     @pytest.mark.parametrize(
@@ -501,7 +501,7 @@ class TestNamesGivenToProject:
 
     def test_a_name_holding_a_comment_is_a_missing_column_at_the_call(self, con):
         name = "a " + "-" * 2 + " c"
-        with pytest.raises(duckdb.BinderException, match=re.escape(f'Referenced column "{name}" not found')):
+        with pytest.raises(quacklab.BinderException, match=re.escape(f'Referenced column "{name}" not found')):
             con.sql("SELECT 1 AS a, 2 AS b").project(name, "b")
 
 
@@ -525,7 +525,7 @@ class TestUserTextIsValidatedNotRewritten:
         ],
     )
     def test_a_fragment_of_another_shape_is_refused_at_the_call(self, con, build):
-        with pytest.raises(duckdb.ParserException):
+        with pytest.raises(quacklab.ParserException):
             build(con.sql("SELECT * FROM range(5) t(x)"))
 
     def test_the_connection_s_depth_limit_decides_for_a_verb_s_text(self, con):
@@ -534,7 +534,7 @@ class TestUserTextIsValidatedNotRewritten:
         con.execute("SET max_expression_depth = 50")
         base = con.sql("SELECT 1 AS a")
         assert base.project("1" + " + 1" * 40 + " AS d").fetchall() == [(41,)]
-        with pytest.raises(duckdb.ParserException, match="Max expression depth limit of 50 exceeded"):
+        with pytest.raises(quacklab.ParserException, match="Max expression depth limit of 50 exceeded"):
             base.project("1" + " + 1" * 60 + " AS d")
 
 
@@ -553,13 +553,13 @@ class TestAMarkerInAVerbsText:
         ],
     )
     def test_it_is_refused(self, con, build):
-        with pytest.raises((duckdb.BinderException, duckdb.ParserException)):
+        with pytest.raises((quacklab.BinderException, quacklab.ParserException)):
             build(con)
 
 
 class TestTheStarAmongSeveralArguments:
     def test_a_star_beside_an_expression(self, con):
-        rel = con.sql("SELECT 1 AS i, 'x' AS c").select("*", duckdb.ColumnExpression("i").alias("j"))
+        rel = con.sql("SELECT 1 AS i, 'x' AS c").select("*", quacklab.ColumnExpression("i").alias("j"))
         assert rel.columns == ["i", "c", "j"]
         assert rel.fetchall() == [(1, "x", 1)]
 
@@ -639,7 +639,7 @@ class TestValuesRows:
         assert ([str(kind) for kind in rel.types], rel.fetchall()) == bound_values(con, rows)
 
     def test_an_incompatible_column_is_refused_at_the_call(self, con):
-        with pytest.raises(duckdb.NotImplementedException, match="Cannot combine types"):
+        with pytest.raises(quacklab.NotImplementedException, match="Cannot combine types"):
             con.values(("x",), (1,))
 
     def test_the_text_reads_a_registry_source(self, con):

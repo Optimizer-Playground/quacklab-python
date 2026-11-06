@@ -17,7 +17,7 @@ import pytest
 from conftest import PANDAS_GE_3
 from packaging.version import Version
 
-import duckdb
+import quacklab
 import numpy
 import pandas as pd
 
@@ -36,7 +36,7 @@ class TestPandasString:
         if hasattr(pd, "StringDtype"):
             df_in["string"] = pd.Series(strings, dtype=pd.StringDtype())
 
-        df_out = duckdb.query_df(df_in, "data", "SELECT * FROM data").df()
+        df_out = quacklab.query_df(df_in, "data", "SELECT * FROM data").df()
 
         assert numpy.all(df_out["object"] == strings)
         if hasattr(pd, "StringDtype"):
@@ -47,7 +47,7 @@ class TestPandasString:
         # Create DataFrame with string attribute
         df = pd.DataFrame({"city": ["Amsterdam", "New York", "London"] * N})
         # Copy Dataframe to DuckDB
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("df", df)
         con.execute(
             """
@@ -261,11 +261,11 @@ def test_python_string_column_without_pyarrow():
         sys.meta_path.insert(0, BlockPyarrow())
         import numpy
         import pandas as pd
-        import duckdb
+        import quacklab
 
         frame = pd.DataFrame({"s": pd.Series(["a", None, numpy.nan, "c"]), "f": [1.0, numpy.nan, 2.0, 3.0]})
         attempts.clear()
-        relation = duckdb.connect().sql("SELECT s, s IS NULL, f FROM frame")
+        relation = quacklab.connect().sql("SELECT s, s IS NULL, f FROM frame")
         print(json.dumps({
             "array": type(frame["s"].array).__name__,
             "types": [str(t) for t in relation.types],
@@ -656,7 +656,7 @@ def test_str_chunks_are_released_once_the_frame_is_gone(pa, dtype):
     before = pa.total_allocated_bytes()
     values = [f"value {index}" for index in range(3 * ARROW_ROWS_PER_CHUNK)]
     frame = _frame(_chunked(_pieces(values, ARROW_ROWS_PER_CHUNK), dtype))
-    with duckdb.connect() as con:
+    with quacklab.connect() as con:
         con.register("frame", frame)
         rows = con.sql("SELECT s FROM frame ORDER BY i").fetchall()
     del frame
@@ -674,7 +674,7 @@ def test_str_chunks_outlive_the_frames_column_while_a_result_streams(pa, dtype):
     frame = _frame(_chunked(_pieces(values, 4 * ARROW_ROWS_PER_CHUNK), dtype))
     gc.collect()
     column_bytes = pa.total_allocated_bytes() - before
-    with duckdb.connect(config={"threads": 1}) as con:
+    with quacklab.connect(config={"threads": 1}) as con:
         # A small buffer stops the scan from reading ahead, so part of the column is read after it is replaced.
         con.execute("SET streaming_buffer_size = '1KB'")
         con.execute("SET enable_progress_bar = true")
@@ -789,12 +789,12 @@ INVALID_UTF8_USES = [
 
 
 def _outcome(setup, use, frame):
-    with duckdb.connect() as con:
+    with quacklab.connect() as con:
         if setup:
             con.execute(setup)
         try:
             return ("result", use(con, frame))
-        except duckdb.Error as error:
+        except quacklab.Error as error:
             return (type(error), str(error))
 
 
@@ -825,7 +825,7 @@ def test_str_invalid_utf8_by_layout(pa, pieces, setup, use):
 def test_str_invalid_utf8_below_the_threshold_fails_at_bind(pa, pieces, setup, use):
     frame, _ = _invalid_utf8_frames(pa, pieces)
     error_type, message = _outcome(setup, use, frame)
-    assert error_type is duckdb.Error
+    assert error_type is quacklab.Error
     assert re.search(r"Wrapping .* failed", message)
 
 
@@ -846,7 +846,7 @@ def _scan_seconds(frame, held_row):
         libc.usleep(int(GIL_HOLD_SECONDS * 1_000_000))
         return value
 
-    with duckdb.connect(config={"threads": 4}) as con:
+    with quacklab.connect(config={"threads": 4}) as con:
         con.create_function("hold_gil", hold_gil, ["BIGINT"], "BIGINT")
         con.register("frame", frame)
         con.execute("PRAGMA enable_profiling = 'no_output'")

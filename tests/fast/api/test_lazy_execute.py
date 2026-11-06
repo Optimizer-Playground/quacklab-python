@@ -1,7 +1,7 @@
 import pytest
 
-import duckdb
-from duckdb.sqltypes import BIGINT, BOOLEAN, HUGEINT, INTEGER
+import quacklab
+from quacklab.sqltypes import BIGINT, BOOLEAN, HUGEINT, INTEGER
 
 ROWS = 300_000
 TALLY_QUERY = f"SELECT tally(i) AS i FROM range({ROWS}) t(i)"
@@ -58,11 +58,11 @@ class TestExecutedQuery:
         assert duckdb_cursor.fetchall() == [(i,) for i in range(1, 10)]
 
     def test_a_runtime_error_surfaces_in_execute(self, duckdb_cursor):
-        with pytest.raises(duckdb.ConversionException):
+        with pytest.raises(quacklab.ConversionException):
             duckdb_cursor.execute("SELECT 'a'::INTEGER")
 
     def test_a_bind_error_surfaces_in_execute(self, duckdb_cursor):
-        with pytest.raises(duckdb.CatalogException):
+        with pytest.raises(quacklab.CatalogException):
             duckdb_cursor.execute("SELECT * FROM missing_table")
 
     def test_a_parameter_without_a_known_type_is_described_after_binding(self, duckdb_cursor):
@@ -92,7 +92,7 @@ class TestStatementGroup:
         assert pivot_source.execute("SELECT count(*) FILTER (r IS NOT NULL) FROM p").fetchone() == (3,)
 
     def test_a_failure_in_the_result_statement_undoes_the_group(self, pivot_source):
-        with pytest.raises(duckdb.BinderException, match="missing"):
+        with pytest.raises(quacklab.BinderException, match="missing"):
             pivot_source.execute("PIVOT p ON k USING sum(v) ORDER BY missing")
         enums = "SELECT count(*) FROM duckdb_types() WHERE type_name LIKE '__pivot_enum%'"
         assert pivot_source.execute(enums).fetchone() == (0,)
@@ -119,7 +119,7 @@ class TestAnotherStatement:
         duckdb_cursor.execute(f"SELECT i FROM range({ROWS}) t(i)")
         if read_first:
             assert duckdb_cursor.fetchone() == (0,)
-        with pytest.raises(duckdb.ResourceInUseException, match="unfinished result from execute"):
+        with pytest.raises(quacklab.ResourceInUseException, match="unfinished result from execute"):
             statement(duckdb_cursor)
         assert len(duckdb_cursor.fetchall()) == ROWS - read_first
 
@@ -163,11 +163,11 @@ class TestCompleteAndAbort:
         assert count_rows(con) == 1
 
     def test_on_the_default_connection(self):
-        duckdb.execute("SELECT 42")
-        duckdb.complete()
-        duckdb.execute("SELECT 42")
-        duckdb.abort()
-        assert duckdb.execute("SELECT 42").fetchall() == [(42,)]
+        quacklab.execute("SELECT 42")
+        quacklab.complete()
+        quacklab.execute("SELECT 42")
+        quacklab.abort()
+        assert quacklab.execute("SELECT 42").fetchall() == [(42,)]
 
 
 class TestWrites:
@@ -210,8 +210,8 @@ class TestWrites:
 
     def test_checkpoint_runs_in_execute(self, tmp_path):
         path = tmp_path / "db.duckdb"
-        wal = tmp_path / "db.duckdb.wal"
-        con = duckdb.connect(str(path))
+        wal = tmp_path / "db.quacklab.wal"
+        con = quacklab.connect(str(path))
         con.execute("CREATE TABLE t AS SELECT range i FROM range(1000)")
         assert wal.exists()
         assert wal.stat().st_size > 0
@@ -249,7 +249,7 @@ class TestPythonObjects:
 
 class TestBindFailureTransactionPolicy:
     def failing_execute(self, con):
-        with pytest.raises(duckdb.CatalogException):
+        with pytest.raises(quacklab.CatalogException):
             con.execute("SELECT * FROM missing_table")
 
     def test_all_errors_policy_invalidates(self, duckdb_cursor):
@@ -288,7 +288,7 @@ class TestBindFailureTransactionPolicy:
         con.begin()
         con.execute("SET current_transaction_invalidation_policy='SYNTACTIC_ERRORS_DO_NOT_INVALIDATE'")
         con.execute("INSERT INTO t VALUES (7)")
-        with pytest.raises(duckdb.CatalogException):
+        with pytest.raises(quacklab.CatalogException):
             con.sql("SELECT * FROM missing_table")
         con.commit()
         assert con.execute("SELECT * FROM t").fetchall() == [(7,)]
@@ -306,7 +306,7 @@ class TestResultOwnership:
         import weakref
 
         def make():
-            con = duckdb.connect()
+            con = quacklab.connect()
             rel = con.sql("SELECT 1 AS i")
             refs = weakref.ref(con), weakref.ref(rel)
             con.execute("SELECT * FROM rel")
@@ -318,7 +318,7 @@ class TestResultOwnership:
         import weakref
 
         def make():
-            con = duckdb.connect()
+            con = quacklab.connect()
             rel = con.sql("SELECT 1 AS i")
             refs = weakref.ref(con), weakref.ref(rel)
             con.execute("SELECT * FROM rel")
@@ -331,10 +331,10 @@ class TestResultOwnership:
         import weakref
 
         def make():
-            con = duckdb.connect()
+            con = quacklab.connect()
             rel = con.sql("SELECT CAST('bad' || i::VARCHAR AS INTEGER) AS i FROM range(3) t(i)")
             refs = weakref.ref(con), weakref.ref(rel)
-            with pytest.raises(duckdb.ConversionException):
+            with pytest.raises(quacklab.ConversionException):
                 con.execute("SELECT * FROM rel")
             return refs
 

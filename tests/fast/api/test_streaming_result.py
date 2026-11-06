@@ -2,8 +2,8 @@ import gc
 
 import pytest
 
-import duckdb
-from duckdb.sqltypes import BIGINT
+import quacklab
+from quacklab.sqltypes import BIGINT
 
 
 class TestStreamingResult:
@@ -119,7 +119,7 @@ class TestStreamingSemantics:
         res = duckdb_cursor.sql(f"SELECT i FROM range({ROW_COUNT}) t(i)")
         reader = res.to_arrow_reader(1024)
         assert 0 < len(reader.read_next_batch()) <= 1024
-        with pytest.raises(duckdb.ResourceInUseException, match="open result"):
+        with pytest.raises(quacklab.ResourceInUseException, match="open result"):
             res.fetchall()
         reader.close()
         assert len(res.fetchall()) == ROW_COUNT
@@ -135,7 +135,7 @@ class TestStreamingSemantics:
         reader = duckdb_cursor.sql(f"SELECT i FROM range({ROW_COUNT}) t(i)").to_arrow_reader(1024)
         assert len(reader.read_next_batch()) == 1024
 
-        with pytest.raises(duckdb.ResourceInUseException, match="open result"):
+        with pytest.raises(quacklab.ResourceInUseException, match="open result"):
             duckdb_cursor.execute("SELECT 42")
 
         assert reader.read_all().num_rows == ROW_COUNT - 1024
@@ -173,7 +173,7 @@ class TestStreamingSemantics:
             """
         )
         assert duckdb_cursor.fetchone() == (0,)
-        with pytest.raises(duckdb.ConversionException):
+        with pytest.raises(quacklab.ConversionException):
             drain(duckdb_cursor)
 
     def test_a_returning_write_applies_when_its_rows_are_read(self, duckdb_cursor):

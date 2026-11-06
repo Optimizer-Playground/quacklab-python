@@ -15,8 +15,8 @@ from fractions import Fraction
 
 import pytest
 
-import duckdb
-from duckdb._expression import (
+import quacklab
+from quacklab._expression import (
     Expr,
     coalesce,
     col,
@@ -75,13 +75,13 @@ class Emptying(datetime.tzinfo):
 
 
 @pytest.fixture(scope="module")
-def con() -> duckdb.DuckDBPyConnection:
-    connection = duckdb.connect()
+def con() -> quacklab.DuckDBPyConnection:
+    connection = quacklab.connect()
     yield connection
     connection.close()
 
 
-def evaluate(con: duckdb.DuckDBPyConnection, expression: Expr, source: str = "") -> object:
+def evaluate(con: quacklab.DuckDBPyConnection, expression: Expr, source: str = "") -> object:
     """Run an expression and return its single value."""
     return con.execute(f"SELECT {expression.fragment()}{source}").fetchall()[0][0]
 
@@ -94,7 +94,7 @@ class TestQuoting:
         # Without escaping this would end the identifier and inject syntax.
         assert quote('a"b') == '"a""b"'
 
-    def test_a_reserved_word_is_usable_as_a_column(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_reserved_word_is_usable_as_a_column(self, con: quacklab.DuckDBPyConnection) -> None:
         con.execute('CREATE TABLE t ("select" INTEGER)')
         con.execute("INSERT INTO t VALUES (1)")
         assert evaluate(con, col("select"), " FROM t") == 1
@@ -106,15 +106,15 @@ class TestStringOperandsAreLiterals:
     # Each test reads its own row, so neither depends on the other having run on the module's connection.
     STATES = " FROM (VALUES ('active', 'no')) AS s(state, active)"
 
-    def test_string_compares_as_a_value(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_string_compares_as_a_value(self, con: quacklab.DuckDBPyConnection) -> None:
         assert evaluate(con, col("state") == "active", self.STATES) is True
 
-    def test_a_column_operand_is_explicit(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_column_operand_is_explicit(self, con: quacklab.DuckDBPyConnection) -> None:
         assert evaluate(con, col("state") == col("active"), self.STATES) is False
 
 
 class TestNoneAndUnknownOperands:
-    def test_equality_with_none_is_a_null_comparison(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_equality_with_none_is_a_null_comparison(self, con: quacklab.DuckDBPyConnection) -> None:
         # Comparing with NULL is never true in SQL, and surfacing that beats inventing something friendlier.
         assert evaluate(con, col("v") == None, " FROM (SELECT 1 AS v)") is None  # noqa: E711
 
@@ -197,107 +197,107 @@ class TestOperatorsEvaluate:
             (False | lit(True), True),
         ],
     )
-    def test_operator(self, con: duckdb.DuckDBPyConnection, expression: Expr, expected: object) -> None:
+    def test_operator(self, con: quacklab.DuckDBPyConnection, expression: Expr, expected: object) -> None:
         assert evaluate(con, expression) == expected
 
-    def test_precedence_is_preserved(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_precedence_is_preserved(self, con: quacklab.DuckDBPyConnection) -> None:
         # Every part parenthesises itself, so Python's precedence survives into the SQL.
         assert evaluate(con, (lit(2) + lit(3)) * lit(4)) == 20
         assert evaluate(con, lit(2) + lit(3) * lit(4)) == 14
 
 
 class TestPredicatesAndFunctions:
-    def test_is_null(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_is_null(self, con: quacklab.DuckDBPyConnection) -> None:
         assert evaluate(con, lit(None).is_null()) is True
         assert evaluate(con, lit(1).is_not_null()) is True
 
-    def test_isin(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_isin(self, con: quacklab.DuckDBPyConnection) -> None:
         # One argument is one value, so the members are written out; a list argument tests the list itself.
         assert evaluate(con, lit(2).isin(1, 2, 3)) is True
         assert evaluate(con, lit(9).isin(1, 2, 3)) is False
         assert evaluate(con, lit([1, 2, 3]).isin([1, 2, 3])) is True
         assert evaluate(con, lit([1, 2]).isin([1, 2, 3])) is False
 
-    def test_isin_of_a_list_against_a_scalar_is_a_comparison(self, con: duckdb.DuckDBPyConnection) -> None:
-        with pytest.raises(duckdb.ConversionException):
+    def test_isin_of_a_list_against_a_scalar_is_a_comparison(self, con: quacklab.DuckDBPyConnection) -> None:
+        with pytest.raises(quacklab.ConversionException):
             evaluate(con, lit(2).isin([1, 2, 3]))
 
-    def test_isin_of_an_empty_list_is_a_comparison(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_isin_of_an_empty_list_is_a_comparison(self, con: quacklab.DuckDBPyConnection) -> None:
         # An empty list is one value, so this compares a number with a list rather than meaning FALSE.
-        with pytest.raises(duckdb.ConversionException):
+        with pytest.raises(quacklab.ConversionException):
             evaluate(con, lit(1).isin([]))
         assert evaluate(con, lit([]).isin([])) is True
 
-    def test_isin_takes_one_expression_as_one_member(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_isin_takes_one_expression_as_one_member(self, con: quacklab.DuckDBPyConnection) -> None:
         # Changed: one expression is one member; list membership is list_contains.
         assert lit(2).isin(col("y")).fragment() == '(2 IN ("y"))'
         assert evaluate(con, lit(2).isin(col("y")), " FROM (SELECT 2 AS y)") is True
         assert evaluate(con, fn("list_contains", col("xs"), 2), " FROM (SELECT [1, 2] AS xs)") is True
 
-    def test_isin_takes_one_string_as_one_member(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_isin_takes_one_string_as_one_member(self, con: quacklab.DuckDBPyConnection) -> None:
         # Changed: one text is one member, never its characters.
         assert col("x").isin("abc").fragment() == "(\"x\" IN ('abc'))"
         assert evaluate(con, col("x").isin("abc"), " FROM (SELECT 'abc' AS x)") is True
 
-    def test_between(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_between(self, con: quacklab.DuckDBPyConnection) -> None:
         assert evaluate(con, lit(5).between(1, 10)) is True
 
-    def test_like(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_like(self, con: quacklab.DuckDBPyConnection) -> None:
         assert evaluate(con, lit("Alpha").like("Al%")) is True
         assert evaluate(con, lit("Alpha").like("al%")) is False
         assert evaluate(con, lit("ab").like("a_")) is True
 
-    def test_ilike_ignores_case(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_ilike_ignores_case(self, con: quacklab.DuckDBPyConnection) -> None:
         assert evaluate(con, lit("Alpha").ilike("al%")) is True
 
-    def test_like_negates_with_invert(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_like_negates_with_invert(self, con: quacklab.DuckDBPyConnection) -> None:
         assert evaluate(con, ~lit("Alpha").like("b%")) is True
 
-    def test_like_escape(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_like_escape(self, con: quacklab.DuckDBPyConnection) -> None:
         # Without an escape the underscore is a wildcard and would match "axb".
         assert evaluate(con, lit("a_b").like("a!_b", escape="!")) is True
         assert evaluate(con, lit("axb").like("a!_b", escape="!")) is False
 
-    def test_cast(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_cast(self, con: quacklab.DuckDBPyConnection) -> None:
         assert evaluate(con, lit("42").cast("INTEGER")) == 42
         assert evaluate(con, lit("42").try_cast("INTEGER")) == 42
         assert evaluate(con, lit("x").try_cast("INTEGER")) is None
 
-    def test_coalesce(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_coalesce(self, con: quacklab.DuckDBPyConnection) -> None:
         assert evaluate(con, coalesce(lit(None), lit(None), lit(7))) == 7
 
-    def test_fn_reaches_any_function(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_fn_reaches_any_function(self, con: quacklab.DuckDBPyConnection) -> None:
         assert evaluate(con, fn("upper", lit("ab"))) == "AB"
 
     def test_fn_passes_named_arguments(self) -> None:
         assert fn("round", col("x"), precision=1).fragment() == 'round("x", "precision" := 1)'
 
-    def test_case(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_case(self, con: quacklab.DuckDBPyConnection) -> None:
         expression = when(lit(1) > 2).then("big").otherwise("small")
         assert evaluate(con, expression) == "small"
 
-    def test_case_without_otherwise_is_null(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_case_without_otherwise_is_null(self, con: quacklab.DuckDBPyConnection) -> None:
         assert evaluate(con, when(lit(1) > 2).then("big").end()) is None
 
     def test_a_case_condition_is_an_expression(self) -> None:
         with pytest.raises(TypeError, match="name a column with col"):
             when("x")
 
-    def test_sql_expr_escape_hatch(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_sql_expr_escape_hatch(self, con: quacklab.DuckDBPyConnection) -> None:
         assert evaluate(con, sql_expr("1 + 1")) == 2
 
 
 class TestAggregatesAndWindows:
-    def test_aggregate_shortcut(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_aggregate_shortcut(self, con: quacklab.DuckDBPyConnection) -> None:
         value = con.execute(f"SELECT {col('i').sum().fragment()} FROM range(4) t(i)").fetchall()[0][0]
         assert value == 6
 
-    def test_window(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_window(self, con: quacklab.DuckDBPyConnection) -> None:
         numbered = row_number().over(order_by=col("i"))
         rows = con.execute(f"SELECT {numbered.fragment()} FROM range(3) t(i)").fetchall()
         assert [r[0] for r in rows] == [1, 2, 3]
 
-    def test_window_frame_and_partition(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_window_frame_and_partition(self, con: quacklab.DuckDBPyConnection) -> None:
         running = col("i").sum().over(partition_by=col("g"), order_by=col("i").desc(), rows=(-1, 0))
         assert running.fragment() == (
             'sum("i") OVER (PARTITION BY "g" ORDER BY "i" DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)'
@@ -308,7 +308,7 @@ class TestAggregatesAndWindows:
         with pytest.raises(TypeError, match="rows or by range"):
             col("i").sum().over(rows=(0, 1), range=(0, 1))
 
-    def test_filtered_aggregate(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_filtered_aggregate(self, con: quacklab.DuckDBPyConnection) -> None:
         evens = col("i").count().where(col("i") % 2 == 0)
         assert evens.fragment() == 'count("i") FILTER (WHERE (("i" % 2) = 0))'
         assert con.execute(f"SELECT {evens.fragment()} FROM range(5) t(i)").fetchall() == [(3,)]
@@ -351,24 +351,24 @@ class TestPresentation:
 class TestRichLiteralTypes:
     """Every type that can be passed as a query parameter also works inside an expression."""
 
-    def test_a_date_comparison_describes_as_a_boolean(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_date_comparison_describes_as_a_boolean(self, con: quacklab.DuckDBPyConnection) -> None:
         # The form with values written in is the one DuckDB is shown when asked for column types.
         expression = col("d") > datetime.date(2026, 8, 1)
         described = con.execute(f"DESCRIBE SELECT {expression.fragment()} AS b FROM (SELECT DATE '2020-01-01' AS d)")
         assert described.fetchall()[0][1] == "BOOLEAN"
 
-    def test_a_date_comparison_evaluates(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_date_comparison_evaluates(self, con: quacklab.DuckDBPyConnection) -> None:
         expression = col("d") > datetime.date(2026, 1, 1)
         rows = con.execute(f"SELECT {expression.fragment()} FROM (SELECT DATE '2026-08-01' AS d)").fetchall()
         assert rows[0][0] is True
 
-    def test_decimal_keeps_its_scale_when_written_in(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_decimal_keeps_its_scale_when_written_in(self, con: quacklab.DuckDBPyConnection) -> None:
         assert render_literal(decimal.Decimal("1.50")) == "CAST('1.50' AS DECIMAL(3, 2))"
         assert evaluate(con, lit(decimal.Decimal("0.000001"))) == decimal.Decimal("0.000001")
 
     @pytest.mark.parametrize("text", ["NaN", "Infinity", "-Infinity"])
     def test_a_non_finite_decimal_renders_as_the_parameter_path_types_it(
-        self, con: duckdb.DuckDBPyConnection, text: str
+        self, con: quacklab.DuckDBPyConnection, text: str
     ) -> None:
         # The value is typed as binding it as a parameter types it, so the two paths give one type and one value.
         value = decimal.Decimal(text)
@@ -386,7 +386,9 @@ class TestRichLiteralTypes:
         assert render_literal([None, "x"]) == "[NULL, 'x']"
         assert render_literal({"a": None, "b": 1}) == "{'a': NULL, 'b': 1}"
 
-    def test_a_literal_of_only_nulls_is_written_in_for_the_binder_to_type(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_literal_of_only_nulls_is_written_in_for_the_binder_to_type(
+        self, con: quacklab.DuckDBPyConnection
+    ) -> None:
         # sql_type_of gives [None] no type, so instead of binding it bare the list is written into the SQL, where
         # the binder types the NULLs from whatever meets them.
         rendered = (col("x") == lit([None])).fragment()
@@ -408,7 +410,7 @@ class TestRichLiteralTypes:
         ],
         ids=["double", "nan", "infinity", "blob", "uuid", "list", "map", "quote"],
     )
-    def test_written_in(self, con: duckdb.DuckDBPyConnection, value: object, written: str) -> None:
+    def test_written_in(self, con: quacklab.DuckDBPyConnection, value: object, written: str) -> None:
         assert render_literal(value) == written
         assert con.execute(f"SELECT {written}").fetchall()[0][0] is not None
 
@@ -416,7 +418,7 @@ class TestRichLiteralTypes:
 class TestFoundByWritingTheManual:
     """Two shortcuts that produced SQL DuckDB rejects, both caught by running the manual's examples."""
 
-    def test_n_unique_uses_distinct_syntax(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_n_unique_uses_distinct_syntax(self, con: quacklab.DuckDBPyConnection) -> None:
         # It used to call a `count_distinct` function, which DuckDB does not have; DISTINCT is syntax.
         expression = col("c").n_unique()
         assert expression.fragment() == 'count(DISTINCT "c")'
@@ -424,14 +426,14 @@ class TestFoundByWritingTheManual:
         con.execute("INSERT INTO u VALUES ('x'), ('x'), ('y')")
         assert con.execute(f"SELECT {expression.fragment()} FROM u").fetchall()[0][0] == 2
 
-    def test_concat_is_explicit_because_plus_is_not_concatenation(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_concat_is_explicit_because_plus_is_not_concatenation(self, con: quacklab.DuckDBPyConnection) -> None:
         # An expression carries no type, so `+` cannot decide between addition and concatenation.
         expression = lit("a").concat("-", lit("b"))
         assert con.execute(f"SELECT {expression.fragment()}").fetchall()[0][0] == "a-b"
 
-    def test_plus_on_text_still_fails_loudly(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_plus_on_text_still_fails_loudly(self, con: quacklab.DuckDBPyConnection) -> None:
         # Not silently reinterpreted as concatenation: DuckDB says so.
-        with pytest.raises(duckdb.Error):
+        with pytest.raises(quacklab.Error):
             con.execute(f"SELECT {(lit('a') + lit('b')).fragment()}").fetchall()
 
 
@@ -478,7 +480,7 @@ WINDOW_CALLS: dict[str, tuple[object, ...]] = {
 
 
 @pytest.fixture(scope="module")
-def data(con: duckdb.DuckDBPyConnection) -> str:
+def data(con: quacklab.DuckDBPyConnection) -> str:
     """A small table for the aggregates: a NULL value, a second value column, and a tie in the ordering column.
 
     `w` differs from `v` so `arg_min` and `arg_max` cannot answer the same, and `g` ties so `rank` and `dense_rank`
@@ -551,7 +553,7 @@ class TestEveryAdvertisedFunctionExecutes:
 
     @pytest.mark.parametrize("name", sorted(AGGREGATE_CALLS))
     def test_an_aggregate_answers_what_its_own_sql_function_answers(
-        self, con: duckdb.DuckDBPyConnection, data: str, name: str
+        self, con: quacklab.DuckDBPyConnection, data: str, name: str
     ) -> None:
         column, twin = AGGREGATE_TWINS[name]
         expression = getattr(col(column), name)(*AGGREGATE_CALLS[name])
@@ -588,7 +590,7 @@ class TestEveryAdvertisedFunctionExecutes:
         ],
     )
     def test_an_aggregate_answers_the_value(
-        self, con: duckdb.DuckDBPyConnection, data: str, name: str, expected: object
+        self, con: quacklab.DuckDBPyConnection, data: str, name: str, expected: object
     ) -> None:
         column, _ = AGGREGATE_TWINS[name]
         expression = getattr(col(column), name)(*AGGREGATE_CALLS[name])
@@ -596,7 +598,7 @@ class TestEveryAdvertisedFunctionExecutes:
 
     @pytest.mark.parametrize(("name", "expected"), [("sum", None), ("count", 0), ("array_agg", None)])
     def test_an_aggregate_over_an_empty_group(
-        self, con: duckdb.DuckDBPyConnection, data: str, name: str, expected: object
+        self, con: quacklab.DuckDBPyConnection, data: str, name: str, expected: object
     ) -> None:
         column, _ = AGGREGATE_TWINS[name]
         expression = getattr(col(column), name)(*AGGREGATE_CALLS[name])
@@ -604,9 +606,9 @@ class TestEveryAdvertisedFunctionExecutes:
 
     @pytest.mark.parametrize("name", sorted(WINDOW_CALLS))
     def test_a_window_answers_what_its_own_sql_function_answers(
-        self, con: duckdb.DuckDBPyConnection, data: str, name: str
+        self, con: quacklab.DuckDBPyConnection, data: str, name: str
     ) -> None:
-        import duckdb._expression as expr_module
+        import quacklab._expression as expr_module
 
         expression = getattr(expr_module, name)(*WINDOW_CALLS[name]).over(order_by=[col("g"), col("v")])
         answered = con.execute(f"SELECT {expression.fragment()}{ROWS_IN_ORDER}").fetchall()
@@ -625,33 +627,33 @@ class TestEveryAdvertisedFunctionExecutes:
         ],
     )
     def test_a_window_answers_the_values(
-        self, con: duckdb.DuckDBPyConnection, data: str, name: str, expected: list[object]
+        self, con: quacklab.DuckDBPyConnection, data: str, name: str, expected: list[object]
     ) -> None:
-        import duckdb._expression as expr_module
+        import quacklab._expression as expr_module
 
         expression = getattr(expr_module, name)(*WINDOW_CALLS[name]).over(order_by=[col("g"), col("v")])
         assert [row[0] for row in con.execute(f"SELECT {expression.fragment()}{ROWS_IN_ORDER}").fetchall()] == expected
 
-    def test_rank_and_dense_rank_differ_on_a_tie(self, con: duckdb.DuckDBPyConnection, data: str) -> None:
-        import duckdb._expression as expr_module
+    def test_rank_and_dense_rank_differ_on_a_tie(self, con: quacklab.DuckDBPyConnection, data: str) -> None:
+        import quacklab._expression as expr_module
 
         ranked = expr_module.rank().over(order_by=col("g"))
         dense = expr_module.dense_rank().over(order_by=col("g"))
         assert [row[0] for row in con.execute(f"SELECT {ranked.fragment()}{ROWS_IN_ORDER}").fetchall()] == [1, 1, 3, 3]
         assert [row[0] for row in con.execute(f"SELECT {dense.fragment()}{ROWS_IN_ORDER}").fetchall()] == [1, 1, 2, 2]
 
-    def test_n_unique(self, con: duckdb.DuckDBPyConnection, data: str) -> None:
+    def test_n_unique(self, con: quacklab.DuckDBPyConnection, data: str) -> None:
         # Not in the shortcut table: DISTINCT is syntax, not a function name.
         assert con.execute(f"SELECT {col('v').n_unique().fragment()} FROM {data}").fetchall()[0][0] == 3
 
     def test_the_window_functions_are_exported(self) -> None:
-        assert {name for name in WINDOW_CALLS if hasattr(duckdb, name)} == set(WINDOW_CALLS)
+        assert {name for name in WINDOW_CALLS if hasattr(quacklab, name)} == set(WINDOW_CALLS)
 
 
 class TestFunctionFamilies:
     """The .str(), .dt(), .list() and .json() families call the function with the expression in its place."""
 
-    def test_each_family_renders_and_runs(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_each_family_renders_and_runs(self, con: quacklab.DuckDBPyConnection) -> None:
         cases = [
             (col("s").str().upper(), 'upper("s")', "AB"),
             (col("s").str().concat_ws("-", "x"), "concat_ws('-', \"s\", 'x')", "ab-x"),
@@ -672,7 +674,7 @@ class TestFunctionFamilies:
         assert type(col("s").str().upper()).__name__ == "StrExpr"
         assert type(col("s").str().string_split(",")).__name__ == "ListExpr"
 
-    def test_a_lambda_family_method_takes_a_python_callable(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_lambda_family_method_takes_a_python_callable(self, con: quacklab.DuckDBPyConnection) -> None:
         doubled = col("xs").list().transform(lambda x: x * 2)
         # The variable is named after its parameter with a suffix drawn per lambda.
         assert re.fullmatch(r'list_transform\("xs", lambda "(x_[0-9a-f]{6})": \("\1" \* 2\)\)', doubled.fragment())
@@ -680,7 +682,7 @@ class TestFunctionFamilies:
 
 
 class TestLambdasFromCallables:
-    def test_one_and_two_parameters(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_one_and_two_parameters(self, con: quacklab.DuckDBPyConnection) -> None:
         total = fn("list_reduce", col("xs"), lambda acc, x: acc + x)
         # Each variable is its parameter's name with a suffix of its own, so no two can fold to one name.
         pattern = r'list_reduce\("xs", lambda "acc_([0-9a-f]{6})", "x_([0-9a-f]{6})": \("acc_\1" \+ "x_\2"\)\)'
@@ -689,7 +691,7 @@ class TestLambdasFromCallables:
         assert found.group(1) != found.group(2)
         assert evaluate(con, total, " FROM (SELECT [1, 2, 3] AS xs)") == 6
 
-    def test_a_parameter_shadows_a_column_of_the_same_name(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_parameter_shadows_a_column_of_the_same_name(self, con: quacklab.DuckDBPyConnection) -> None:
         kept = fn("list_filter", col("xs"), lambda x: x > 1)
         assert evaluate(con, kept, " FROM (SELECT [1, 2, 3] AS xs, 100 AS x)") == [2, 3]
 
@@ -707,7 +709,7 @@ class TestLambdasFromCallables:
         ],
     )
     def test_a_generated_variable_never_captures_a_column(
-        self, con: duckdb.DuckDBPyConnection, nested: types.FunctionType
+        self, con: quacklab.DuckDBPyConnection, nested: types.FunctionType
     ) -> None:
         # The inner variable is renamed when it shadows, and the new name must not be a column the body reads.
         assert evaluate(con, nested(), " FROM (SELECT [1, 2] AS l, 100 AS x_1)") == [[110], [110]]
@@ -740,7 +742,7 @@ class TestLambdasFromCallables:
         ],
     )
     def test_nested_lambdas_keep_python_scope(
-        self, con: duckdb.DuckDBPyConnection, nested: types.FunctionType, expected: object
+        self, con: quacklab.DuckDBPyConnection, nested: types.FunctionType, expected: object
     ) -> None:
         assert evaluate(con, nested()) == expected
 
@@ -778,7 +780,7 @@ class TestTemporalLiterals:
         ],
         ids=str,
     )
-    def test_written_in_and_bound_agree(self, con: duckdb.DuckDBPyConnection, value: object) -> None:
+    def test_written_in_and_bound_agree(self, con: quacklab.DuckDBPyConnection, value: object) -> None:
         written = con.execute(f"SELECT typeof(v), v FROM (SELECT {render_literal(value)} AS v)").fetchall()
         bound = con.execute("SELECT typeof(v), v FROM (SELECT $1 AS v)", [value]).fetchall()
         assert written == bound
@@ -794,17 +796,17 @@ class TestTemporalLiterals:
         ids=["nanoseconds", "microseconds", "weeks"],
     )
     def test_what_a_parameter_cannot_hold_is_refused_written_in(
-        self, con: duckdb.DuckDBPyConnection, value: object, decided_by: str
+        self, con: quacklab.DuckDBPyConnection, value: object, decided_by: str
     ) -> None:
         # Numpy before 2.5 converts the weeks value to a plain int, which binds as a number and is no date to write.
         if decided_by == "numpy" and _converts(value):
             assert con.execute("SELECT typeof($1)", [value]).fetchall() == [("BIGINT",)]
-            with pytest.raises(duckdb.InvalidInputException, match="Expected a date"):
+            with pytest.raises(quacklab.InvalidInputException, match="Expected a date"):
                 render_literal(value)
             return
-        with pytest.raises((duckdb.Error, OverflowError)) as written:
+        with pytest.raises((quacklab.Error, OverflowError)) as written:
             render_literal(value)
-        with pytest.raises((duckdb.Error, OverflowError)) as bound:
+        with pytest.raises((quacklab.Error, OverflowError)) as bound:
             con.execute("SELECT $1", [value])
         assert type(written.value) is type(bound.value)
 
@@ -819,11 +821,11 @@ class TestTemporalLiterals:
         ids=["nanoseconds", "nanoseconds past microseconds", "months past range", "seconds past range"],
     )
     def test_a_numpy_value_that_binds_as_a_number_is_not_written_in(
-        self, con: duckdb.DuckDBPyConnection, value: object
+        self, con: quacklab.DuckDBPyConnection, value: object
     ) -> None:
         # This engine binds these as BIGINT; the seam's temporal literal refuses to write a number for a date.
         assert con.execute("SELECT typeof($1)", [value]).fetchall() == [("BIGINT",)]
-        with pytest.raises(duckdb.InvalidInputException, match="Expected a date, time, datetime"):
+        with pytest.raises(quacklab.InvalidInputException, match="Expected a date, time, datetime"):
             render_literal(value)
 
     @pytest.mark.parametrize(
@@ -841,7 +843,7 @@ class TestTemporalLiterals:
         assert render_literal(missing) == "NULL"
 
     @pytest.mark.parametrize("missing", [pd.NaT, np.timedelta64("NaT", "ns"), np.datetime64("NaT", "ms")], ids=str)
-    def test_a_missing_operand_is_written_in_as_null(self, con: duckdb.DuckDBPyConnection, missing: object) -> None:
+    def test_a_missing_operand_is_written_in_as_null(self, con: quacklab.DuckDBPyConnection, missing: object) -> None:
         rendered = (col("x") + missing).fragment()
         assert rendered == '("x" + NULL)'
         assert con.execute(f"SELECT {rendered} FROM (SELECT TIMESTAMP '2020-01-01' AS x)").fetchall() == [(None,)]
@@ -887,11 +889,11 @@ class TestNestedTemporalLiterals:
     def test_both_kinds_at_one_place_are_refused_written_in(self, value: object) -> None:
         # Written in, the engine reads the zoneless one in the session's time zone, and bound it reads it as UTC.
         assert sql_type_of(value) is None
-        with pytest.raises(duckdb.InvalidInputException, match="with and without a time zone"):
+        with pytest.raises(quacklab.InvalidInputException, match="with and without a time zone"):
             render_literal(value)
 
     def test_written_in_they_would_mean_another_instant(self) -> None:
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("SET TimeZone = 'America/New_York'")
         value = [self.NAIVE, self.AWARE]
         bound = con.execute("SELECT $1", [value]).fetchall()[0][0]
@@ -907,12 +909,12 @@ class TestNestedTemporalLiterals:
         ],
         ids=["empty list", "null field", "every depth"],
     )
-    def test_a_missing_part_written_in_reads_as_bound(self, con: duckdb.DuckDBPyConnection, value: object) -> None:
+    def test_a_missing_part_written_in_reads_as_bound(self, con: quacklab.DuckDBPyConnection, value: object) -> None:
         written = con.execute(f"SELECT v::VARCHAR, typeof(v) FROM (SELECT {render_literal(value)} AS v)").fetchall()
         bound = con.execute("SELECT $1::VARCHAR, typeof($1)", [value]).fetchall()
         assert written == bound
 
-    def test_a_struct_keeps_each_field_as_it_is(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_struct_keeps_each_field_as_it_is(self, con: quacklab.DuckDBPyConnection) -> None:
         value = {"a": self.NAIVE, "b": self.AWARE}
         assert con.execute(f"SELECT {render_literal(value)}").fetchall() == [(value,)]
 
@@ -944,7 +946,7 @@ class TestNumpyScalarsAreTheirPythonValues:
     """A numpy bool, integer or float stands for its Python value wherever an expression takes a value."""
 
     @pytest.mark.parametrize("number", [np.int8(3), np.int64(3), np.uint64(3)], ids=lambda v: type(v).__name__)
-    def test_a_numpy_integer_compares_as_its_value(self, con: duckdb.DuckDBPyConnection, number: object) -> None:
+    def test_a_numpy_integer_compares_as_its_value(self, con: quacklab.DuckDBPyConnection, number: object) -> None:
         source = " FROM (SELECT 3 AS id)"
         assert (col("id") == number).fragment() == '("id" = 3)'
         assert evaluate(con, col("id") == number, source) is True
@@ -952,7 +954,7 @@ class TestNumpyScalarsAreTheirPythonValues:
         assert evaluate(con, number == col("id"), source) is True
         assert evaluate(con, number < col("id"), source) is False
 
-    def test_a_numpy_float_is_written_as_its_value(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_numpy_float_is_written_as_its_value(self, con: quacklab.DuckDBPyConnection) -> None:
         assert (col("x") + np.float64(1000.0)).fragment() == '("x" + 1000.0::DOUBLE)'
         assert (col("x") + np.float32(0.5)).fragment() == '("x" + 0.5::DOUBLE)'
         assert evaluate(con, col("x") + np.float64(1000.0), " FROM (SELECT 1.0 AS x)") == 1001.0
@@ -965,7 +967,7 @@ class TestNumpyScalarsAreTheirPythonValues:
         assert (np.int64(3) - col("x")).fragment() == '(3 - "x")'
         assert (np.float64(2.5) * col("x")).fragment() == '(2.5::DOUBLE * "x")'
 
-    def test_isin_between_function_arguments_and_lit_take_numpy(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_isin_between_function_arguments_and_lit_take_numpy(self, con: quacklab.DuckDBPyConnection) -> None:
         source = " FROM (SELECT 3 AS id)"
         assert evaluate(con, col("id").isin(np.int64(3), np.int64(5)), source) is True
         assert evaluate(con, col("id").isin(np.int64(5)), source) is False
@@ -979,13 +981,13 @@ class TestNumpyScalarsAreTheirPythonValues:
         day = datetime.date(2020, 1, 1)
         assert render_literal({"n": np.int64(1), "d": day}) == render_literal({"n": 1, "d": day})
 
-    def test_a_numpy_integer_is_a_position(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_numpy_integer_is_a_position(self, con: quacklab.DuckDBPyConnection) -> None:
         assert col("xs")[np.int64(1)].fragment() == col("xs")[1].fragment()
         assert evaluate(con, col("xs")[np.int64(2)], " FROM (SELECT [10, 20] AS xs)") == 20
         with pytest.raises(TypeError, match="not by bool"):
             col("xs")[np.bool_(True)]
 
-    def test_a_lambda_may_return_a_numpy_value(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_lambda_may_return_a_numpy_value(self, con: quacklab.DuckDBPyConnection) -> None:
         ones = fn("list_transform", col("xs"), lambda x: np.int64(1))
         assert evaluate(con, ones, " FROM (SELECT [1, 2] AS xs)") == [1, 1]
 
@@ -1031,7 +1033,7 @@ class TestNumpyScalarsAreTheirPythonValues:
 REENTRY = """
 import datetime as dt
 import threading
-from duckdb._expression import render_literal
+from quacklab._expression import render_literal
 
 
 class Zone(dt.tzinfo):

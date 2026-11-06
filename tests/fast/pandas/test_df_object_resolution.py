@@ -9,11 +9,11 @@ from decimal import Decimal
 import pytest
 from conftest import is_string_dtype
 
-import duckdb
+import quacklab
 import numpy as np
 import pandas as pd
 
-standard_vector_size = duckdb.__standard_vector_size__
+standard_vector_size = quacklab.__standard_vector_size__
 
 
 def create_generic_dataframe(data):
@@ -314,12 +314,12 @@ class TestResolveObjectColumns:
 
     def test_map_duplicate(self, duckdb_cursor):
         x = pd.DataFrame([[{"key": ["a", "a", "b"], "value": [4, 0, 4]}]])
-        with pytest.raises(duckdb.InvalidInputException, match="Map keys must be unique"):
+        with pytest.raises(quacklab.InvalidInputException, match="Map keys must be unique"):
             duckdb_cursor.sql("select * from x").show()
 
     def test_map_nullkey(self, duckdb_cursor):
         x = pd.DataFrame([[{"key": [None, "a", "b"], "value": [4, 0, 4]}]])
-        with pytest.raises(duckdb.InvalidInputException, match="Map keys can not be NULL"):
+        with pytest.raises(quacklab.InvalidInputException, match="Map keys can not be NULL"):
             converted_col = duckdb_cursor.sql("select * from x").df()
 
     def test_map_nullkeylist(self, duckdb_cursor):
@@ -330,7 +330,7 @@ class TestResolveObjectColumns:
 
     def test_map_fallback_nullkey(self, duckdb_cursor):
         x = pd.DataFrame([[{"a": 4, None: 0, "c": 4}], [{"a": 4, None: 0, "d": 4}]])
-        with pytest.raises(duckdb.InvalidInputException, match="Map keys can not be NULL"):
+        with pytest.raises(quacklab.InvalidInputException, match="Map keys can not be NULL"):
             converted_col = duckdb_cursor.sql("select * from x").df()
 
     def test_map_fallback_nullkey_coverage(self, duckdb_cursor):
@@ -340,7 +340,7 @@ class TestResolveObjectColumns:
                 [{"key": None, None: 5}],
             ]
         )
-        with pytest.raises(duckdb.InvalidInputException, match="Map keys can not be NULL"):
+        with pytest.raises(quacklab.InvalidInputException, match="Map keys can not be NULL"):
             converted_col = duckdb_cursor.sql("select * from x").df()
 
     def test_structs_in_nested_types(self, duckdb_cursor):
@@ -389,9 +389,9 @@ class TestResolveObjectColumns:
         # So we fall back to converting them as VARCHAR instead
         assert res == [("MAP(VARCHAR, VARCHAR)[]",), ("MAP(VARCHAR, VARCHAR)[]",)]
 
-        malformed_struct = duckdb.Value({"v1": 1, "v2": 2}, duckdb.struct_type({"v1": int}))
+        malformed_struct = quacklab.Value({"v1": 1, "v2": 2}, quacklab.struct_type({"v1": int}))
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match=re.escape(
                 "We could not convert the object {'v1': 1, 'v2': 2} to the desired target type (STRUCT(v1 BIGINT))"
             ),
@@ -551,10 +551,10 @@ class TestResolveObjectColumns:
         data = [numpy.datetime64("2022-12-10T21:38:24.0000000000001")]
         x = pd.DataFrame({"dates": pd.Series(data=data, dtype="object")})
         with pytest.raises(
-            duckdb.ConversionException,
+            quacklab.ConversionException,
             match=re.escape("Conversion Error: Unimplemented type for cast (BIGINT -> TIMESTAMP)"),
         ):
-            rel = duckdb.query_df(x, "x", "create table dates as select dates::TIMESTAMP WITHOUT TIME ZONE from x")
+            rel = quacklab.query_df(x, "x", "create table dates as select dates::TIMESTAMP WITHOUT TIME ZONE from x")
 
     def test_fallthrough_object_conversion(self, duckdb_cursor):
         x = pd.DataFrame(
@@ -739,7 +739,7 @@ class TestResolveObjectColumns:
     def test_analyze_sample_too_small(self, duckdb_cursor):
         data = [1 for _ in range(9)] + [[1, 2, 3]] + [1 for _ in range(9991)]
         x = pd.DataFrame({"a": pd.Series(data=data)})
-        with pytest.raises(duckdb.InvalidInputException, match="Failed to cast value: Unimplemented type for cast"):
+        with pytest.raises(quacklab.InvalidInputException, match="Failed to cast value: Unimplemented type for cast"):
             res = duckdb_cursor.sql("select * from x").df()
 
     def test_numeric_decimal_zero_fractional(self, duckdb_cursor):
@@ -770,7 +770,7 @@ class TestResolveObjectColumns:
         """
         duckdb_cursor.execute(reference_query)
         reference = duckdb_cursor.sql("select * from tbl").fetchall()
-        conversion = duckdb.query_df(decimals, "x", "select * from x").fetchall()
+        conversion = quacklab.query_df(decimals, "x", "select * from x").fetchall()
 
         assert conversion == reference
 
@@ -815,7 +815,7 @@ class TestResolveObjectColumns:
         """
         duckdb_cursor.execute(reference_query)
         reference = duckdb_cursor.sql("select * from tbl").fetchall()
-        conversion = duckdb.query_df(decimals, "x", "select * from x").fetchall()
+        conversion = quacklab.query_df(decimals, "x", "select * from x").fetchall()
         assert conversion == reference
         print(reference)
         print(conversion)
@@ -843,7 +843,7 @@ class TestResolveObjectColumns:
         """
         duckdb_cursor.execute(reference_query)
         reference = duckdb_cursor.sql("select * from tbl").fetchall()
-        conversion = duckdb.query_df(decimals, "x", "select * from x").fetchall()
+        conversion = quacklab.query_df(decimals, "x", "select * from x").fetchall()
         assert conversion == reference
         print(reference)
         print(conversion)
@@ -864,7 +864,7 @@ class TestResolveObjectColumns:
         """
         duckdb_cursor.execute(reference_query)
         reference = duckdb_cursor.sql("select * from tbl").fetchall()
-        conversion = duckdb.query_df(decimals, "x", "select * from x").fetchall()
+        conversion = quacklab.query_df(decimals, "x", "select * from x").fetchall()
         assert conversion == reference
         assert isinstance(conversion[0][0], float)
 

@@ -5,7 +5,7 @@ A name of more than three parts is refused, because the relation API addresses o
 
 import pytest
 
-import duckdb
+import quacklab
 import pandas as pd
 
 INSERT_SQL = "INSERT INTO {}"
@@ -70,7 +70,7 @@ NESTED_TABLES = [
 
 
 def connect(setup):
-    con = duckdb.connect()
+    con = quacklab.connect()
     for statement in setup:
         con.execute(statement)
     return con
@@ -145,10 +145,10 @@ class TestFlatNames:
     @pytest.mark.parametrize(
         ("name", "error"),
         [
-            ("nosuch.t", duckdb.CatalogException),
-            ("nosuch.s.t", duckdb.CatalogException),
-            ("amb.t", duckdb.BinderException),
-            ("s.missing", duckdb.CatalogException),
+            ("nosuch.t", quacklab.CatalogException),
+            ("nosuch.s.t", quacklab.CatalogException),
+            ("amb.t", quacklab.BinderException),
+            ("s.missing", quacklab.CatalogException),
         ],
     )
     def test_insert_into_refused(self, name, error):
@@ -180,12 +180,12 @@ class TestFlatNames:
     @pytest.mark.parametrize(
         ("name", "error"),
         [
-            ("nosuch.n", duckdb.CatalogException),
-            ("nosuch.s.n", duckdb.CatalogException),
-            ("amb.n", duckdb.BinderException),
-            ("temp.n", duckdb.ParserException),
-            ("temp.main.n", duckdb.ParserException),
-            ("s.t", duckdb.CatalogException),
+            ("nosuch.n", quacklab.CatalogException),
+            ("nosuch.s.n", quacklab.CatalogException),
+            ("amb.n", quacklab.BinderException),
+            ("temp.n", quacklab.ParserException),
+            ("temp.main.n", quacklab.ParserException),
+            ("s.t", quacklab.CatalogException),
         ],
     )
     def test_create_refused(self, name, error):
@@ -204,7 +204,7 @@ class TestNestedNames:
             NESTED_TABLES,
             "INSERT INTO extra.nosuch.t SELECT 42 AS i",
             lambda rel: rel.insert_into("extra.nosuch.t"),
-            duckdb.CatalogException,
+            quacklab.CatalogException,
         )
 
     def test_create_three_parts(self):
@@ -216,7 +216,7 @@ class TestNestedNames:
             NESTED_TABLES,
             "CREATE TABLE extra.nosuch.n AS SELECT 42 AS i",
             lambda rel: rel.create("extra.nosuch.n"),
-            duckdb.CatalogException,
+            quacklab.CatalogException,
         )
 
     @pytest.mark.parametrize(
@@ -231,7 +231,7 @@ class TestNestedNames:
     )
     def test_insert_into_more_than_three_parts_refused(self, name, rendered):
         con = connect(NESTED_SETUP)
-        with pytest.raises(duckdb.NotImplementedException) as error:
+        with pytest.raises(quacklab.NotImplementedException) as error:
             source(con).insert_into(name)
         assert str(error.value) == nested_path_refusal(rendered, INSERT_SQL)
         assert all(rows == [] for rows in contents(con, NESTED_TABLES).values())
@@ -243,7 +243,7 @@ class TestNestedNames:
     def test_create_more_than_three_parts_refused(self, name, method):
         con = connect(NESTED_SETUP)
         before = table_count(con)
-        with pytest.raises(duckdb.NotImplementedException) as error:
+        with pytest.raises(quacklab.NotImplementedException) as error:
             getattr(source(con), method)(name)
         assert str(error.value) == nested_path_refusal(name, CREATE_SQL)
         assert table_count(con) == before
@@ -251,7 +251,7 @@ class TestNestedNames:
     def test_insert_into_refusal_quotes_the_suggested_sql(self):
         name = 'memory."my.schema".s."my t"'
         con = connect(NESTED_SETUP)
-        with pytest.raises(duckdb.NotImplementedException) as error:
+        with pytest.raises(quacklab.NotImplementedException) as error:
             source(con).insert_into('"memory"."my.schema"."s"."my t"')
         assert str(error.value) == nested_path_refusal(name, INSERT_SQL)
         con.execute(f"{INSERT_SQL.format(name)} SELECT 42 AS i")
@@ -260,7 +260,7 @@ class TestNestedNames:
     def test_create_refusal_quotes_the_suggested_sql(self):
         name = 'memory."my.schema".s."my n"'
         con = connect(NESTED_SETUP)
-        with pytest.raises(duckdb.NotImplementedException) as error:
+        with pytest.raises(quacklab.NotImplementedException) as error:
             source(con).create('"memory"."my.schema"."s"."my n"')
         assert str(error.value) == nested_path_refusal(name, CREATE_SQL)
         con.execute(f"{CREATE_SQL.format(name)} SELECT 42 AS i")
@@ -274,7 +274,7 @@ class TestNestedNames:
         con = connect(NESTED_SETUP)
         con.execute("BEGIN")
         con.execute("CREATE TABLE sentinel AS SELECT 1 AS i")
-        with pytest.raises(duckdb.NotImplementedException):
+        with pytest.raises(quacklab.NotImplementedException):
             getattr(source(con), method)(name)
         con.execute("INSERT INTO sentinel VALUES (2)")
         assert con.sql("FROM sentinel ORDER BY i").fetchall() == [(1,), (2,)]
@@ -287,7 +287,7 @@ class TestEmptyNamePart:
     @pytest.mark.parametrize("name", ["", "s..t", ".t"])
     def test_insert_into_refused(self, name):
         con = connect(FLAT_SETUP)
-        with pytest.raises(duckdb.ParserException) as error:
+        with pytest.raises(quacklab.ParserException) as error:
             source(con).insert_into(name)
         assert str(error.value) == f"Parser Error: Zero-length identifier in qualified name! (input: {name})"
         assert all(rows == [] for rows in contents(con, FLAT_TABLES).values())
@@ -296,7 +296,7 @@ class TestEmptyNamePart:
     def test_create_refused(self, name):
         con = connect(FLAT_SETUP)
         before = table_count(con)
-        with pytest.raises(duckdb.ParserException) as error:
+        with pytest.raises(quacklab.ParserException) as error:
             source(con).create(name)
         assert str(error.value) == f"Parser Error: Zero-length identifier in qualified name! (input: {name})"
         assert table_count(con) == before

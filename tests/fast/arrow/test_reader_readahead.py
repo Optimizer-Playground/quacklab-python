@@ -14,8 +14,8 @@ import time
 import pytest
 from _pushdown_helpers import assert_plan_keeps_filter_above, peak_arrow_bytes_while, physical_plan
 
-import duckdb
-from duckdb.sqltypes import BIGINT
+import quacklab
+from quacklab.sqltypes import BIGINT
 
 pa = pytest.importorskip("pyarrow")
 pytest.importorskip("pyarrow.dataset")
@@ -102,7 +102,7 @@ class StreamClaimingToBeATable(OneShotStream):
 def test_slowly_consumed_stream_holds_a_few_batches(export):
     query = "SELECT count(*), sum(strlen(payload)), sum(slow_identity(id)) FROM source"
     ledger = Ledger()
-    with duckdb.connect(config={"threads": THREADS, "memory_limit": "64MB"}) as con:
+    with quacklab.connect(config={"threads": THREADS, "memory_limit": "64MB"}) as con:
         con.create_function("slow_identity", _counting_slow_identity(ledger), [BIGINT], BIGINT, type="arrow")
         con.register("source", export(pa.RecordBatchReader.from_batches(SCHEMA, _batches(ledger))))
         rows, peak, samples = peak_arrow_bytes_while(lambda: con.execute(query).fetchall())

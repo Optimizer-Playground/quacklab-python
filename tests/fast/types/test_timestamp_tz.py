@@ -7,7 +7,7 @@ import zoneinfo
 
 import pytest
 
-import duckdb
+import quacklab
 
 UTC = datetime.timezone.utc
 
@@ -18,7 +18,7 @@ def fetch(con, literal):
 
 @pytest.fixture
 def con():
-    with duckdb.connect() as con:
+    with quacklab.connect() as con:
         yield con
 
 
@@ -99,7 +99,7 @@ def test_udf_argument_is_aware(con):
 
 def test_icu_only_zone_name_raises(con):
     con.execute("SET TimeZone = 'ACT'")
-    with pytest.raises(duckdb.InvalidInputException, match=r"'ACT'.*tzdata"):
+    with pytest.raises(quacklab.InvalidInputException, match=r"'ACT'.*tzdata"):
         fetch(con, "2024-01-01 00:00:00+00")
 
 
@@ -110,12 +110,12 @@ def test_without_a_tz_database_raises(tmp_path):
 
         sys.modules["tzdata"] = None
 
-        import duckdb
-        con = duckdb.connect()
+        import quacklab
+        con = quacklab.connect()
         con.execute("SET TimeZone = 'Europe/Amsterdam'")
         try:
             con.execute("SELECT TIMESTAMPTZ '2024-01-01 00:00:00+00'").fetchone()
-        except duckdb.InvalidInputException as error:
+        except quacklab.InvalidInputException as error:
             assert "'Europe/Amsterdam'" in str(error) and "tzdata" in str(error), repr(error)
         else:
             raise AssertionError("a fetch without a tz database did not raise")

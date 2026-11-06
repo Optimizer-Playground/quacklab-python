@@ -421,14 +421,14 @@ def test_the_driver_works_in_a_process_that_never_imports_duckdb(tmp_path):
 import sys
 import pyarrow as pa
 from adbc_driver_duckdb import dbapi
-assert "duckdb" not in sys.modules and "_duckdb" not in sys.modules
+assert "quacklab" not in sys.modules and "_duckdb" not in sys.modules
 with dbapi.connect({(tmp_path / "w.duckdb").as_posix()!r}) as conn, conn.cursor() as cur:
     cur.execute("SELECT current_catalog(), version() LIKE 'v%'")
     print(cur.fetchall())
     print(cur.adbc_ingest("t", pa.table({{"a": [1, 2]}}), mode="create"))
     cur.execute("SELECT count(*), max(a) FROM t")
     print(cur.fetchall())
-assert "duckdb" not in sys.modules and "_duckdb" not in sys.modules
+assert "quacklab" not in sys.modules and "_duckdb" not in sys.modules
 """
     try:
         proc = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=120, check=False)

@@ -1,4 +1,4 @@
-import duckdb
+import quacklab
 import pandas as pd
 
 try:
@@ -16,7 +16,7 @@ class Test3654:
                 "id": [1, 1, 2],
             }
         )
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("df1", df1)
         rel = con.view("df1")
         print(rel.fetchall())
@@ -32,7 +32,7 @@ class Test3654:
             }
         )
         table = pa.Table.from_pandas(df1)
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("df1", table)
         rel = con.view("df1")
         print(rel.fetchall())

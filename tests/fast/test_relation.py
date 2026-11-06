@@ -5,11 +5,11 @@ import tempfile
 
 import pytest
 
-import duckdb
+import quacklab
 import numpy as np
 import pandas as pd
-from duckdb import ColumnExpression
-from duckdb.sqltypes import BIGINT, BOOLEAN, TINYINT, VARCHAR
+from quacklab import ColumnExpression
+from quacklab.sqltypes import BIGINT, BOOLEAN, TINYINT, VARCHAR
 
 
 @pytest.fixture(scope="session")
@@ -26,14 +26,14 @@ def get_relation(conn):
 
 class TestRelation:
     def test_csv_auto(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         df_rel = get_relation(conn)
         temp_file_name = os.path.join(tempfile.mkdtemp(), next(tempfile._get_candidate_names()))  # noqa: PTH118
         test_df = pd.DataFrame.from_dict({"i": [1, 2, 3, 4], "j": ["one", "two", "three", "four"]})
         test_df.to_csv(temp_file_name, index=False)
 
         # now create a relation from it
-        csv_rel = duckdb.from_csv_auto(temp_file_name)
+        csv_rel = quacklab.from_csv_auto(temp_file_name)
         assert df_rel.fetchall() == csv_rel.fetchall()
 
     def test_relation_view(self, duckdb_cursor):
@@ -43,7 +43,7 @@ class TestRelation:
             rel.to_view("my_view")
 
         create_view(duckdb_cursor)
-        with pytest.raises(duckdb.CatalogException, match="df_in does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="df_in does not exist"):
             # The df_in object is no longer reachable
             rel1 = duckdb_cursor.query("select * from df_in")
         # But it **is** reachable through our 'my_view' VIEW
@@ -56,28 +56,28 @@ class TestRelation:
         assert res == [(1,), (2,), (3,), (4,), (5,)]
 
     def test_filter_operator(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         rel = get_relation(conn)
         assert rel.filter("i > 1").fetchall() == [(2, "two"), (3, "three"), (4, "four")]
 
     def test_projection_operator_single(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         rel = get_relation(conn)
         assert rel.project("i").fetchall() == [(1,), (2,), (3,), (4,)]
 
     def test_projection_operator_double(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         rel = get_relation(conn)
         assert rel.order("j").fetchall() == [(4, "four"), (1, "one"), (3, "three"), (2, "two")]
 
     def test_limit_operator(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         rel = get_relation(conn)
         assert rel.limit(2).fetchall() == [(1, "one"), (2, "two")]
         assert rel.limit(2, offset=1).fetchall() == [(2, "two"), (3, "three")]
 
     def test_intersect_operator(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         test_df = pd.DataFrame.from_dict({"i": [1, 2, 3, 4]})
         conn.register("test_df", test_df)
         test_df_2 = pd.DataFrame.from_dict({"i": [3, 4, 5, 6]})
@@ -88,7 +88,7 @@ class TestRelation:
         assert rel.intersect(rel_2).order("i").fetchall() == [(3,), (4,)]
 
     def test_aggregate_operator(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         rel = get_relation(conn)
         assert rel.aggregate("sum(i)").fetchall() == [(10,)]
         assert rel.aggregate("j, sum(i)").order("#2").fetchall() == [
@@ -99,12 +99,12 @@ class TestRelation:
         ]
 
     def test_distinct_operator(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         rel = get_relation(conn)
         assert rel.distinct().order("all").fetchall() == [(1, "one"), (2, "two"), (3, "three"), (4, "four")]
 
     def test_union_operator(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         rel = get_relation(conn)
         print(rel.union(rel).fetchall())
         assert rel.union(rel).fetchall() == [
@@ -120,7 +120,7 @@ class TestRelation:
 
     def test_join_operator(self):
         # join rel with itself on i
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         test_df = pd.DataFrame.from_dict({"i": [1, 2, 3, 4], "j": ["one", "two", "three", "four"]})
         rel = conn.from_df(test_df)
         rel2 = conn.from_df(test_df)
@@ -132,14 +132,14 @@ class TestRelation:
         ]
 
     def test_except_operator(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         test_df = pd.DataFrame.from_dict({"i": [1, 2, 3, 4], "j": ["one", "two", "three", "four"]})
         rel = conn.from_df(test_df)
         rel2 = conn.from_df(test_df)
         assert rel.except_(rel2).fetchall() == []
 
     def test_create_operator(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         test_df = pd.DataFrame.from_dict({"i": [1, 2, 3, 4], "j": ["one", "two", "three", "four"]})
         rel = conn.from_df(test_df)
         rel.create("test_df")
@@ -151,7 +151,7 @@ class TestRelation:
         ]
 
     def test_create_view_operator(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         test_df = pd.DataFrame.from_dict({"i": [1, 2, 3, 4], "j": ["one", "two", "three", "four"]})
         rel = conn.from_df(test_df)
         rel.create_view("test_df")
@@ -168,32 +168,32 @@ class TestRelation:
         duckdb_cursor.table("tbl").insert(["hello", 42])
         # UPDATE tbl SET a = DEFAULT where b = 42
         duckdb_cursor.table("tbl").update(
-            {"a": duckdb.DefaultExpression()}, condition=duckdb.ColumnExpression("b") == 42
+            {"a": quacklab.DefaultExpression()}, condition=quacklab.ColumnExpression("b") == 42
         )
         assert duckdb_cursor.table("tbl").fetchall() == [("hello", 21), ("test", 42)]
 
         rel = duckdb_cursor.table("tbl")
-        with pytest.raises(duckdb.InvalidInputException, match="Please provide at least one set expression"):
+        with pytest.raises(quacklab.InvalidInputException, match="Please provide at least one set expression"):
             rel.update({})
         with pytest.raises(
-            duckdb.InvalidInputException, match="Please provide the column name as the key of the dictionary"
+            quacklab.InvalidInputException, match="Please provide the column name as the key of the dictionary"
         ):
             rel.update({1: 21})
-        with pytest.raises(duckdb.BinderException, match="Referenced update column c not found in table!"):
+        with pytest.raises(quacklab.BinderException, match="Referenced update column c not found in table!"):
             rel.update({"c": 21})
         with pytest.raises(
-            duckdb.InvalidInputException, match="Please provide 'set' as a dictionary of column name to Expression"
+            quacklab.InvalidInputException, match="Please provide 'set' as a dictionary of column name to Expression"
         ):
             rel.update(21)
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match="Please provide an object of type Expression as the value, not <class 'set'>",
         ):
             rel.update({"a": {21}})
 
     def test_value_relation(self, duckdb_cursor):
         # Needs at least one input
-        with pytest.raises(duckdb.InvalidInputException, match="Could not create a ValueRelation without any inputs"):
+        with pytest.raises(quacklab.InvalidInputException, match="Could not create a ValueRelation without any inputs"):
             duckdb_cursor.values()
 
         # From a list of (python) values
@@ -201,62 +201,62 @@ class TestRelation:
         assert rel.fetchall() == [(1, 2, 3)]
 
         # From an Expression
-        rel = duckdb_cursor.values(duckdb.ConstantExpression("test"))
+        rel = duckdb_cursor.values(quacklab.ConstantExpression("test"))
         assert rel.fetchall() == [("test",)]
 
         # From multiple Expressions
         rel = duckdb_cursor.values(
-            duckdb.ConstantExpression("1"), duckdb.ConstantExpression("2"), duckdb.ConstantExpression("3")
+            quacklab.ConstantExpression("1"), quacklab.ConstantExpression("2"), quacklab.ConstantExpression("3")
         )
         assert rel.fetchall() == [("1", "2", "3")]
 
         # From Expressions mixed with random values
-        with pytest.raises(duckdb.InvalidInputException, match="Please provide arguments of type Expression!"):
+        with pytest.raises(quacklab.InvalidInputException, match="Please provide arguments of type Expression!"):
             rel = duckdb_cursor.values(
-                duckdb.ConstantExpression("1"),
+                quacklab.ConstantExpression("1"),
                 {"test"},
-                duckdb.ConstantExpression("3"),
+                quacklab.ConstantExpression("3"),
             )
 
         # From Expressions mixed with values that *can* be autocast to Expression
         rel = duckdb_cursor.values(
-            duckdb.ConstantExpression("1"),
+            quacklab.ConstantExpression("1"),
             2,
-            duckdb.ConstantExpression("3"),
+            quacklab.ConstantExpression("3"),
         )
 
-        const = duckdb.ConstantExpression
+        const = quacklab.ConstantExpression
         # From a tuple of Expressions
         rel = duckdb_cursor.values((const(1), const(2), const(3)))
         assert rel.fetchall() == [(1, 2, 3)]
 
         # From mismatching tuples of Expressions
         with pytest.raises(
-            duckdb.InvalidInputException, match="Mismatch between length of tuples in input, expected 3 but found 2"
+            quacklab.InvalidInputException, match="Mismatch between length of tuples in input, expected 3 but found 2"
         ):
             rel = duckdb_cursor.values((const(1), const(2), const(3)), (const(5), const(4)))
 
         # From an empty tuple
-        with pytest.raises(duckdb.InvalidInputException, match="Please provide a non-empty tuple"):
+        with pytest.raises(quacklab.InvalidInputException, match="Please provide a non-empty tuple"):
             rel = duckdb_cursor.values(())
 
         # Mixing tuples with Expressions
-        with pytest.raises(duckdb.InvalidInputException, match="Expected objects of type tuple"):
+        with pytest.raises(quacklab.InvalidInputException, match="Expected objects of type tuple"):
             rel = duckdb_cursor.values((const(1), const(2), const(3)), const(4))
 
         # Using Expressions that can't be resolved:
         # Accept both historical and current Binder error message variants
         with pytest.raises(
-            duckdb.BinderException,
+            quacklab.BinderException,
             match=(
                 r'Referenced column "a" not found in FROM clause!|'
                 r'Referenced column "a" was not found because the FROM clause is missing'
             ),
         ):
-            duckdb_cursor.values(duckdb.ColumnExpression("a"))
+            duckdb_cursor.values(quacklab.ColumnExpression("a"))
 
     def test_insert_into_operator(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         test_df = pd.DataFrame.from_dict({"i": [1, 2, 3, 4], "j": ["one", "two", "three", "four"]})
         rel = conn.from_df(test_df)
         rel.create("test_table2")
@@ -279,12 +279,12 @@ class TestRelation:
         ]
 
     def test_write_csv_operator(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         df_rel = get_relation(conn)
         temp_file_name = os.path.join(tempfile.mkdtemp(), next(tempfile._get_candidate_names()))  # noqa: PTH118
         df_rel.write_csv(temp_file_name)
 
-        csv_rel = duckdb.from_csv_auto(temp_file_name)
+        csv_rel = quacklab.from_csv_auto(temp_file_name)
         assert df_rel.fetchall() == csv_rel.fetchall()
 
     def test_table_update_with_schema(self, duckdb_cursor):
@@ -305,7 +305,7 @@ class TestRelation:
         assert res == [(0,), (1,), (2,), (3,), (4,), (21,), (6,), (7,), (8,), (9,)]
 
     def test_get_attr_operator(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("CREATE TABLE test (i INTEGER)")
         rel = conn.table("test")
         assert rel.alias == "test"
@@ -314,7 +314,7 @@ class TestRelation:
         assert rel.types == ["INTEGER"]
 
     def test_query_fail(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("CREATE TABLE test (i INTEGER)")
         rel = conn.table("test")
         with pytest.raises(TypeError, match="missing 1 required positional argument: 'sql_query'"):
@@ -322,7 +322,7 @@ class TestRelation:
 
     def test_df_proj(self):
         test_df = pd.DataFrame.from_dict({"i": [1, 2, 3, 4], "j": ["one", "two", "three", "four"]})
-        rel = duckdb.project(test_df, "i")
+        rel = quacklab.project(test_df, "i")
         assert rel.fetchall() == [(1,), (2,), (3,), (4,)]
 
     def test_relation_lifetime(self, duckdb_cursor):
@@ -356,7 +356,7 @@ class TestRelation:
         assert rel.fetchall() == [(1, 1, 2, 3, 4, 5, 6)]
 
     def test_project_on_types(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.sql(
             """
             create table tbl(
@@ -379,44 +379,44 @@ class TestRelation:
         assert projection.columns == ["c0", "c1"]
 
         ## select with empty projection list, not possible
-        with pytest.raises(duckdb.Error):
+        with pytest.raises(quacklab.Error):
             projection = rel.select_types([])
 
         # select with type-filter that matches nothing
-        with pytest.raises(duckdb.Error):
+        with pytest.raises(quacklab.Error):
             projection = rel.select_types([BOOLEAN])
 
     def test_df_alias(self):
         test_df = pd.DataFrame.from_dict({"i": [1, 2, 3, 4], "j": ["one", "two", "three", "four"]})
-        rel = duckdb.alias(test_df, "dfzinho")
+        rel = quacklab.alias(test_df, "dfzinho")
         assert rel.alias == "dfzinho"
 
     def test_df_filter(self):
         test_df = pd.DataFrame.from_dict({"i": [1, 2, 3, 4], "j": ["one", "two", "three", "four"]})
-        rel = duckdb.filter(test_df, "i > 1")
+        rel = quacklab.filter(test_df, "i > 1")
         assert rel.fetchall() == [(2, "two"), (3, "three"), (4, "four")]
 
     def test_df_order_by(self):
         test_df = pd.DataFrame.from_dict({"i": [1, 2, 3, 4], "j": ["one", "two", "three", "four"]})
-        rel = duckdb.order(test_df, "j")
+        rel = quacklab.order(test_df, "j")
         assert rel.fetchall() == [(4, "four"), (1, "one"), (3, "three"), (2, "two")]
 
     def test_df_distinct(self):
         test_df = pd.DataFrame.from_dict({"i": [1, 2, 3, 4], "j": ["one", "two", "three", "four"]})
-        rel = duckdb.distinct(test_df).order("i")
+        rel = quacklab.distinct(test_df).order("i")
         assert rel.fetchall() == [(1, "one"), (2, "two"), (3, "three"), (4, "four")]
 
     def test_df_write_csv(self):
         test_df = pd.DataFrame.from_dict({"i": [1, 2, 3, 4], "j": ["one", "two", "three", "four"]})
         temp_file_name = os.path.join(tempfile.mkdtemp(), next(tempfile._get_candidate_names()))  # noqa: PTH118
-        duckdb.write_csv(test_df, temp_file_name)
-        csv_rel = duckdb.from_csv_auto(temp_file_name)
+        quacklab.write_csv(test_df, temp_file_name)
+        csv_rel = quacklab.from_csv_auto(temp_file_name)
         assert csv_rel.fetchall() == [(1, "one"), (2, "two"), (3, "three"), (4, "four")]
 
     def test_join_types(self):
         test_df1 = pd.DataFrame.from_dict({"i": [1, 2, 3, 4]})
         test_df2 = pd.DataFrame.from_dict({"j": [3, 4, 5, 6]})
-        con = duckdb.connect()
+        con = quacklab.connect()
         rel1 = con.from_df(test_df1)
         rel2 = con.from_df(test_df2)
 
@@ -428,7 +428,7 @@ class TestRelation:
         start, stop = -1000, 2000
         count = stop - start
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute(f"CREATE table t AS SELECT range AS a FROM range({start}, {stop});")
         rel = con.table("t")
 
@@ -450,7 +450,7 @@ class TestRelation:
                 assert len(res["a"]) == size
             assert np.all(res["a"] == np.arange(start, start + size))
 
-        with pytest.raises(duckdb.ConversionException, match=r"Conversion Error.*out of range.*"):
+        with pytest.raises(quacklab.ConversionException, match=r"Conversion Error.*out of range.*"):
             # invalid conversion of negative integer to UINTEGER
             rel.project("CAST(a as UINTEGER)").fetchnumpy()
 
@@ -460,7 +460,7 @@ class TestRelation:
             return 42
 
         counter.count = 0
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.create_function("my_counter", counter, [], BIGINT)
 
         # Create a relation
@@ -479,7 +479,7 @@ class TestRelation:
         assert counter.count == 2
 
     def test_relation_print(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("Create table t1 as select * from range(1000000)")
         rel1 = con.table("t1")
         text1 = str(rel1)
@@ -509,7 +509,7 @@ class TestRelation:
         assert filtered.fetchall() == []
 
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match=r"Invalid Input Error: 'DuckDBPyRelation.insert' can only be used on a table relation",
         ):
             rel.insert([1, 2, 3, 4])
@@ -576,7 +576,7 @@ class TestRelation:
             """
             ).to_view("vw")
 
-        with pytest.raises(duckdb.InvalidInputException, match=r"register\("):
+        with pytest.raises(quacklab.InvalidInputException, match=r"register\("):
             create_view(duckdb_cursor)
         assert duckdb_cursor.sql("select * from tbl").fetchall() == [("test",)]
 
@@ -597,7 +597,7 @@ class TestRelation:
         assert res == [([2], ["Alice"])]
 
     def test_serialized_materialized_relation(self, tmp_database):
-        con = duckdb.connect(tmp_database)
+        con = quacklab.connect(tmp_database)
 
         def create_view(con, view_name: str) -> None:
             rel = con.sql("select 'this is not a small string ' || range::varchar from range(?)", params=[10])
@@ -612,7 +612,7 @@ class TestRelation:
         # Make sure the VIEW has to be deserialized from disk
         con.close()
         gc.collect()
-        con = duckdb.connect(tmp_database)
+        con = quacklab.connect(tmp_database)
 
         res = con.sql("select * from vw").fetchall()
         assert res == expected
@@ -630,14 +630,14 @@ class TestRelation:
         # A persistent view is written to the database file, and a scan over a Python object has no
         # representation there, so the catalog change must be refused rather than stored dangling.
         # It is refused at the call, so inside a transaction nothing waits for the commit.
-        con = duckdb.connect(str(tmp_path / "db.duckdb"))
+        con = quacklab.connect(str(tmp_path / "db.duckdb"))
         rel = make_relation(con)
-        with pytest.raises(duckdb.InvalidInputException, match="database file"):
+        with pytest.raises(quacklab.InvalidInputException, match="database file"):
             rel.create_view("vw")
         assert con.sql("select view_name from duckdb_views() where not internal").fetchall() == []
 
         con.execute("begin")
-        with pytest.raises(duckdb.InvalidInputException, match="database file"):
+        with pytest.raises(quacklab.InvalidInputException, match="database file"):
             rel.create_view("vw")
         # The refusal executed nothing, so the transaction is still usable.
         assert con.execute("select 1").fetchall() == [(1,)]
@@ -651,6 +651,6 @@ class TestRelation:
     def test_relation_select_dtypes_quotes_identifiers_with_spaces(self, duckdb_cursor):
         df = pd.DataFrame({"na me": ["alice", "bob"], "x": [1, 2]})
         rel = duckdb_cursor.from_df(df)
-        out = rel.select_dtypes([duckdb.sqltypes.VARCHAR]).fetchdf()
+        out = rel.select_dtypes([quacklab.sqltypes.VARCHAR]).fetchdf()
         assert list(out.columns) == ["na me"]
         assert out["na me"].tolist() == ["alice", "bob"]

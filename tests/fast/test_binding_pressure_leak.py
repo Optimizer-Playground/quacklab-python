@@ -20,7 +20,7 @@ try:
 except ImportError:
     can_arrow = False
 
-from duckdb.sqltypes import BIGINT
+from quacklab.sqltypes import BIGINT
 
 psutil = pytest.importorskip("psutil")
 

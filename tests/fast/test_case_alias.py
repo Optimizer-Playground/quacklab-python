@@ -1,10 +1,10 @@
-import duckdb
+import quacklab
 import pandas as pd
 
 
 class TestCaseAlias:
     def test_case_alias(self, duckdb_cursor):
-        con = duckdb.connect(":memory:")
+        con = quacklab.connect(":memory:")
 
         df = pd.DataFrame([{"COL1": "val1", "CoL2": 1.05}, {"COL1": "val3", "CoL2": 17}])
 
@@ -38,7 +38,7 @@ class TestCaseAlias:
 
     def test_case_alias_explicit_alias_renames(self, duckdb_cursor):
         """An explicit alias still sets the output name, which is what distinguishes it from a reference."""
-        con = duckdb.connect(":memory:")
+        con = quacklab.connect(":memory:")
 
         df = pd.DataFrame([{"COL1": "val1", "CoL2": 1.05}])
 

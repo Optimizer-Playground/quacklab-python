@@ -6,7 +6,7 @@ import weakref
 
 import pytest
 
-import duckdb
+import quacklab
 
 pd = pytest.importorskip("pandas")
 pa = pytest.importorskip("pyarrow")
@@ -15,7 +15,7 @@ np = pytest.importorskip("numpy")
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     yield connection
     connection.close()
 
@@ -158,15 +158,15 @@ class TestUnregister:
         con.unregister("v")
         gc.collect()
         assert alive() is None
-        with pytest.raises(duckdb.CatalogException, match="name v does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="name v does not exist"):
             con.sql("SELECT a FROM v")
 
     def test_a_drop_that_cannot_happen_raises_instead_of_reporting_success(self, con):
         con.register("v", frame())
         con.execute("BEGIN TRANSACTION")
-        with pytest.raises(duckdb.CatalogException):
+        with pytest.raises(quacklab.CatalogException):
             con.execute("SELECT * FROM does_not_exist")
-        with pytest.raises(duckdb.Error):
+        with pytest.raises(quacklab.Error):
             con.unregister("v")
         con.execute("ROLLBACK")
 
@@ -176,9 +176,9 @@ class TestUnregister:
         con.register("v", obj)
         del obj
         con.execute("BEGIN TRANSACTION")
-        with pytest.raises(duckdb.CatalogException):
+        with pytest.raises(quacklab.CatalogException):
             con.execute("SELECT * FROM does_not_exist")
-        with pytest.raises(duckdb.Error):
+        with pytest.raises(quacklab.Error):
             con.unregister("v")
         con.execute("ROLLBACK")
         gc.collect()
@@ -191,15 +191,15 @@ class TestUnregister:
         con.register("v", obj)
         del obj
         con.execute("BEGIN TRANSACTION")
-        with pytest.raises(duckdb.CatalogException):
+        with pytest.raises(quacklab.CatalogException):
             con.execute("SELECT * FROM does_not_exist")
-        with pytest.raises(duckdb.Error):
+        with pytest.raises(quacklab.Error):
             con.unregister("v")
         con.execute("ROLLBACK")
         con.unregister("v")
         gc.collect()
         assert alive() is None
-        with pytest.raises(duckdb.CatalogException, match="name v does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="name v does not exist"):
             con.sql("SELECT a FROM v")
 
 
@@ -229,14 +229,14 @@ class TestNoMessageShowsAGeneratedName:
         ],
     )
     def test_the_message_names_what_the_user_wrote(self, con, reach):
-        with pytest.raises(duckdb.Error) as error:
+        with pytest.raises(quacklab.Error) as error:
             reach(con)
         assert GENERATED_PREFIX not in str(error.value)
 
     def test_the_refusal_of_a_view_in_a_database_file(self, tmp_path):
         # The case a reopen could not read is refused at the call, and the refusal names no key either.
-        con = duckdb.connect(str(tmp_path / "saved.duckdb"))
-        with pytest.raises(duckdb.Error) as error:
+        con = quacklab.connect(str(tmp_path / "saved.duckdb"))
+        with pytest.raises(quacklab.Error) as error:
             con.from_df(frame()).create_view("w")
         con.close()
         assert GENERATED_PREFIX not in str(error.value)
@@ -296,7 +296,7 @@ class TestAViewKeepsItsSources:
         assert con.sql("SELECT a, b FROM w ORDER BY a").fetchall() == expected
 
     def test_closing_the_connection_releases_the_source(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         obj = frame()
         alive = weakref.ref(obj)
         con.from_df(obj).create_view("w")
@@ -315,8 +315,8 @@ class TestOtherConnectionsOfTheDatabase:
 
     @pytest.mark.parametrize("build", [source for source in SOURCES if source.id != "materialize"])
     def test_a_view_over_a_python_object_is_refused_in_a_database_file(self, tmp_path, build):
-        con = duckdb.connect(str(tmp_path / "saved.duckdb"))
-        with pytest.raises(duckdb.InvalidInputException, match="database file"):
+        con = quacklab.connect(str(tmp_path / "saved.duckdb"))
+        with pytest.raises(quacklab.InvalidInputException, match="database file"):
             build(con).create_view("w")
         assert con.execute("SELECT view_name FROM duckdb_views() WHERE NOT internal").fetchall() == []
         con.close()
@@ -324,7 +324,7 @@ class TestOtherConnectionsOfTheDatabase:
     def test_a_view_over_a_relation_read_by_variable_is_stored_in_a_database_file(self, tmp_path):
         # The relation is written into the view as its own text, so the view reads after a reopen.
         path = str(tmp_path / "saved.duckdb")
-        con = duckdb.connect(path)
+        con = quacklab.connect(path)
         con.execute("CREATE TABLE numbers AS SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (-3, 'c')) v(a, b)")
         held = con.sql("SELECT a, b FROM numbers WHERE a > 0")  # noqa: F841
         con.sql("SELECT b, a * 10 AS t FROM held").create_view("w")
@@ -332,7 +332,7 @@ class TestOtherConnectionsOfTheDatabase:
         assert expected == [("a", 10), ("b", 20)]
         assert con.sql("SELECT b, t FROM w ORDER BY b").fetchall() == expected
         con.close()
-        con = duckdb.connect(path)
+        con = quacklab.connect(path)
         assert con.sql("SELECT b, t FROM w ORDER BY b").fetchall() == expected
         con.close()
 
@@ -350,7 +350,7 @@ class TestARelationReadByNameAcrossConnections:
     """A relation belongs to its database: a cursor or a sibling connection reads it, another database cannot."""
 
     def test_a_cursor_re_binds_the_relation(self, tmp_path):
-        con = duckdb.connect(str(tmp_path / "one.duckdb"))
+        con = quacklab.connect(str(tmp_path / "one.duckdb"))
         con.execute("CREATE TABLE numbers AS SELECT * FROM (VALUES (1), (2)) v(a)")
         numbers = con.sql("SELECT a FROM numbers ORDER BY a")  # noqa: F841
         con.execute("INSERT INTO numbers VALUES (3)")
@@ -359,21 +359,21 @@ class TestARelationReadByNameAcrossConnections:
 
     def test_a_sibling_connection_of_the_same_database_reads_it(self, tmp_path):
         path = str(tmp_path / "one.duckdb")
-        con = duckdb.connect(path)
+        con = quacklab.connect(path)
         con.execute("CREATE TABLE numbers AS SELECT * FROM (VALUES (1), (2)) v(a)")
         numbers = con.sql("SELECT a FROM numbers ORDER BY a")  # noqa: F841
-        sibling = duckdb.connect(path)
+        sibling = quacklab.connect(path)
         assert sibling.sql("SELECT a FROM numbers ORDER BY a").fetchall() == [(1,), (2,)]
         sibling.close()
         con.close()
 
     def test_a_connection_to_another_database_refuses_it(self, tmp_path):
-        first = duckdb.connect(str(tmp_path / "one.duckdb"))
-        second = duckdb.connect(str(tmp_path / "two.duckdb"))
+        first = quacklab.connect(str(tmp_path / "one.duckdb"))
+        second = quacklab.connect(str(tmp_path / "two.duckdb"))
         first.execute("CREATE TABLE numbers AS SELECT * FROM (VALUES (1), (2)) v(a)")
         second.execute("CREATE TABLE numbers AS SELECT * FROM (VALUES (9)) v(a)")
         held = first.sql("SELECT a FROM numbers")  # noqa: F841
-        with pytest.raises(duckdb.Error, match="held"):
+        with pytest.raises(quacklab.Error, match="held"):
             second.sql("SELECT a FROM held").fetchall()
         assert second.execute("SELECT a FROM numbers").fetchall() == [(9,)]
         first.close()
@@ -438,7 +438,7 @@ class TestARegistryReferenceKeepsEverySource:
     """A relation read through the registry keeps the sources of its inputs, not only of its own step."""
 
     def test_a_registered_step_over_a_frame_reads_after_the_intermediates_go(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
 
         def build():
             con.register("v", con.from_df(pd.DataFrame({"a": [1, 2, 3]})).filter("a > 1"))
@@ -448,7 +448,7 @@ class TestARegistryReferenceKeepsEverySource:
         assert con.sql("SELECT a FROM v ORDER BY a").fetchall() == [(2,), (3,)]
 
     def test_a_step_read_by_name_inside_a_function_reads_after_it_returns(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
 
         def reader():
             rel = con.from_df(pd.DataFrame({"a": [1, 2, 3]})).filter("a > 1")  # noqa: F841
@@ -459,7 +459,7 @@ class TestARegistryReferenceKeepsEverySource:
         assert outer.fetchall() == [(2,), (3,)]
 
     def test_a_view_over_a_step_read_by_name_reads_after_the_function_returns(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
 
         def build():
             rel = con.from_df(pd.DataFrame({"a": [1, 2, 3]})).filter("a > 1")  # noqa: F841
@@ -472,7 +472,7 @@ class TestARegistryReferenceKeepsEverySource:
     @pytest.mark.parametrize("keep", ["register", "create_view"])
     def test_a_mapped_relation_frees_its_connection(self, keep):
         # The map keeps its input's handles, not the relation, so no cycle holds the connection.
-        con = duckdb.connect()
+        con = quacklab.connect()
         alive = weakref.ref(con)
         mapped = con.sql("SELECT 1 AS a").map(lambda df: df)
         if keep == "register":
@@ -488,7 +488,7 @@ class TestUnregisterAfterTheViewWent:
     """Unregister drops its own temporary view if it is there, and never a persistent view of the same name."""
 
     def test_unregister_after_the_user_dropped_the_view_returns_and_frees_the_object(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         obj = frame()
         alive = weakref.ref(obj)
         con.register("v", obj)
@@ -499,7 +499,7 @@ class TestUnregisterAfterTheViewWent:
         assert alive() is None
 
     def test_unregister_never_drops_a_persistent_view_of_the_same_name(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("v", frame())
         con.execute("DROP VIEW v")
         con.execute("CREATE VIEW main.v AS SELECT 2 AS a")
@@ -511,7 +511,7 @@ class TestAMissingSourceIsNamed:
     """When a source is gone, the error names its kind and the name it was registered under, never a key."""
 
     def test_a_rolled_back_unregister_either_restores_the_source_or_names_what_is_missing(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("v", frame())
         con.execute("BEGIN")
         con.unregister("v")
@@ -520,7 +520,7 @@ class TestAMissingSourceIsNamed:
         # A view that owns its source reads the rows; one that does not raises an error naming the kind and "v".
         try:
             rows = con.execute("SELECT a FROM v ORDER BY a").fetchall()
-        except duckdb.InvalidInputException as error:
+        except quacklab.InvalidInputException as error:
             message = str(error)
             assert "v" in re.findall(r"[\"']([^\"']+)[\"']", message)
             assert "DataFrame" in message
@@ -554,7 +554,7 @@ class TestAViewOverAQueryThatNamesARegistryKey:
         con.register("facts", pd.DataFrame({"year": [2020, 2021], "v": [7, 8]}))
         con.register("years", pd.DataFrame({"year": [2020]}))
         rel = con.sql("PIVOT facts ON year IN (SELECT year FROM years) USING sum(v)")
-        with pytest.raises(duckdb.InvalidInputException, match=r"register\("):
+        with pytest.raises(quacklab.InvalidInputException, match=r"register\("):
             rel.create_view("v")
         assert rel.fetchall() == [(7,)]
 
@@ -650,13 +650,13 @@ class TestAPersistentViewByTheKindOfItsSource:
         ],
     )
     def test_a_registry_source_is_refused(self, tmp_path, build):
-        con = duckdb.connect(str(tmp_path / "saved.duckdb"))
-        with pytest.raises(duckdb.InvalidInputException, match="database file"):
+        con = quacklab.connect(str(tmp_path / "saved.duckdb"))
+        with pytest.raises(quacklab.InvalidInputException, match="database file"):
             build(con).create_view("v")
         con.close()
 
     def test_a_view_over_a_registered_relation_over_a_table_is_stored(self, tmp_path):
-        con = duckdb.connect(str(tmp_path / "saved.duckdb"))
+        con = quacklab.connect(str(tmp_path / "saved.duckdb"))
         con.execute("CREATE TABLE people AS SELECT range AS id FROM range(3)")
         con.register("adults", con.table("people").filter("id > 0"))
         con.sql("SELECT * FROM adults").create_view("pv")
@@ -693,7 +693,7 @@ class TestAViewOverHeldRows:
     """A persistent view over held rows is refused; create() stores the rows and register() reads them."""
 
     def refused(self, con, call):
-        with pytest.raises(duckdb.InvalidInputException) as caught:
+        with pytest.raises(quacklab.InvalidInputException) as caught:
             call()
         assert "create(" in str(caught.value)
         assert "register(" in str(caught.value)
@@ -707,7 +707,7 @@ class TestAViewOverHeldRows:
         assert rel.fetchall() == rows
 
     def test_a_persistent_view_is_refused_in_a_database_file(self, tmp_path):
-        con = duckdb.connect(str(tmp_path / "saved.duckdb"))
+        con = quacklab.connect(str(tmp_path / "saved.duckdb"))
         self.refused(con, lambda: con.sql("SELECT 42 AS x").materialize().create_view("v"))
         con.close()
 
@@ -717,7 +717,7 @@ class TestAViewOverHeldRows:
         assert con.sql("SELECT * FROM r").fetchall() == rows
 
     def test_register_reads_the_rows_in_a_database_file(self, tmp_path):
-        con = duckdb.connect(str(tmp_path / "saved.duckdb"))
+        con = quacklab.connect(str(tmp_path / "saved.duckdb"))
         con.register("r", con.values([1, "a"]))
         assert con.sql("SELECT * FROM r").fetchall() == [(1, "a")]
         con.close()

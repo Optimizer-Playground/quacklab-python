@@ -3,7 +3,7 @@
 Each class pins one rule of the scan: state shared across prepare, rebind and execute; every exported stream and
 array released once on every path; a source callback that calls back into its own connection refused; only requested
 columns converted; one shot identity on the underlying reader; the legacy schema exports the scan still reads.
-Nothing imports duckdb._sources at module level.
+Nothing imports quacklab._sources at module level.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 from _pushdown_helpers import eventually
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 ds = pytest.importorskip("pyarrow.dataset")
@@ -30,7 +30,7 @@ CONSUMED = "has already been consumed and cannot be scanned again"
 
 @pytest.fixture
 def con():
-    with duckdb.connect() as connection:
+    with quacklab.connect() as connection:
         yield connection
 
 
@@ -40,7 +40,7 @@ def rows(con, query):
 
 def scan_source(mixin, *args, **kwargs):
     """An instance of `mixin` built on the private ArrowScanSource, which is imported only when a test runs."""
-    from duckdb._sources import ArrowScanSource
+    from quacklab._sources import ArrowScanSource
 
     return type(mixin.__name__, (mixin, ArrowScanSource), {})(*args, **kwargs)
 
@@ -103,9 +103,9 @@ class TestStateAcrossPrepareAndExecute:
         con.unregister("t")
         gc.collect()
         # The engine rebinds a prepared statement when a view it uses changes, and the registration was a view
-        with pytest.raises(duckdb.CatalogException):
+        with pytest.raises(quacklab.CatalogException):
             rows(con, "EXECUTE q")
-        with pytest.raises(duckdb.CatalogException):
+        with pytest.raises(quacklab.CatalogException):
             rows(con, "SELECT * FROM t")
 
     def test_each_execution_applies_what_the_bound_query_accepted(self, con):
@@ -121,8 +121,8 @@ class TestStateAcrossPrepareAndExecute:
                 return True
 
             def stream(self, columns, filters) -> tuple[object, bool]:
-                from duckdb._sources.nodes import fragment
-                from duckdb._sources.to_arrow import to_arrow
+                from quacklab._sources.nodes import fragment
+                from quacklab._sources.to_arrow import to_arrow
 
                 self.applied.append(sorted(fragment(predicate) for predicate in filters))
                 held = self.obj
@@ -175,7 +175,7 @@ def query_a_variable(con, source, query):
     """
     try:
         return con.execute(query).fetchall()
-    except duckdb.Error as error:
+    except quacklab.Error as error:
         return type(error)
 
 
@@ -212,7 +212,7 @@ class TestRelease:
     def test_a_conversion_failure_releases_the_stream(self, con):
         generators = []
         reader = generator_reader(generators, batches=1000, column=pa.field("far", pa.timestamp("s")))
-        assert query_a_variable(con, reader, "SELECT far FROM source") is duckdb.ConversionException
+        assert query_a_variable(con, reader, "SELECT far FROM source") is quacklab.ConversionException
         del reader
         assert all_released(generators)
 
@@ -249,7 +249,7 @@ class TestRelease:
         generators = []
         gc.collect()
         before = pa.total_allocated_bytes()
-        connection = duckdb.connect()
+        connection = quacklab.connect()
         connection.register("r", generator_reader(generators, batches=1000))
         connection.register("unread", generator_reader(generators))
         connection.register("t", pa.table({"s": [str(i) for i in range(10_000)]}))
@@ -271,13 +271,13 @@ class TestRelease:
     )
     def test_interpreter_shutdown_with_a_registration_is_clean(self, kind, query):
         script = f"""
-            import duckdb, pyarrow as pa
+            import quacklab, pyarrow as pa
 
             def produce():
                 for index in range(1000):
                     yield pa.record_batch([pa.array([index] * 5)], names=["n"])
 
-            con = duckdb.connect()
+            con = quacklab.connect()
             if {kind!r} == "table":
                 con.register("src", pa.table({{"n": list(range(10))}}))
             else:
@@ -374,7 +374,7 @@ class TestReentrancy:
         def reenter():
             try:
                 con.execute("SELECT 42").fetchall()
-            except duckdb.Error as error:
+            except quacklab.Error as error:
                 seen.append(type(error))
             else:
                 seen.append(None)
@@ -400,7 +400,7 @@ class TestReentrancy:
         result = con.execute("SELECT count(*) FROM src").fetchall()
         assert result == [(10,)]
         assert seen
-        assert all(kind is duckdb.ResourceInUseException for kind in seen), seen
+        assert all(kind is quacklab.ResourceInUseException for kind in seen), seen
 
     @pytest.mark.timeout(60)
     def test_closing_the_same_connection_from_a_callback_is_refused(self, con):
@@ -413,18 +413,18 @@ class TestReentrancy:
             def __arrow_c_stream__(self, requested_schema=None) -> object:
                 try:
                     con.close()
-                except duckdb.Error as error:
+                except quacklab.Error as error:
                     seen.append(type(error))
                 return NUMBERS.__arrow_c_stream__()
 
         src = Closing()  # noqa: F841
         assert con.execute("SELECT count(*) FROM src").fetchall() == [(10,)]
-        assert seen == [duckdb.ResourceInUseException]
+        assert seen == [quacklab.ResourceInUseException]
         assert rows(con, "SELECT 1") == [(1,)]
 
     @pytest.mark.timeout(60)
     def test_a_separate_connection_works_from_a_callback(self, con):
-        other = duckdb.connect()
+        other = quacklab.connect()
         answers = []
 
         class Asking:
@@ -451,13 +451,13 @@ class TestReentrancy:
             def accepts(self, predicate) -> bool:
                 try:
                     con.execute("SELECT 42").fetchall()
-                except duckdb.Error as error:
+                except quacklab.Error as error:
                     seen.append(type(error))
                 return False
 
         con._register_arrow_source("t", scan_source(Asking, NUMBERS))
         assert rows(con, "SELECT count(*) FROM t WHERE n > 7") == [(2,)]
-        assert seen == [duckdb.ResourceInUseException]
+        assert seen == [quacklab.ResourceInUseException]
 
 
 CORE_TESTS = Path(__file__).with_name("test_python_arrow_scan_core.py")
@@ -470,7 +470,7 @@ import importlib.util, json
 spec = importlib.util.spec_from_file_location("scan_core", {core!r})
 core = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(core)
-import ctypes, duckdb, pyarrow as pa
+import ctypes, quacklab, pyarrow as pa
 
 
 def child_count(array):
@@ -552,12 +552,12 @@ class Source(core.PythonStreamSource):
 
 table = pa.table({{"i": pa.array(range(5000), pa.int64()), "s": pa.array([str(i) for i in range(5000)])}})
 source = Source(table)
-with duckdb.connect(config={{"threads": 4}}) as con:
+with quacklab.connect(config={{"threads": 4}}) as con:
     con._register_arrow_source("t", source)
     try:
         con.execute("SELECT * FROM t").fetchall()
         outcome = "rows"
-    except duckdb.Error as error:
+    except quacklab.Error as error:
         outcome = type(error).__name__ + ": " + str(error)
     after = con.execute("SELECT 42").fetchall()
 print(json.dumps({{"outcome": outcome, "counts": source.counts(), "after": after}}))
@@ -580,7 +580,7 @@ class TestImporter:
         con.register("r", export(generator_reader(generators, column=column)))
         assert rows(con, "SELECT sum(n) FROM r") == [(15,)]
         con.register("again", export(generator_reader(generators, column=column)))
-        with pytest.raises(duckdb.ConversionException):
+        with pytest.raises(quacklab.ConversionException):
             rows(con, "SELECT far FROM again")
 
     def test_a_narrow_projection_beside_a_column_that_cannot_convert_in_a_third_party_stream(self, con):
@@ -714,18 +714,18 @@ class TestClassificationAuthority:
         con.register("r", reader)
         other.register("r", reader)
         assert rows(con, "SELECT count(*) FROM r") == [(10,)]
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             rows(other, "SELECT count(*) FROM r")
 
     def test_two_adapters_around_one_reader_share_its_one_read(self, con):
-        from duckdb._sources import adapt
+        from quacklab._sources import adapt
 
         reader = pa.RecordBatchReader.from_batches(NUMBERS.schema, NUMBERS.to_batches())
         other = con.cursor()
         con._register_arrow_source("r", adapt(reader))
         other._register_arrow_source("r", adapt(reader))
         assert rows(con, "SELECT count(*) FROM r") == [(10,)]
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             rows(other, "SELECT count(*) FROM r")
 
     def test_a_class_named_like_the_reader_stays_reusable(self, con):
@@ -801,7 +801,7 @@ class TestRetainedBehaviors:
         assert reads == [1, 1, 1, 1, 1]
 
     def test_a_stable_schema_is_read_once_for_every_bind(self, con):
-        from duckdb._sources import adapt
+        from quacklab._sources import adapt
 
         source = adapt(NUMBERS)
         assert source.schema_is_stable
@@ -925,7 +925,7 @@ def fetch_through_a_relation_chain(con):
 
 
 def fetch_with_a_python_function(con):
-    from duckdb.sqltypes import BIGINT
+    from quacklab.sqltypes import BIGINT
 
     con.create_function("same", lambda value: value, [BIGINT], BIGINT)
     return con.execute("SELECT same(n) FROM built ORDER BY 1").fetchall()
@@ -975,7 +975,7 @@ class TestGil:
 
         interrupter = threading.Thread(target=interrupt)
         interrupter.start()
-        with pytest.raises(duckdb.InterruptException):
+        with pytest.raises(quacklab.InterruptException):
             con.execute("SELECT sum(n) FROM endless").fetchall()
         interrupter.join()
         assert rows(con, "SELECT 42") == [(42,)]
@@ -985,7 +985,7 @@ class TestArrowUdfResults:
     """An Arrow scalar function's result is read whole, every batch of it, with its column, row and type checks."""
 
     def test_a_result_of_several_batches_is_read_whole(self, con):
-        from duckdb.sqltypes import BIGINT
+        from quacklab.sqltypes import BIGINT
 
         def two_batches(values):
             half = len(values) // 2
@@ -995,7 +995,7 @@ class TestArrowUdfResults:
         assert rows(con, "SELECT two_batches(i) FROM range(5000) t(i)") == [(i,) for i in range(5000)]
 
     def test_a_cast_failure_in_a_later_batch_is_reported(self, con):
-        from duckdb.sqltypes import BIGINT
+        from quacklab.sqltypes import BIGINT
 
         def text_batches(values):
             half = len(values) // 2
@@ -1004,46 +1004,48 @@ class TestArrowUdfResults:
             return pa.chunked_array([first, second])
 
         con.create_function("text_batches", text_batches, [BIGINT], BIGINT, type="arrow")
-        with pytest.raises(duckdb.ConversionException, match="Could not convert string 'abc' to INT64"):
+        with pytest.raises(quacklab.ConversionException, match="Could not convert string 'abc' to INT64"):
             rows(con, "SELECT text_batches(i) FROM range(10) t(i)")
         assert rows(con, "SELECT 42") == [(42,)]
 
     def test_a_row_count_that_differs_from_the_input_is_refused(self, con):
-        from duckdb.sqltypes import BIGINT
+        from quacklab.sqltypes import BIGINT
 
         con.create_function("shorter", lambda values: values.slice(1), [BIGINT], BIGINT, type="arrow")
-        with pytest.raises(duckdb.InvalidInputException, match="Returned pyarrow table should have 10 tuples, found 9"):
+        with pytest.raises(
+            quacklab.InvalidInputException, match="Returned pyarrow table should have 10 tuples, found 9"
+        ):
             rows(con, "SELECT shorter(i) FROM range(10) t(i)")
 
     def test_a_uuid_result_without_the_uuid_extension_type_is_refused(self, con):
-        from duckdb.sqltypes import BIGINT, UUID
+        from quacklab.sqltypes import BIGINT, UUID
 
         def plain_bytes(values):
             return pa.array([b"\x00" * 16] * len(values), pa.binary(16))
 
         con.create_function("plain_bytes", plain_bytes, [BIGINT], UUID, type="arrow")
         expected = "It seems that you are using the UUID arrow canonical extension, but the same is not yet registered"
-        with pytest.raises(duckdb.Error, match=expected):
+        with pytest.raises(quacklab.Error, match=expected):
             rows(con, "SELECT plain_bytes(i) FROM range(2) t(i)")
 
     def test_a_json_result_without_the_json_extension_type_is_refused(self, con):
-        from duckdb.sqltypes import BIGINT
+        from quacklab.sqltypes import BIGINT
 
         con.create_function(
             "plain_text",
             lambda values: pa.array(['{"a": 1}'] * len(values)),
             [BIGINT],
-            duckdb.sqltype("JSON"),
+            quacklab.sqltype("JSON"),
             type="arrow",
         )
         expected = "It seems that you are using the JSON arrow canonical extension, but the same is not yet registered"
-        with pytest.raises(duckdb.Error, match=expected):
+        with pytest.raises(quacklab.Error, match=expected):
             rows(con, "SELECT plain_text(i) FROM range(2) t(i)")
 
     def test_uuid_and_json_extension_results_arrive(self, con):
         import uuid
 
-        from duckdb.sqltypes import BIGINT, UUID
+        from quacklab.sqltypes import BIGINT, UUID
 
         identity = uuid.UUID(int=5)
 
@@ -1054,7 +1056,7 @@ class TestArrowUdfResults:
             return pa.ExtensionArray.from_storage(pa.json_(), pa.array(['{"a": 1}'] * len(values)))
 
         con.create_function("uuids", uuids, [BIGINT], UUID, type="arrow")
-        con.create_function("documents", documents, [BIGINT], duckdb.sqltype("JSON"), type="arrow")
+        con.create_function("documents", documents, [BIGINT], quacklab.sqltype("JSON"), type="arrow")
         assert rows(con, "SELECT uuids(i), documents(i)->>'a' FROM range(2) t(i)") == [(identity, "1")] * 2
 
 
@@ -1062,7 +1064,7 @@ def fragment_cases():
     """Predicate nodes and the text fragment() renders for each, which plan and filter assertions compare against."""
     import datetime
 
-    from duckdb._sources.nodes import Binary, Col, In, Lit, Postfix, Unary
+    from quacklab._sources.nodes import Binary, Col, In, Lit, Postfix, Unary
 
     def column(name):
         return Col((name,))
@@ -1096,7 +1098,7 @@ class TestFragments:
     """The texts that offered and applied predicates are compared against, as the renderer writes them."""
 
     def test_each_node_renders_its_expected_text(self):
-        from duckdb._sources.nodes import fragment
+        from quacklab._sources.nodes import fragment
 
         for node, text in fragment_cases():
             assert fragment(node) == text
@@ -1121,7 +1123,7 @@ def produce():
 
 print("STARTED")
 for threads in (1, 4):
-    con = duckdb.connect()
+    con = quacklab.connect()
     con.execute(f"SET threads = {threads}")
     con.execute("SET enable_progress_bar = false")
     con.register("src", pa.RecordBatchReader.from_batches(pa.schema([("n", pa.int64())]), produce()))

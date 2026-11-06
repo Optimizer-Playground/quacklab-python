@@ -14,7 +14,7 @@ import weakref
 
 import pytest
 
-import duckdb
+import quacklab
 import numpy as np
 import pandas as pd
 
@@ -437,7 +437,7 @@ def test_frames_are_released_when_the_function_raises(duckdb_cursor):
         return df
 
     rel = duckdb_cursor.sql(f"select i as a from range({ROWS}) t(i)").map(function)
-    with pytest.raises(duckdb.InvalidInputException, match="Python error"):
+    with pytest.raises(quacklab.InvalidInputException, match="Python error"):
         rel.fetchall()
     # Printing the error stores it in sys.last_exc for post-mortem debugging, which pins the failing call's frame.
     sys.last_exc = sys.last_type = sys.last_value = sys.last_traceback = None
@@ -455,7 +455,7 @@ def test_frames_are_released_when_the_returned_frame_is_rejected(duckdb_cursor):
         return result
 
     rel = duckdb_cursor.sql(f"select i as a from range({ROWS}) t(i)").map(function)
-    with pytest.raises(duckdb.InvalidInputException, match="UDF column type mismatch"):
+    with pytest.raises(quacklab.InvalidInputException, match="UDF column type mismatch"):
         rel.fetchall()
     gc.collect()
     assert sum(ref() is not None for ref in inputs) == 0
@@ -513,11 +513,11 @@ import json
 import sys
 import weakref
 
-import duckdb
+import quacklab
 import pandas as pd
 
 frame, abandon = sys.argv[1:]
-con = duckdb.connect(config={{"threads": 1}})
+con = quacklab.connect(config={{"threads": 1}})
 con.execute("set max_streaming_buffer_size = '32KB'")
 abandoning = False
 calls = []
@@ -585,11 +585,11 @@ import json
 import sys
 import weakref
 
-import duckdb
+import quacklab
 import pandas as pd
 
 frame = sys.argv[1]
-con = duckdb.connect(config={{"threads": 1}})
+con = quacklab.connect(config={{"threads": 1}})
 calls = []
 outcomes = []
 
@@ -633,11 +633,11 @@ import json
 import sys
 import weakref
 
-import duckdb
+import quacklab
 import pandas as pd
 
 shape, stage, frame = sys.argv[1:]
-con = duckdb.connect(config={{"threads": 1}})
+con = quacklab.connect(config={{"threads": 1}})
 calls = []
 outcomes = []
 
@@ -710,7 +710,7 @@ BINDING_CODE_ERRORS = [
 
 @pytest.mark.parametrize(("shape", "stage"), BINDING_CODE_ERRORS)
 def test_a_python_error_from_the_binding_code_keeps_its_type_and_message(shape, stage):
-    """A Python error raised by code map() calls around the function surfaces as a duckdb.Error with its traceback."""
+    """A Python error raised by code map() calls around the function surfaces as a quacklab.Error with its traceback."""
     raising_function, text = ("__str__", "bad string") if shape == "unprintable_value" else ("dtypes", "bad dtypes")
     outcome = _run_child(_BINDING_CODE_RAISES, shape, stage, "input")
     assert outcome["raised_at"] == ("map" if stage == "bind" else "fetchall")

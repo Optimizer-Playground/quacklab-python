@@ -4,26 +4,26 @@ from uuid import UUID
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 class TestDBApiFetch:
     def test_multiple_fetch_one(self, duckdb_cursor):
-        con = duckdb.connect()
+        con = quacklab.connect()
         c = con.execute("SELECT 42")
         assert c.fetchone() == (42,)
         assert c.fetchone() is None
         assert c.fetchone() is None
 
     def test_multiple_fetch_all(self, duckdb_cursor):
-        con = duckdb.connect()
+        con = quacklab.connect()
         c = con.execute("SELECT 42")
         assert c.fetchall() == [(42,)]
         assert c.fetchall() == []
         assert c.fetchall() == []
 
     def test_multiple_fetch_many(self, duckdb_cursor):
-        con = duckdb.connect()
+        con = quacklab.connect()
         c = con.execute("SELECT 42")
         assert c.fetchmany(1000) == [(42,)]
         assert c.fetchmany(1000) == []
@@ -31,19 +31,19 @@ class TestDBApiFetch:
 
     def test_multiple_fetch_df(self, duckdb_cursor):
         pd = pytest.importorskip("pandas")
-        con = duckdb.connect()
+        con = quacklab.connect()
         c = con.execute("SELECT 42::BIGINT AS a")
         pd.testing.assert_frame_equal(c.df(), pd.DataFrame.from_dict({"a": [42]}))
         assert c.df() is None
         assert c.df() is None
 
     def test_multiple_close(self, duckdb_cursor):
-        con = duckdb.connect()
+        con = quacklab.connect()
         c = con.execute("SELECT 42")
         c.close()
         c.close()
         c.close()
-        with pytest.raises(duckdb.InvalidInputException, match="No open result set"):
+        with pytest.raises(quacklab.InvalidInputException, match="No open result set"):
             c.fetchall()
 
     def test_multiple_fetch_all_relation(self, duckdb_cursor):

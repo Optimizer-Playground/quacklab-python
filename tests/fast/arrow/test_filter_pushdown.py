@@ -52,7 +52,7 @@ from _pushdown_helpers import (
 )
 from packaging.version import Version
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 pa_ds = pytest.importorskip("pyarrow.dataset")
@@ -201,30 +201,30 @@ class TestInPushdown:
     @pytest.mark.timeout(10)
     def test_large_in_list_does_not_hang(self):
         """Regression: https://github.com/duckdb/duckdb-python/issues/52."""
-        duckdb.register("arrow_table", pa.table({"a": pa.array(range(5000))}))
+        quacklab.register("arrow_table", pa.table({"a": pa.array(range(5000))}))
         in_list = ", ".join(str(i) for i in range(0, 5000, 2))
-        result = duckdb.sql(f"SELECT count(*) FROM arrow_table WHERE a IN ({in_list})").fetchall()[0]
+        result = quacklab.sql(f"SELECT count(*) FROM arrow_table WHERE a IN ({in_list})").fetchall()[0]
         assert result == (2500,)
 
     def test_in_with_no_nulls_in_list(self):
-        duckdb.register("arrow_table", pa.table({"a": pa.array([1, 2, None, 4, None, 6])}))
-        result = duckdb.sql("SELECT a FROM arrow_table WHERE a IN (1, 4) ORDER BY a").fetchall()
+        quacklab.register("arrow_table", pa.table({"a": pa.array([1, 2, None, 4, None, 6])}))
+        result = quacklab.sql("SELECT a FROM arrow_table WHERE a IN (1, 4) ORDER BY a").fetchall()
         assert result == [(1,), (4,)]
 
     def test_in_with_null_in_list(self):
         """SQL semantics: NULL in the IN list still doesn't match NULL rows."""
-        duckdb.register("arrow_table", pa.table({"a": pa.array([1, 2, None, 4, None, 6])}))
-        result = duckdb.sql("SELECT a FROM arrow_table WHERE a IN (1, 4, NULL) ORDER BY a").fetchall()
+        quacklab.register("arrow_table", pa.table({"a": pa.array([1, 2, None, 4, None, 6])}))
+        result = quacklab.sql("SELECT a FROM arrow_table WHERE a IN (1, 4, NULL) ORDER BY a").fetchall()
         assert result == [(1,), (4,)]
 
     def test_in_varchar(self):
-        duckdb.register("arrow_table", pa.table({"s": pa.array(["alice", "bob", "charlie", "dave", None])}))
-        result = duckdb.sql("SELECT s FROM arrow_table WHERE s IN ('bob', 'dave') ORDER BY s").fetchall()
+        quacklab.register("arrow_table", pa.table({"s": pa.array(["alice", "bob", "charlie", "dave", None])}))
+        result = quacklab.sql("SELECT s FROM arrow_table WHERE s IN ('bob', 'dave') ORDER BY s").fetchall()
         assert result == [("bob",), ("dave",)]
 
     def test_in_float(self):
-        duckdb.register("arrow_table", pa.table({"f": pa.array([1.0, 2.5, 3.75, 4.0, None], type=pa.float64())}))
-        result = duckdb.sql("SELECT f FROM arrow_table WHERE f IN (2.5, 4.0) ORDER BY f").fetchall()
+        quacklab.register("arrow_table", pa.table({"f": pa.array([1.0, 2.5, 3.75, 4.0, None], type=pa.float64())}))
+        result = quacklab.sql("SELECT f FROM arrow_table WHERE f IN (2.5, 4.0) ORDER BY f").fetchall()
         assert result == [(2.5,), (4.0,)]
 
 
@@ -464,7 +464,7 @@ class TestOptionalFilter:
                 "cardinality": [100, 100, 100, 45, 5, 3, 6, 39, 5],
             }
         )
-        result = duckdb.query(
+        result = quacklab.query(
             "SELECT * FROM cardinality_table WHERE cardinality > 1 ORDER BY cardinality ASC"
         ).fetchall()
         assert result == [
@@ -513,7 +513,7 @@ class TestJoinFilterPushdown:
     """
 
     def test_two_arrow_tables(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("CREATE TABLE probe AS SELECT range a FROM range(10000)")
         con.execute("CREATE TABLE build AS SELECT (random()*9999)::INT b FROM range(20)")
         con.register("probe_arrow", to_arrow_table(con.table("probe")))
@@ -565,7 +565,7 @@ class TestUnsupportedTypes:
     """
 
     def test_uhugeint_single_filter(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute(
             "CREATE TABLE t AS SELECT i::INTEGER a, i::VARCHAR b, i::UHUGEINT c, i::INTEGER d FROM range(5) tbl(i)"
         )
@@ -593,7 +593,7 @@ class TestUnsupportedTypes:
         assert res == [(1,)]
 
     def test_uhugeint_mixed_with_supported(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute(
             "CREATE TABLE t AS SELECT i::INTEGER a, i::VARCHAR b, i::UHUGEINT c, i::INTEGER d FROM range(5) tbl(i)"
         )
@@ -604,7 +604,7 @@ class TestUnsupportedTypes:
         assert con.execute("FROM arrow_tbl WHERE a > 2 AND c < 4 AND b = '0'").fetchall() == []
 
     def test_uhugeint_with_projection(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute(
             "CREATE TABLE t AS SELECT i::INTEGER a, i::VARCHAR b, i::UHUGEINT c, i::INTEGER d FROM range(5) tbl(i)"
         )
@@ -615,7 +615,7 @@ class TestUnsupportedTypes:
         assert con.execute("SELECT a, b FROM arrow_tbl WHERE a > 2 AND c < 4 AND b = '3'").fetchall() == [(3, "3")]
 
     def test_multiple_unpushable_filters(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute(
             "CREATE TABLE t AS SELECT i::INTEGER a, i::VARCHAR b, i::UHUGEINT c, "
             "i::INTEGER d, i::UHUGEINT e, i::SMALLINT f, i::UHUGEINT g "
@@ -634,7 +634,7 @@ class TestUnsupportedTypes:
         """
         table = pa.table({"col": pa.array([b"abc", b"efg"], type=pa.binary_view())})
         dset = pa_ds.dataset(table)
-        res = duckdb.sql("SELECT * FROM dset WHERE col = 'abc'::BINARY").fetchall()
+        res = quacklab.sql("SELECT * FROM dset WHERE col = 'abc'::BINARY").fetchall()
         assert res == [(b"abc",)]
 
     def test_string_view_filter_does_not_crash(self):
@@ -644,7 +644,7 @@ class TestUnsupportedTypes:
         """
         table = pa.table({"col": pa.array(["abc", "efg"], type=pa.string_view())})
         dset = pa_ds.dataset(table)
-        res = duckdb.sql("SELECT * FROM dset WHERE col = 'abc'").fetchall()
+        res = quacklab.sql("SELECT * FROM dset WHERE col = 'abc'").fetchall()
         assert res == [("abc",)]
 
 
@@ -735,8 +735,8 @@ class TestRegressions:
 
         glob_pattern = (tmp_path / "data*.parquet").as_posix()
         table = duckdb_cursor.read_parquet(glob_pattern).to_arrow_table()
-        output_df = duckdb.arrow(table).filter("date > '2019-01-01'").df()
-        expected_df = duckdb.from_parquet(glob_pattern).filter("date > '2019-01-01'").df()
+        output_df = quacklab.arrow(table).filter("date > '2019-01-01'").df()
+        expected_df = quacklab.from_parquet(glob_pattern).filter("date > '2019-01-01'").df()
         pd.testing.assert_frame_equal(expected_df, output_df)
 
 

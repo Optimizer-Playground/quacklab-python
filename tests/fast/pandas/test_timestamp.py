@@ -5,7 +5,7 @@ import platform
 import pytest
 from conftest import pandas_2_or_higher
 
-import duckdb
+import quacklab
 import pandas as pd
 
 
@@ -19,7 +19,7 @@ class TestPandasTimestamps:
             )
         }
         df = pd.DataFrame(data=d)
-        df_from_duck = duckdb.from_df(df).df()
+        df_from_duck = quacklab.from_df(df).df()
         assert df_from_duck.equals(df)
 
     @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
@@ -32,7 +32,7 @@ class TestPandasTimestamps:
             expected_dtype = pd.core.dtypes.dtypes.DatetimeTZDtype(unit="ns", tz="UTC")
             dtype = pd.core.dtypes.dtypes.DatetimeTZDtype(unit="ns", tz="UTC")
 
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.execute("SET TimeZone =UTC")
         d = {
             "time": pd.Series(
@@ -52,7 +52,7 @@ class TestPandasTimestamps:
     def test_timestamp_nulls(self, unit):
         d = {"time": pd.Series([pd.Timestamp(None, unit=unit)], dtype=f"datetime64[{unit}]")}
         df = pd.DataFrame(data=d)
-        df_from_duck = duckdb.from_df(df).df()
+        df_from_duck = quacklab.from_df(df).df()
         assert df_from_duck.equals(df)
 
     def test_timestamp_timedelta(self):
@@ -64,7 +64,7 @@ class TestPandasTimestamps:
                 "d": [pd.Timedelta(1, unit="ms")],
             }
         )
-        df_from_duck = duckdb.from_df(df).df()
+        df_from_duck = quacklab.from_df(df).df()
         # DuckDB INTERVAL type stores in microseconds, so output is always timedelta64[us]
         # Check values match without strict dtype comparison
         pd.testing.assert_frame_equal(df_from_duck, df, check_dtype=False)

@@ -1,6 +1,6 @@
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 from decimal import Decimal
 
@@ -20,7 +20,7 @@ from spark_namespace.sql.types import (
     StructType,
 )
 
-from duckdb.experimental.spark.exception import ContributionsAcceptedError
+from quacklab.experimental.spark.exception import ContributionsAcceptedError
 
 if USE_ACTUAL_SPARK:
     import pyspark

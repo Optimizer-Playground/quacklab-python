@@ -2,7 +2,7 @@ import datetime
 
 import pytest
 
-import duckdb
+import quacklab
 import numpy as np
 import pandas as pd
 
@@ -12,7 +12,7 @@ class TestPandasObject:
         # Test mostly null column
         data = [None] + [1] + [None] * 10000  # Last element is 1, others are None
         pandas_df = pd.DataFrame(data, columns=["c"], dtype=object)  # noqa: F841
-        con = duckdb.connect()
+        con = quacklab.connect()
         assert con.execute("FROM pandas_df where c is not null").fetchall() == [(1.0,)]
 
         # Test all nulls, should return varchar
@@ -30,12 +30,12 @@ class TestPandasObject:
 
     def test_object_string_with_a_lone_surrogate(self, duckdb_cursor):
         df = pd.DataFrame({"s": pd.Series(["fine", "x\ud800y"], dtype=object)})  # noqa: F841
-        with pytest.raises(duckdb.InvalidInputException, match=r"surrogate '\\ud800' at position 1 is not allowed"):
+        with pytest.raises(quacklab.InvalidInputException, match=r"surrogate '\\ud800' at position 1 is not allowed"):
             duckdb_cursor.sql("SELECT s FROM df").fetchall()
         assert duckdb_cursor.sql("SELECT 42").fetchall() == [(42,)]
 
     def test_object_to_string(self, duckdb_cursor):
-        con = duckdb.connect(database=":memory:", read_only=False)
+        con = quacklab.connect(database=":memory:", read_only=False)
         x = pd.DataFrame([[1, "a", 2], [1, None, 2], [1, 1.1, 2], [1, 1.1, 2], [1, 1.1, 2]])
         x = x.iloc[1:].copy()  # middle col now entirely native float items
         con.register("view2", x)
@@ -117,6 +117,6 @@ class TestPandasObject:
             columns=["col"],
         )
 
-        con = duckdb.connect(database=":memory:", read_only=False)
+        con = quacklab.connect(database=":memory:", read_only=False)
         con.register("df", df)
         assert con.execute("select count(*) from df").fetchone() == (3,)

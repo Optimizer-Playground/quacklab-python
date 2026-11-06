@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 pq = pytest.importorskip("pyarrow.parquet")
@@ -19,7 +19,7 @@ class TestArrowReplacementScan:
         userdata_parquet_table = pq.read_table(parquet_filename)
         df = userdata_parquet_table.to_pandas()  # noqa: F841
 
-        con = duckdb.connect()
+        con = quacklab.connect()
 
         for _i in range(5):
             assert con.execute("select count(*) from userdata_parquet_table").fetchone() == (1000,)
@@ -46,13 +46,13 @@ class TestArrowReplacementScan:
         rel = duckdb_cursor.sql("select b, d from capsule")
         assert rel.fetchall() == [(i, i + 6) for i in range(4, 7)]
 
-        with pytest.raises(duckdb.InvalidInputException, match="The ArrowArrayStream was already released"):
+        with pytest.raises(quacklab.InvalidInputException, match="The ArrowArrayStream was already released"):
             duckdb_cursor.sql("select b, d from capsule")
 
         schema_obj = tbl.schema
         schema_capsule = schema_obj.__arrow_c_schema__()  # noqa: F841
         with pytest.raises(
-            duckdb.InvalidInputException, match="""Expected a 'arrow_array_stream' PyCapsule, got: arrow_schema"""
+            quacklab.InvalidInputException, match="""Expected a 'arrow_array_stream' PyCapsule, got: arrow_schema"""
         ):
             duckdb_cursor.sql("select b, d from schema_capsule")
 
@@ -60,11 +60,11 @@ class TestArrowReplacementScan:
         parquet_filename = str(Path(__file__).parent / "data" / "userdata1.parquet")
         userdata_parquet_table = pq.read_table(parquet_filename)
 
-        con = duckdb.connect()
+        con = quacklab.connect()
 
         con.execute("create view x as select * from userdata_parquet_table")
         del userdata_parquet_table
-        with pytest.raises(duckdb.CatalogException, match="Table with name userdata_parquet_table does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="Table with name userdata_parquet_table does not exist"):
             assert con.execute("select count(*) from x").fetchone()
 
     def test_arrow_dataset_replacement_scan(self, duckdb_cursor):
@@ -72,7 +72,7 @@ class TestArrowReplacementScan:
         pq.read_table(parquet_filename)
         userdata_parquet_dataset = ds.dataset(parquet_filename)  # noqa: F841
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         assert con.execute("select count(*) from userdata_parquet_dataset").fetchone() == (1000,)
 
 
@@ -122,7 +122,7 @@ class TestArrowScanFactoryOwnership:
 
     @pytest.mark.parametrize(("label", "make"), FACTORIES, ids=[label for label, _ in FACTORIES])
     def test_scanned_object_survives_its_python_variable(self, label, make):
-        con = duckdb.connect()
+        con = quacklab.connect()
         scanned = make()
         rel = con.sql("select sum(a) as s from scanned")
 
@@ -133,7 +133,7 @@ class TestArrowScanFactoryOwnership:
 
     @pytest.mark.parametrize(("label", "make"), RETAINED_FACTORIES, ids=[label for label, _ in RETAINED_FACTORIES])
     def test_scanned_object_is_released_with_the_relation(self, label, make):
-        con = duckdb.connect()
+        con = quacklab.connect()
 
         # The scan reads the caller's frame locals, and before Python 3.13 that read caches a dict on
         # the frame which keeps the object alive until the frame returns, so the scan gets its own frame.
@@ -158,13 +158,13 @@ class TestArrowScanFactoryOwnership:
     def test_scan_through_execute_outlives_the_bind(self, label, make):
         # Without a relation there is no dependency to keep the scan alive past binding: the bind
         # data alone must hold the factory until the scan runs.
-        con = duckdb.connect()
+        con = quacklab.connect()
         scanned = make()
         assert con.execute("select sum(a) as s from scanned").fetchall() == [(15,)]
         del scanned
 
     def test_repeated_scans_of_one_object(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         scanned = _make_table()
         rel = con.sql("select sum(a) as s from scanned")
 
@@ -178,10 +178,10 @@ class TestArrowScanFactoryOwnership:
 SOURCE_CLOSING_ITS_CONNECTION = """
 import sys
 
-import duckdb
+import quacklab
 import pyarrow as pa
 
-con = duckdb.connect()
+con = quacklab.connect()
 table = pa.table({"a": [1, 2]})
 
 
@@ -203,7 +203,7 @@ try:
     else:
         src = Source()
         con.sql("SELECT * FROM src").fetchall()
-except duckdb.Error as error:
+except quacklab.Error as error:
     print("refused", "cannot use" in str(error) or "busy" in str(error), flush=True)
 print("still open", con.sql("SELECT 42").fetchall(), flush=True)
 """

@@ -1,6 +1,6 @@
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 from spark_namespace import USE_ACTUAL_SPARK
 from spark_namespace.errors import AnalysisException, IllegalArgumentException, error_condition
@@ -10,13 +10,13 @@ from spark_namespace.sql.types import (
     Row,
 )
 
-import duckdb
+import quacklab
 
 if USE_ACTUAL_SPARK:
     import pyspark
 
 # Spark raises AnalysisException for every ambiguous reference; DuckDB's binder raises its own error for some.
-AMBIGUOUS_REFERENCE_ERRORS = (AnalysisException, duckdb.BinderException)
+AMBIGUOUS_REFERENCE_ERRORS = (AnalysisException, quacklab.BinderException)
 
 
 @pytest.fixture
@@ -623,9 +623,9 @@ class TestJoinColumnResolution:
             assert people.join(people, people.id == people.id).count() == 3
             assert low.join(high, low.id == high.id).select(low.name).collect() == [Row(name="Bob")]
         else:
-            with pytest.raises(duckdb.BinderException):
+            with pytest.raises(quacklab.BinderException):
                 people.join(people, people.id == people.id).collect()
-            with pytest.raises(duckdb.BinderException):
+            with pytest.raises(quacklab.BinderException):
                 low.join(high, low.id == high.id).collect()
 
     @pytest.mark.parametrize(
@@ -674,7 +674,7 @@ class TestJoinColumnResolution:
             assert sorted(df.collect()) == expected
         else:
             # The derived frame's columns resolve in its own scope, which a later join wraps in a subquery.
-            with pytest.raises(duckdb.BinderException):
+            with pytest.raises(quacklab.BinderException):
                 derived.join(flags, derived.id == flags.flag_id).collect()
 
 
@@ -756,13 +756,13 @@ class TestCacheOfAJoin:
 
 class TestSourceFramesAreDistinct:
     def test_reference_to_another_range(self, spark):
-        with pytest.raises((AnalysisException, duckdb.BinderException)):
+        with pytest.raises((AnalysisException, quacklab.BinderException)):
             spark.range(3).select(spark.range(5).id).collect()
 
     def test_reference_to_another_created_frame(self, spark):
         first = spark.createDataFrame([(1,)], ["x"])
         second = spark.createDataFrame([(1,)], ["x"])
-        with pytest.raises((AnalysisException, duckdb.BinderException)):
+        with pytest.raises((AnalysisException, quacklab.BinderException)):
             first.select(second.x).collect()
 
     def test_join_of_two_ranges(self, spark):
@@ -1114,7 +1114,7 @@ class TestRepeatedColumnNames:
 
     def test_integer_index_keeps_the_frame(self, unmatched):
         left, right, joined = unmatched
-        with pytest.raises((AnalysisException, duckdb.BinderException)):
+        with pytest.raises((AnalysisException, quacklab.BinderException)):
             left.select(right[0]).collect()
         assert left.select(left[1]).collect() == [Row(x="a")]
         assert _rows(joined.select(left[0], right[1])) == [(1, None), (None, "b")]

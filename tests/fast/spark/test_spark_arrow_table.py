@@ -1,6 +1,6 @@
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 pa = pytest.importorskip("pyarrow")
 from spark_namespace import USE_ACTUAL_SPARK
 from spark_namespace.sql.dataframe import DataFrame

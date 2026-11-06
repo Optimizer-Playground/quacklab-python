@@ -80,12 +80,12 @@ def _assert_no_crash_and_min_successes(
 _REPRO_435_SINGLE_CONN = textwrap.dedent(
     """
     import concurrent.futures
-    import duckdb
+    import quacklab
 
     # One shared connection, many threads. ThreadPoolExecutor(8) means up to
     # 8 worker threads concurrently hit the same DuckDBPyConnection's result
     # slot via execute() + fetchall().
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     completed = refused = 0
 
     def run(_):
@@ -96,7 +96,7 @@ _REPRO_435_SINGLE_CONN = textwrap.dedent(
             try:
                 f.result()
                 completed += 1
-            except duckdb.ResourceInUseException as error:
+            except quacklab.ResourceInUseException as error:
                 # A connection refuses a call while another one runs on it
                 if "busy with another call" in str(error):
                     refused += 1
@@ -117,9 +117,9 @@ _REPRO_435_MULTI_CONN = textwrap.dedent(
     """
     # Exact reproducer from issue #435.
     import concurrent.futures
-    import duckdb
+    import quacklab
 
-    conns = [duckdb.connect() for _ in range(8)]
+    conns = [quacklab.connect() for _ in range(8)]
     completed = refused = 0
 
     def run(i):
@@ -130,7 +130,7 @@ _REPRO_435_MULTI_CONN = textwrap.dedent(
             try:
                 f.result()
                 completed += 1
-            except duckdb.ResourceInUseException as error:
+            except quacklab.ResourceInUseException as error:
                 if "busy with another call" in str(error):
                     refused += 1
             except Exception:
@@ -214,14 +214,14 @@ _REPRO_456_UDF_DESTRUCTOR = textwrap.dedent(
     # thread's destructor (releasing the GIL pre-fix) overlaps with
     # another thread's Python work / allocation.
     import concurrent.futures
-    import duckdb
-    from duckdb.sqltypes import INTEGER, VARCHAR
+    import quacklab
+    from quacklab.sqltypes import INTEGER, VARCHAR
 
     def make_label(i):
         return f"label-{i}-padded-out-a-bit-to-defeat-small-string-optimisation"
 
     def worker(_):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.create_function('make_label', make_label, [INTEGER], VARCHAR)
         rows = 4 * 1024
         local_successes = 0
@@ -251,15 +251,15 @@ _REPRO_456_CLOSE_REGISTERED = textwrap.dedent(
     # `case_insensitive_map_t<unique_ptr<ExternalDependency>>` which
     # transitively owns the Python callable. This must happen with the GIL
     # held — see duckdb-python#456.
-    import duckdb
-    from duckdb.sqltypes import INTEGER
+    import quacklab
+    from quacklab.sqltypes import INTEGER
 
     def identity(x):
         return x
 
     successes = 0
     for _ in range(500):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         conn.create_function('identity', identity, [INTEGER], INTEGER)
         # Make sure the UDF actually got bound to the connection.
         ok = conn.execute('SELECT identity(7)').fetchone()[0] == 7

@@ -3,7 +3,7 @@ import pathlib
 import typing
 from typing_extensions import Self
 
-from duckdb._relation import DuckDBPyRelation
+from quacklab._relation import DuckDBPyRelation
 from ._enums import (
     CSVLineTerminator,
     StatementType,
@@ -40,7 +40,7 @@ if typing.TYPE_CHECKING:
         ArrowUDF,
     )
     from ._enums import ExplainTypeLiteral, RenderModeLiteral
-    from duckdb import sqltypes, func
+    from quacklab import sqltypes, func
 
 __all__: lst[str] = [
     "Appender",

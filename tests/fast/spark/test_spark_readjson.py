@@ -4,14 +4,14 @@ from decimal import Decimal
 
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 from spark_namespace import USE_ACTUAL_SPARK
 from spark_namespace.errors import AnalysisException, error_condition
 from spark_namespace.sql.types import Row
 
-import duckdb
-from duckdb.experimental.spark.exception import ContributionsAcceptedError
+import quacklab
+from quacklab.experimental.spark.exception import ContributionsAcceptedError
 
 if USE_ACTUAL_SPARK:
     import pyspark
@@ -252,7 +252,7 @@ class TestJsonWithASchema:
 class TestJsonInferenceOfKeys:
     def test_keys_differing_in_case_only(self, spark, tmp_path):
         for lines in (['{"a": 1, "A": 2}'], ['{"a": 1}', '{"A": "x"}']):
-            expected = AnalysisException if USE_ACTUAL_SPARK else duckdb.NotImplementedException
+            expected = AnalysisException if USE_ACTUAL_SPARK else quacklab.NotImplementedException
             with pytest.raises(expected):
                 _read(spark, tmp_path, *lines).collect()
 
@@ -262,7 +262,7 @@ class TestJsonInferenceOfKeys:
             df = _read(spark, tmp_path, '{"a": 1}', '{"A": 2}')
             assert [tuple(row) for row in df.collect()] == [(1,), (None,)]
         else:
-            with pytest.raises(duckdb.NotImplementedException):
+            with pytest.raises(quacklab.NotImplementedException):
                 _read(spark, tmp_path, '{"a": 1}', '{"A": 2}')
 
     def test_empty_file(self, spark, tmp_path):

@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-import duckdb
+import quacklab
 
 try:
     import pandas as pd
@@ -114,7 +114,7 @@ class TestDecimalPositiveExponent:
         duckdb_cursor.execute("CREATE TABLE t (v DECIMAL(28,8))")
         d = Decimal(input_str)
         if should_raise:
-            with pytest.raises(duckdb.ConversionException, match="out of range"):
+            with pytest.raises(quacklab.ConversionException, match="out of range"):
                 duckdb_cursor.execute("INSERT INTO t VALUES (?)", [d])
         else:
             duckdb_cursor.execute("INSERT INTO t VALUES (?)", [d])
@@ -352,5 +352,5 @@ class TestDecimalPositiveExponent:
                 return "$1E+40"
 
         value = CustomDecimal("1E+40")
-        with pytest.raises(duckdb.InvalidInputException, match="Failed to convert Decimal value to DOUBLE"):
+        with pytest.raises(quacklab.InvalidInputException, match="Failed to convert Decimal value to DOUBLE"):
             duckdb_cursor.execute("SELECT ?", [value])

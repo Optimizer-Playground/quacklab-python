@@ -5,11 +5,11 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-import duckdb
+import quacklab
 import numpy as np
 import pandas as pd
-from duckdb.sqltypes import BIGINT
-from duckdb.value.constant import IntegerValue, StringValue, Value
+from quacklab.sqltypes import BIGINT
+from quacklab.value.constant import IntegerValue, StringValue, Value
 
 TZ_PLUS_2 = dt.timezone(dt.timedelta(hours=2))
 UUID_TEXT = "12345678-1234-5678-1234-567812345678"
@@ -211,7 +211,7 @@ LONG_STRING_VALUES = {
 # Connecting costs a quarter second on a debug build, so the tests share one database.
 @pytest.fixture(scope="module")
 def database():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     # GLOBAL, so the reference's cursors convert in the same time zone.
     connection.execute("SET GLOBAL TimeZone = 'America/New_York'")
     yield connection

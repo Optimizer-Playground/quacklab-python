@@ -8,8 +8,8 @@ import re
 
 import pytest
 
-import duckdb
-from duckdb import (
+import quacklab
+from quacklab import (
     CaseExpression,
     CoalesceOperator,
     ColumnExpression,
@@ -24,10 +24,10 @@ from duckdb import (
     lit,
     when,
 )
-from duckdb import _expression as expression_module
-from duckdb._expression import string_literals
-from duckdb.sqltypes import BIGINT, DOUBLE, INTEGER, SQLNULL, TIMESTAMP, VARCHAR, DuckDBPyType
-from duckdb.value.constant import (
+from quacklab import _expression as expression_module
+from quacklab._expression import string_literals
+from quacklab.sqltypes import BIGINT, DOUBLE, INTEGER, SQLNULL, TIMESTAMP, VARCHAR, DuckDBPyType
+from quacklab.value.constant import (
     BinaryValue,
     BlobValue,
     DateValue,
@@ -40,20 +40,20 @@ from duckdb.value.constant import (
 
 
 @pytest.fixture(scope="module")
-def con() -> duckdb.DuckDBPyConnection:
-    connection = duckdb.connect()
+def con() -> quacklab.DuckDBPyConnection:
+    connection = quacklab.connect()
     yield connection
     connection.close()
 
 
-def value(con: duckdb.DuckDBPyConnection, expression: object, source: str = "") -> object:
+def value(con: quacklab.DuckDBPyConnection, expression: object, source: str = "") -> object:
     return con.execute(f"SELECT {expression}{source}").fetchall()[0][0]
 
 
 class TestTheModuleExportsThePythonTree:
     def test_one_expression_class(self) -> None:
-        assert duckdb.Expression is expression_module.Expression
-        assert expression_module.Expr is duckdb.Expression
+        assert quacklab.Expression is expression_module.Expression
+        assert expression_module.Expr is quacklab.Expression
         for built in (
             ColumnExpression("a"),
             ConstantExpression(1),
@@ -65,7 +65,7 @@ class TestTheModuleExportsThePythonTree:
             LambdaExpression("x", col("x")),
             DefaultExpression(),
         ):
-            assert isinstance(built, duckdb.Expression)
+            assert isinstance(built, quacklab.Expression)
 
     def test_the_module_functions_are_exported(self) -> None:
         names = [
@@ -87,10 +87,10 @@ class TestTheModuleExportsThePythonTree:
             "last_value",
         ]
         for name in names:
-            assert getattr(duckdb, name) is getattr(expression_module, name)
-            assert name in duckdb.__all__
+            assert getattr(quacklab, name) is getattr(expression_module, name)
+            assert name in quacklab.__all__
 
-    def test_compat_and_new_constructors_combine(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_compat_and_new_constructors_combine(self, con: quacklab.DuckDBPyConnection) -> None:
         combined = (ColumnExpression("a") + lit(1)) * fn("abs", ConstantExpression(-2))
         assert str(combined) == '(("a" + 1) * abs(-2))'
         assert value(con, combined, " FROM (SELECT 2 AS a)") == 6
@@ -101,12 +101,12 @@ class TestColumnExpression:
         assert str(ColumnExpression("t", "a")) == '"t"."a"'
         assert str(ColumnExpression("c", "s", "t", "a", "field")) == '"c"."s"."t"."a"."field"'
 
-    def test_a_name_is_never_split(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_name_is_never_split(self, con: quacklab.DuckDBPyConnection) -> None:
         assert str(ColumnExpression("a.b")) == '"a.b"'
         assert value(con, ColumnExpression("a.b"), " FROM (SELECT 1 AS \"a.b\", {'b': 2} AS a)") == 1
         assert value(con, ColumnExpression("a", "b"), " FROM (SELECT 1 AS \"a.b\", {'b': 2} AS a)") == 2
 
-    def test_the_one_name_star_is_the_star(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_the_one_name_star_is_the_star(self, con: quacklab.DuckDBPyConnection) -> None:
         # ColumnExpression("*") is the star, as before.
         assert str(ColumnExpression("*")) == "*"
         assert con.execute(f"SELECT {ColumnExpression('*')} FROM (SELECT 1 AS a, 2 AS b)").fetchall() == [(1, 2)]
@@ -134,23 +134,23 @@ class TestConstantExpression:
         ids=["value", "integer", "tinyint", "string", "blob", "date", "list", "null", "string as bigint"],
     )
     def test_a_value_is_a_cast_to_its_type(
-        self, con: duckdb.DuckDBPyConnection, constant: Value, result: object
+        self, con: quacklab.DuckDBPyConnection, constant: Value, result: object
     ) -> None:
         expression = ConstantExpression(constant)
         assert value(con, expression) == result
         assert con.execute(f"SELECT typeof({expression})").fetchall()[0][0] == str(constant.type)
 
-    def test_a_value_is_an_operand_too(self, con: duckdb.DuckDBPyConnection) -> None:
-        overflow = ColumnExpression("s") * Value(100, duckdb.sqltypes.TINYINT)
+    def test_a_value_is_an_operand_too(self, con: quacklab.DuckDBPyConnection) -> None:
+        overflow = ColumnExpression("s") * Value(100, quacklab.sqltypes.TINYINT)
         assert str(overflow).startswith('("s" * ')
-        with pytest.raises(duckdb.OutOfRangeException, match="Overflow in multiplication of INT16"):
+        with pytest.raises(quacklab.OutOfRangeException, match="Overflow in multiplication of INT16"):
             value(con, overflow, " FROM (SELECT 3000::SMALLINT AS s)")
 
     def test_a_value_is_a_snapshot(self) -> None:
         items = [1]
         expression = ConstantExpression(Value(items, DuckDBPyType("INTEGER[]")))
         items.append(2)
-        assert duckdb.connect().execute(f"SELECT {expression}").fetchall() == [([1],)]
+        assert quacklab.connect().execute(f"SELECT {expression}").fetchall() == [([1],)]
 
     @pytest.mark.parametrize(
         ("target", "obj"),
@@ -166,14 +166,14 @@ class TestConstantExpression:
         ids=["struct keys in another case", "unnamed struct", "map", "texts", "nested text", "float", "timestamptz"],
     )
     def test_a_value_means_what_it_means_as_a_parameter(
-        self, con: duckdb.DuckDBPyConnection, target: str, obj: object
+        self, con: quacklab.DuckDBPyConnection, target: str, obj: object
     ) -> None:
         # The literal is the value converted to its type, as a Value parameter converts it.
         constant = Value(obj, con.type(target))
         assert value(con, ConstantExpression(constant)) == con.execute("SELECT ?", [constant]).fetchall()[0][0]
 
     def test_a_value_its_type_cannot_hold_is_refused_where_it_is_built(self) -> None:
-        with pytest.raises(duckdb.Error):
+        with pytest.raises(quacklab.Error):
             ConstantExpression(Value("not a number", INTEGER))
 
     @pytest.mark.parametrize(
@@ -191,7 +191,7 @@ class TestConstantExpression:
         assert str(ConstantExpression(constant)) == text
         assert str(ConstantExpression(constant)) == str(lit(constant))
 
-    def test_a_numpy_array_is_a_list(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_numpy_array_is_a_list(self, con: quacklab.DuckDBPyConnection) -> None:
         np = pytest.importorskip("numpy")
         assert str(ConstantExpression(np.array([1, 2]))) == "[1, 2]"
         assert str(ConstantExpression(np.array([[1.5], [2.5]]))) == "[[1.5::DOUBLE], [2.5::DOUBLE]]"
@@ -204,28 +204,28 @@ class TestConstantExpression:
 
 
 class TestFunctionExpression:
-    def test_arguments_are_operands(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_arguments_are_operands(self, con: quacklab.DuckDBPyConnection) -> None:
         call = FunctionExpression("concat", ColumnExpression("s"), "-", 1)
         assert str(call) == "concat(\"s\", '-', 1)"
         assert value(con, call, " FROM (SELECT 'a' AS s)") == "a-1"
 
-    def test_an_operator_by_name(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_an_operator_by_name(self, con: quacklab.DuckDBPyConnection) -> None:
         difference = FunctionExpression("-", ColumnExpression("b"), ColumnExpression("a"))
         assert value(con, difference, " FROM (SELECT 1 AS a, 5 AS b)") == 4
         assert value(con, FunctionExpression("~~", "abc", "a%")) is True
 
-    def test_no_arguments(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_no_arguments(self, con: quacklab.DuckDBPyConnection) -> None:
         assert str(FunctionExpression("pi")) == "pi()"
         assert value(con, FunctionExpression("pi")) == pytest.approx(3.14159, rel=1e-5)
 
 
 class TestCaseExpression:
-    def test_unclosed_is_else_null(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_unclosed_is_else_null(self, con: quacklab.DuckDBPyConnection) -> None:
         case = CaseExpression(ColumnExpression("a") > 1, 5)
         assert str(case) == '(CASE WHEN ("a" > 1) THEN 5 ELSE NULL END)'
         assert value(con, case, " FROM (SELECT 1 AS a)") is None
 
-    def test_when_adds_a_branch_and_otherwise_closes(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_when_adds_a_branch_and_otherwise_closes(self, con: quacklab.DuckDBPyConnection) -> None:
         a = ColumnExpression("a")
         case = CaseExpression(a > 1, "many").when(a == 1, "one").otherwise("none")
         assert str(case) == "(CASE WHEN (\"a\" > 1) THEN 'many' WHEN (\"a\" = 1) THEN 'one' ELSE 'none' END)"
@@ -259,7 +259,7 @@ class TestCaseExpression:
 
     @pytest.mark.parametrize("condition", [True, 1, 1.5], ids=["bool", "int", "float"])
     def test_a_value_condition_is_lifted_as_any_value_is(
-        self, con: duckdb.DuckDBPyConnection, condition: object
+        self, con: quacklab.DuckDBPyConnection, condition: object
     ) -> None:
         case = CaseExpression(col("a") == 9, 1).when(condition, 2)
         assert str(case) == str(CaseExpression(col("a") == 9, 1).when(lit(condition), 2))
@@ -267,12 +267,12 @@ class TestCaseExpression:
 
 
 class TestCoalesceOperator:
-    def test_the_first_value_that_is_not_null(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_the_first_value_that_is_not_null(self, con: quacklab.DuckDBPyConnection) -> None:
         assert str(CoalesceOperator(None, ColumnExpression("a"), "x")) == "COALESCE(NULL, \"a\", 'x')"
         assert value(con, CoalesceOperator(None, ColumnExpression("a"), 42), " FROM (SELECT NULL::INT AS a)") == 42
 
     def test_at_least_one_argument(self) -> None:
-        with pytest.raises(duckdb.InvalidInputException, match="at least one argument"):
+        with pytest.raises(quacklab.InvalidInputException, match="at least one argument"):
             CoalesceOperator()
 
 
@@ -284,7 +284,7 @@ class TestStarExpression:
         excluded = StarExpression(exclude=["a.b", ColumnExpression("t", "c"), ColumnExpression("d")])
         assert str(excluded) == '* EXCLUDE ("a.b", "t"."c", "d")'
 
-    def test_a_qualified_exclusion_runs(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_qualified_exclusion_runs(self, con: quacklab.DuckDBPyConnection) -> None:
         source = "(SELECT 1 AS id, 2 AS x) a, (SELECT 3 AS id) b"
         assert con.execute(
             f"SELECT {StarExpression(exclude=[ColumnExpression('b', 'id')])} FROM {source}"
@@ -313,7 +313,7 @@ class TestSQLExpression:
         ],
     )
     def test_an_alias_names_the_column(
-        self, con: duckdb.DuckDBPyConnection, text: str, name: str, body: str, alias: str
+        self, con: quacklab.DuckDBPyConnection, text: str, name: str, body: str, alias: str
     ) -> None:
         # The alias the parser finds is split off and rendered by the layer; the rest is the text as written.
         expression = SQLExpression(text)
@@ -349,24 +349,24 @@ class TestSQLExpression:
         # The text is checked by the parser and spliced unchanged; a trailing semicolon stays out of it.
         assert str(SQLExpression(text)) == written
 
-    def test_the_connection_s_parser_settings_apply(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_the_connection_s_parser_settings_apply(self, con: quacklab.DuckDBPyConnection) -> None:
         con.execute("SET regex_match_operator_semantics = 'full'")
         assert con.sql("SELECT 'abc' AS s").project(SQLExpression("s ~ 'b'")).fetchall() == [(False,)]
 
-    def test_a_parsed_condition_still_runs(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_parsed_condition_still_runs(self, con: quacklab.DuckDBPyConnection) -> None:
         expression = SQLExpression("a % 2 = 0 AND b LIKE '%o%'")
         assert value(con, expression, " FROM (SELECT 2 AS a, 'two' AS b)") is True
 
     @pytest.mark.parametrize("text", ["t.*", "#1", "COLUMNS('a')"])
-    def test_star_like_forms_survive_the_parentheses(self, con: duckdb.DuckDBPyConnection, text: str) -> None:
+    def test_star_like_forms_survive_the_parentheses(self, con: quacklab.DuckDBPyConnection, text: str) -> None:
         assert value(con, SQLExpression(text), " FROM (SELECT 7 AS a) t") == 7
 
     @pytest.mark.parametrize(
         ("text", "error", "message"),
         [
-            ("", duckdb.ParserException, "SELECT clause without selection list"),
-            ("SELECT *", duckdb.ParserException, 'syntax error at or near "SELECT"'),
-            ("1, 2", duckdb.InvalidInputException, "found 2 expressions"),
+            ("", quacklab.ParserException, "SELECT clause without selection list"),
+            ("SELECT *", quacklab.ParserException, 'syntax error at or near "SELECT"'),
+            ("1, 2", quacklab.InvalidInputException, "found 2 expressions"),
         ],
     )
     def test_checked_by_the_parser_where_built(self, text: str, error: type[Exception], message: str) -> None:
@@ -392,11 +392,11 @@ class TestSQLExpression:
     )
     def test_a_clause_the_expression_list_cannot_hold_is_named(self, text: str, holds: str) -> None:
         message = re.escape(f'Parser Error: "{text}" is not an expression list: it holds {holds}')
-        with pytest.raises(duckdb.ParserException, match=message):
+        with pytest.raises(quacklab.ParserException, match=message):
             SQLExpression(text)
 
     def test_sql_expr_is_not_checked(self) -> None:
-        assert str(duckdb.sql_expr("1, 2")) == "(1, 2)"
+        assert str(quacklab.sql_expr("1, 2")) == "(1, 2)"
 
     def test_takes_text(self) -> None:
         with pytest.raises(TypeError, match="takes SQL as a string"):
@@ -404,7 +404,7 @@ class TestSQLExpression:
 
 
 class TestLambdaExpression:
-    def test_one_name_or_a_tuple(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_one_name_or_a_tuple(self, con: quacklab.DuckDBPyConnection) -> None:
         one = LambdaExpression("x", ColumnExpression("x") + 3)
         two = LambdaExpression(("x", "y"), ColumnExpression("x") + ColumnExpression("y"))
         assert str(one) == 'lambda "x": ("x" + 3)'
@@ -435,7 +435,7 @@ class TestLambdaExpression:
 
 
 class TestDefaultExpression:
-    def test_default_in_an_insert(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_default_in_an_insert(self, con: quacklab.DuckDBPyConnection) -> None:
         assert str(DefaultExpression()) == "DEFAULT"
         con.execute("CREATE TABLE with_default (a INTEGER DEFAULT 7, b INTEGER)")
         con.execute(f"INSERT INTO with_default VALUES ({DefaultExpression()}, 1)")
@@ -443,7 +443,7 @@ class TestDefaultExpression:
 
 
 class TestCompatMethods:
-    def test_null_tests(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_null_tests(self, con: quacklab.DuckDBPyConnection) -> None:
         a = ColumnExpression("a")
         assert str(a.isnull()) == str(a.is_null()) == '("a" IS NULL)'
         assert str(a.isnotnull()) == str(a.is_not_null()) == '("a" IS NOT NULL)'
@@ -482,10 +482,10 @@ class TestCompatMethods:
             "not one empty list",
         ],
     )
-    def test_membership(self, membership: duckdb.Expression, text: str) -> None:
+    def test_membership(self, membership: quacklab.Expression, text: str) -> None:
         assert str(membership) == text
 
-    def test_membership_runs(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_membership_runs(self, con: quacklab.DuckDBPyConnection) -> None:
         source = " FROM (SELECT 2 AS a, [1, 2] AS xs)"
         assert value(con, col("a").isin(1, 2), source) is True
         assert value(con, col("a").isnotin(1, 2), source) is False
@@ -493,28 +493,30 @@ class TestCompatMethods:
         assert value(con, col("xs").isin([1, 2]), source) is True
         assert value(con, col("xs").isnotin([1, 2]), source) is False
 
-    def test_one_argument_is_one_value(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_one_argument_is_one_value(self, con: quacklab.DuckDBPyConnection) -> None:
         # `isin([1, 2])` means the list itself, as `isin(lit([1, 2]))` does; the members are `isin(1, 2)`.
         assert str(col("a").isin([1, 2])) == str(col("a").isin(lit([1, 2])))
         assert str(col("a").isin([1, 2])) != str(col("a").isin(1, 2))
         assert value(con, col("a").isin(1, 2), " FROM (SELECT 2 AS a)") is True
 
     @pytest.mark.parametrize("method", ["isin", "isnotin"])
-    def test_a_list_against_a_scalar_column_is_a_comparison(self, con: duckdb.DuckDBPyConnection, method: str) -> None:
+    def test_a_list_against_a_scalar_column_is_a_comparison(
+        self, con: quacklab.DuckDBPyConnection, method: str
+    ) -> None:
         membership = getattr(col("a"), method)([1, 2])
-        with pytest.raises(duckdb.ConversionException):
+        with pytest.raises(quacklab.ConversionException):
             value(con, membership, " FROM (SELECT 2 AS a)")
 
     @pytest.mark.parametrize("method", ["isin", "isnotin"])
     def test_membership_needs_a_value(self, method: str) -> None:
-        with pytest.raises(duckdb.InvalidInputException, match=f"to '{method}', needs at least 1 parameter"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"to '{method}', needs at least 1 parameter"):
             getattr(col("a"), method)()
 
-    def test_collate(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_collate(self, con: quacklab.DuckDBPyConnection) -> None:
         assert str(ConstantExpression("A").collate("NOCASE")) == "('A' COLLATE \"NOCASE\")"
         assert value(con, ConstantExpression("a") == ConstantExpression("A").collate("nocase")) is True
         assert value(con, ConstantExpression("á") == ConstantExpression("A").collate("nocase.noaccent")) is True
-        with pytest.raises(duckdb.CatalogException, match="Collation with name non-existant does not exist"):
+        with pytest.raises(quacklab.CatalogException, match="Collation with name non-existant does not exist"):
             value(con, ConstantExpression("a").collate("non-existant"))
 
     @pytest.mark.parametrize(
@@ -568,7 +570,7 @@ class TestCompatMethods:
 
 
 class TestTypesAreThoseOfTheValues:
-    def test_typed_columns(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_typed_columns(self, con: quacklab.DuckDBPyConnection) -> None:
         typed = [
             (ConstantExpression(1), INTEGER),
             (ConstantExpression(2**40), BIGINT),
@@ -581,14 +583,16 @@ class TestTypesAreThoseOfTheValues:
 
 
 class TestDecisionsOnTheOldForms:
-    def test_an_empty_alias_is_no_alias(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_an_empty_alias_is_no_alias(self, con: quacklab.DuckDBPyConnection) -> None:
         # As the earlier API did, since the engine's parser refuses AS "".
         unnamed = ColumnExpression("a").alias("b").alias("")
         assert unnamed.as_select() == '"a"'
         assert unnamed.get_name() == "a"
         assert [d[0] for d in con.execute(f"SELECT {unnamed.as_select()} FROM (SELECT 1 AS a)").description] == ["a"]
 
-    def test_an_aliased_argument_is_a_named_argument_where_names_are_read(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_an_aliased_argument_is_a_named_argument_where_names_are_read(
+        self, con: quacklab.DuckDBPyConnection
+    ) -> None:
         # The functions struct_pack and struct_insert read argument names.
         packed = FunctionExpression("struct_pack", ColumnExpression("x").alias("name"), lit(2).alias("select"))
         assert str(packed) == 'struct_pack(name := "x", "select" := 2)'
@@ -597,7 +601,7 @@ class TestDecisionsOnTheOldForms:
         assert str(inserted) == 'STRUCT_INSERT("s", c := 3)'
         assert value(con, inserted, " FROM (SELECT {'a': 1} AS s)") == {"a": 1, "c": 3}
 
-    def test_an_aliased_argument_elsewhere_drops_its_alias(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_an_aliased_argument_elsewhere_drops_its_alias(self, con: quacklab.DuckDBPyConnection) -> None:
         # Every other function ignored an argument's alias.
         call = FunctionExpression("epoch_us", ColumnExpression("t").alias("ts"))
         assert str(call) == 'epoch_us("t")'
@@ -608,7 +612,7 @@ class TestDecisionsOnTheOldForms:
         assert str(col("s").alias("n").str().upper()) == 'upper("s")'
 
     @pytest.mark.parametrize("blob", [b"ab", bytearray(b"ab")], ids=["bytes", "bytearray"])
-    def test_bytes_and_bytearray_are_blob_values(self, con: duckdb.DuckDBPyConnection, blob: object) -> None:
+    def test_bytes_and_bytearray_are_blob_values(self, con: quacklab.DuckDBPyConnection, blob: object) -> None:
         assert str(ConstantExpression(blob)) == "'\\x61\\x62'::BLOB"
         assert str(col("b") == blob) == "(\"b\" = '\\x61\\x62'::BLOB)"
         assert value(con, ConstantExpression(blob)) == b"ab"
@@ -637,16 +641,16 @@ class TestTheExpressionConstructor:
         ids=["column", "dotted column", "star", "integer", "null", "blob", "double", "list"],
     )
     def test_a_name_or_a_value(self, argument: object, text: str) -> None:
-        built = duckdb.Expression(argument)
-        assert isinstance(built, duckdb.Expression)
+        built = quacklab.Expression(argument)
+        assert isinstance(built, quacklab.Expression)
         assert str(built) == text
 
-    def test_a_duckdb_value(self, con: duckdb.DuckDBPyConnection) -> None:
-        built = duckdb.Expression(Value(1, INTEGER))
+    def test_a_duckdb_value(self, con: quacklab.DuckDBPyConnection) -> None:
+        built = quacklab.Expression(Value(1, INTEGER))
         assert con.execute(f"SELECT {built}, typeof({built})").fetchall() == [(1, "INTEGER")]
 
-    def test_it_runs(self, con: duckdb.DuckDBPyConnection) -> None:
-        assert value(con, duckdb.Expression("x") + duckdb.Expression(1), " FROM (SELECT 2 AS x)") == 3
+    def test_it_runs(self, con: quacklab.DuckDBPyConnection) -> None:
+        assert value(con, quacklab.Expression("x") + quacklab.Expression(1), " FROM (SELECT 2 AS x)") == 3
 
     @pytest.mark.parametrize(
         ("args", "error"),
@@ -655,7 +659,7 @@ class TestTheExpressionConstructor:
     )
     def test_what_it_refuses(self, args: tuple[object, ...], error: type[Exception]) -> None:
         with pytest.raises(error):
-            duckdb.Expression(*args)
+            quacklab.Expression(*args)
 
     def test_the_node_classes_are_untouched(self) -> None:
         assert str(expression_module.Col(("t", "a"))) == '"t"."a"'
@@ -674,14 +678,14 @@ class TestStringLiterals:
         assert string_literals(expression) == ["x", "y", "z", "w", "v", "u", "t", "p%"]
 
     def test_an_explicit_constant_is_not_a_bare_string(self) -> None:
-        explicit = (col("a") == ConstantExpression("x")) & (col("b") == lit("y")) & (col("c") == duckdb.Expression(1))
+        explicit = (col("a") == ConstantExpression("x")) & (col("b") == lit("y")) & (col("c") == quacklab.Expression(1))
         assert string_literals(explicit) == []
         assert string_literals(col("a") == "x") == ["x"]
 
     def test_only_plain_string_literals_count(self) -> None:
         expression = (
             (col("a")["field"] == col("p"))
-            & (duckdb.sql_expr("'s'") == lit(["in a list"]))
+            & (quacklab.sql_expr("'s'") == lit(["in a list"]))
             & (ConstantExpression(Value("v", VARCHAR)) == col("b").cast("VARCHAR").alias("named"))
             & StarExpression(exclude=["c"]).is_null()
             & (LambdaExpression("x", col("x")) == b"bytes")

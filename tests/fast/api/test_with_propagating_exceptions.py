@@ -1,17 +1,17 @@
 import pytest
 
-import duckdb
+import quacklab
 
 
 class TestWithPropagatingExceptions:
     def test_with(self):
-        # Should propagate exception raised in the 'with duckdb.connect() ..'
+        # Should propagate exception raised in the 'with quacklab.connect() ..'
         with (
-            pytest.raises(duckdb.CatalogException, match="Table with name invalid does not exist"),
-            duckdb.connect() as con,
+            pytest.raises(quacklab.CatalogException, match="Table with name invalid does not exist"),
+            quacklab.connect() as con,
         ):
             con.execute("SELECT * FROM invalid")
 
         # Does not raise an exception
-        with duckdb.connect() as con:
+        with quacklab.connect() as con:
             con.execute("select 1")

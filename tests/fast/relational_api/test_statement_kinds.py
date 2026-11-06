@@ -2,12 +2,12 @@
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     connection.execute("CREATE SEQUENCE s")
     connection.execute("CREATE TABLE t AS SELECT * FROM (VALUES (1, 'a', 10), (2, 'b', 20), (3, 'a', 30)) v(i, k, v)")
     connection.execute("CREATE TABLE log (v BIGINT)")
@@ -21,7 +21,7 @@ def con():
 def sequence_used(con):
     try:
         con.execute("SELECT currval('s')").fetchall()
-    except duckdb.SequenceException:
+    except quacklab.SequenceException:
         return False
     return True
 
@@ -263,8 +263,8 @@ class TestGroupsRunAtTheCall:
 
     def test_import_database_runs_at_the_call(self, con, tmp_path):
         con.execute(f"EXPORT DATABASE '{tmp_path}'")
-        target = duckdb.connect()
-        twin = duckdb.connect()
+        target = quacklab.connect()
+        twin = quacklab.connect()
         rel = target.sql(f"IMPORT DATABASE '{tmp_path}'")
         assert rel is not None
         assert target.execute("SELECT count(*) FROM t").fetchall() == [(3,)]
@@ -393,15 +393,15 @@ class TestStatementsWithoutRowsRunAtTheCall:
 class TestScripts:
     def test_a_parse_error_inside_a_transaction_aborts_it(self, con):
         con.execute("BEGIN")
-        with pytest.raises(duckdb.ParserException):
+        with pytest.raises(quacklab.ParserException):
             con.sql("INSERT INTO log VALUES (1); SELEC 2")
-        with pytest.raises(duckdb.TransactionException, match="aborted"):
+        with pytest.raises(quacklab.TransactionException, match="aborted"):
             con.execute("SELECT count(*) FROM log").fetchall()
         con.execute("ROLLBACK")
         assert con.execute("SELECT count(*) FROM log").fetchall() == [(0,)]
 
     def test_parameters_before_the_last_statement_are_refused(self, con):
-        with pytest.raises(duckdb.NotImplementedException, match="only supported for the last statement"):
+        with pytest.raises(quacklab.NotImplementedException, match="only supported for the last statement"):
             con.sql("SELECT ? AS p; SELECT 1 AS q", params=[1])
 
     def test_a_setting_an_earlier_statement_changes_reaches_the_last_statement_s_schema(self, con):
@@ -414,7 +414,7 @@ class TestScripts:
         assert con.execute("SELECT count(*) FROM later").fetchall() == [(0,)]
 
     def test_a_select_with_a_marker_and_no_values_raises_at_the_call(self, con):
-        with pytest.raises(duckdb.Error):
+        with pytest.raises(quacklab.Error):
             con.sql("SELECT ? AS a")
 
 
@@ -422,7 +422,7 @@ def transaction_state(con):
     """Whether the open transaction still runs a statement, or the class of the refusal if it does not."""
     try:
         con.execute("SELECT 1").fetchall()
-    except duckdb.Error as error:
+    except quacklab.Error as error:
         return type(error)
     return "usable"
 
@@ -437,8 +437,8 @@ class TestAFailedCallInsideATransaction:
     @pytest.mark.parametrize(
         ("sql", "error"),
         [
-            pytest.param("SELECT * FROM nope", duckdb.CatalogException, id="lazy_select_missing_table"),
-            pytest.param("SELECT nope FROM t", duckdb.BinderException, id="lazy_select_bad_column"),
+            pytest.param("SELECT * FROM nope", quacklab.CatalogException, id="lazy_select_missing_table"),
+            pytest.param("SELECT nope FROM t", quacklab.BinderException, id="lazy_select_bad_column"),
         ],
     )
     def test_a_lazy_select_that_fails_leaves_the_transaction_usable(self, con, sql, error):
@@ -451,16 +451,16 @@ class TestAFailedCallInsideATransaction:
     @pytest.mark.parametrize(
         ("sql", "error"),
         [
-            pytest.param("PRAGMA import_database('{missing}')", duckdb.IOException, id="pragma_import_database"),
-            pytest.param("CALL nope()", duckdb.CatalogException, id="call_of_a_missing_function"),
-            pytest.param("INSERT INTO nope VALUES (1)", duckdb.CatalogException, id="insert_into_a_missing_table"),
+            pytest.param("PRAGMA import_database('{missing}')", quacklab.IOException, id="pragma_import_database"),
+            pytest.param("CALL nope()", quacklab.CatalogException, id="call_of_a_missing_function"),
+            pytest.param("INSERT INTO nope VALUES (1)", quacklab.CatalogException, id="insert_into_a_missing_table"),
         ],
     )
     def test_a_statement_that_runs_at_the_call_and_fails_aborts_it(self, con, tmp_path, sql, error):
         con.execute("BEGIN TRANSACTION")
         with pytest.raises(error):
             con.sql(sql.format(missing=tmp_path / "missing"))
-        assert transaction_state(con) is duckdb.TransactionException
+        assert transaction_state(con) is quacklab.TransactionException
         con.execute("ROLLBACK")
         assert transaction_state(con) == "usable"
 
@@ -474,7 +474,7 @@ class TestADeferredGroupReportsWhatItReturned:
         return tmp_path / "exported"
 
     def test_import_database_reports_no_result(self, exported):
-        target = duckdb.connect()
+        target = quacklab.connect()
         rel = target.sql(f"IMPORT DATABASE '{exported}'")
         assert rel is None or rel._return_type == "nothing"
         assert target.execute("SELECT count(*) FROM t").fetchall() == [(3,)]
@@ -485,14 +485,14 @@ class TestADeferredGroupReportsWhatItReturned:
         assert deferred._return_type == constant._return_type == "nothing"
 
     def test_spark_gives_an_empty_frame_for_both(self, exported):
-        spark_sql = pytest.importorskip("duckdb.experimental.spark.sql")
+        spark_sql = pytest.importorskip("quacklab.experimental.spark.sql")
         spark = spark_sql.SparkSession.builder.getOrCreate()
         assert spark.sql(f"IMPORT DATABASE '{exported}'").columns == []
         assert spark.sql("ALTER TABLE t ADD COLUMN r DOUBLE DEFAULT random()").columns == []
 
     def test_spark_gives_checkpoint_the_frame_the_engine_reports(self):
         # The engine reports CHECKPOINT as a result with a Success column, and Spark follows the engine.
-        spark_sql = pytest.importorskip("duckdb.experimental.spark.sql")
+        spark_sql = pytest.importorskip("quacklab.experimental.spark.sql")
         spark = spark_sql.SparkSession.builder.getOrCreate()
         frame = spark.sql("CHECKPOINT")
         assert frame.columns == ["Success"]
@@ -512,9 +512,9 @@ class TestAScriptsLastStatement:
     )
     def test_a_failing_last_statement_aborts_the_open_transaction(self, con, script):
         con.execute("BEGIN TRANSACTION")
-        with pytest.raises(duckdb.CatalogException):
+        with pytest.raises(quacklab.CatalogException):
             con.sql(script)
-        assert transaction_state(con) is duckdb.TransactionException
+        assert transaction_state(con) is quacklab.TransactionException
         con.execute("ROLLBACK")
 
 
@@ -570,6 +570,6 @@ class TestTextBeyondAscii:
 
 class TestAKeywordAsAColumnName:
     def test_a_column_named_select_renders_quoted_and_binds(self, con):
-        rel = con.sql('SELECT 1 AS "select"').project(duckdb.ColumnExpression("select"))
+        rel = con.sql('SELECT 1 AS "select"').project(quacklab.ColumnExpression("select"))
         assert '"select"' in rel.sql_query()
         assert rel.fetchall() == [(1,)]

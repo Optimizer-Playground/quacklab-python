@@ -8,7 +8,7 @@ from pathlib import Path
 
 import tomllib
 
-import duckdb
+import quacklab
 
 
 def load_aggregates() -> dict[str, tuple[str, str]]:
@@ -27,7 +27,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
-    from duckdb._expression import Expression, Exprs, ValueOrExpr
+    from quacklab._expression import Expression, Exprs, ValueOrExpr
 
 
 class AggregateMethods:
@@ -53,7 +53,7 @@ def render() -> str:
     return "".join(out)
 
 
-def verify(connection: duckdb.DuckDBPyConnection) -> list[str]:
+def verify(connection: quacklab.DuckDBPyConnection) -> list[str]:
     """The table entries DuckDB's catalog has no aggregate for."""
     query = "SELECT DISTINCT function_name FROM duckdb_functions() WHERE function_type = 'aggregate'"
     known = {row[0] for row in connection.execute(query).fetchall()}
@@ -65,11 +65,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", nargs="?", choices=["write", "check"], default="write", help="check fails if stale")
     args = parser.parse_args()
-    missing = verify(duckdb.connect())
+    missing = verify(quacklab.connect())
     if missing:
         print(f"no aggregate in this engine's catalog for: {', '.join(missing)}", file=sys.stderr)
         return 1
-    target = Path(__file__).resolve().parent.parent / "duckdb" / "_expression_aggregates.py"
+    target = Path(__file__).resolve().parent.parent / "quacklab" / "_expression_aggregates.py"
     text = render()
     if args.mode == "check":
         if target.read_text() != text:

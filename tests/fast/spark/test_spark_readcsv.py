@@ -5,14 +5,14 @@ from decimal import Decimal
 
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 from spark_namespace import USE_ACTUAL_SPARK
 from spark_namespace.errors import AnalysisException, error_condition
 from spark_namespace.sql.types import Row
 
-import duckdb
-from duckdb.experimental.spark.exception import ContributionsAcceptedError
+import quacklab
+from quacklab.experimental.spark.exception import ContributionsAcceptedError
 
 if USE_ACTUAL_SPARK:
     import pyspark
@@ -132,7 +132,7 @@ class TestDialect:
         else:
             # DuckDB's escape is the quote, so its sniffer fails on a backslash before a quote, and its lenient
             # reader reads the line as one field.
-            with pytest.raises(duckdb.InvalidInputException, match="Error when sniffing file"):
+            with pytest.raises(quacklab.InvalidInputException, match="Error when sniffing file"):
                 _read(spark, tmp_path, text, header=True)
             assert _rows(_read(spark, tmp_path, text, schema="a string, b int", header=True)) == [("p\\q,2", None)]
 
@@ -167,7 +167,7 @@ class TestDialect:
             assert _rows(_read(spark, tmp_path, '"ab,2\n')) == [("ab,2",)]
         else:
             # Without a schema the width of a line comes from DuckDB's sniffer, which fails here.
-            with pytest.raises(duckdb.InvalidInputException, match="Error when sniffing file"):
+            with pytest.raises(quacklab.InvalidInputException, match="Error when sniffing file"):
                 _read(spark, tmp_path, '"ab,2\n')
         rows = _rows(_read(spark, tmp_path, 'a,b\n"1,2\n3,4\n5,6\n', header=True, schema="a string, b string"))
         # Spark ends an unclosed quote at the end of the line, DuckDB's lenient reader at the end of the file.
@@ -530,7 +530,7 @@ class TestInference:
             assert _rows(df)[-1] == ("x",)
         else:
             assert df.dtypes == [("v", "bigint")]
-            with pytest.raises(duckdb.ConversionException, match='Could not convert string "x"'):
+            with pytest.raises(quacklab.ConversionException, match='Could not convert string "x"'):
                 df.collect()
         df = _read(spark, tmp_path, "v\n" + "1\n" * 30000 + "1.5\n", header=True, inferSchema=True)
         expected = ("double", 1.5) if USE_ACTUAL_SPARK else ("bigint", 2)

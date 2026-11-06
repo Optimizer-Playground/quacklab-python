@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 @pytest.mark.parametrize(("rows", "iters"), [(1000, 20)])
@@ -20,7 +20,7 @@ def test_python_scalar_udf_return_value_refcount_does_not_leak(rows, iters):
     # Baseline refcount (note: getrefcount adds a temporary ref)
     baseline = sys.getrefcount(payload)
 
-    con = duckdb.connect()
+    con = quacklab.connect()
     con.create_function("udf_bytes", udf_bytes, ["BIGINT"], "VARCHAR")
 
     for _ in range(iters):

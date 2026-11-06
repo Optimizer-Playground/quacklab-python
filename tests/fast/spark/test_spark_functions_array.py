@@ -4,13 +4,13 @@ import re
 
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 from spark_namespace import USE_ACTUAL_SPARK
 from spark_namespace.errors import AnalysisException, PySparkTypeError
 from spark_namespace.sql import functions as sf
 from spark_namespace.sql.types import ArrayType, IntegerType, LongType, Row, StringType, StructField, StructType
 
-import duckdb
+import quacklab
 
 if USE_ACTUAL_SPARK:
     import pyspark
@@ -399,7 +399,7 @@ class TestSparkFunctionsArray:
 
             errors = (IllegalArgumentException, Py4JJavaError)
         else:
-            errors = duckdb.InvalidInputException
+            errors = quacklab.InvalidInputException
         with pytest.raises(errors, match="Illegal sequence boundaries"):
             df.select(sf.sequence(start, stop, sf.expr(step))).collect()
 
@@ -457,7 +457,7 @@ class TestSparkFunctionsArray:
             # DuckDB adds a step of months to each element in turn, which gives 2024-03-29 after 2024-02-29 where
             # Spark adds multiples of it to start, so the module raises for any step with months or years.
             for frame in [months, from_the_end, years]:
-                with pytest.raises(duckdb.InvalidInputException, match="step of months"):
+                with pytest.raises(quacklab.InvalidInputException, match="step of months"):
                     frame.collect()
 
     def test_sequence_of_timestamps(self, spark):
@@ -487,7 +487,7 @@ class TestSparkFunctionsArray:
 
             errors = (IllegalArgumentException, Py4JJavaError)
         else:
-            errors = duckdb.InvalidInputException
+            errors = quacklab.InvalidInputException
         with pytest.raises(errors, match="day granularity"):
             df.select(sf.sequence("d1", "d2", sf.lit(datetime.timedelta(hours=12)))).collect()
 
@@ -499,7 +499,7 @@ class TestSparkFunctionsArray:
             assert res.collect() == [Row(s=[1, 2, 3])]
         else:
             # Spark gives the elements the step's type, which a cast to the type of start and stop would lose.
-            with pytest.raises(duckdb.InvalidInputException, match="wider integral type"):
+            with pytest.raises(quacklab.InvalidInputException, match="wider integral type"):
                 res.collect()
 
     def test_sequence_with_a_zero_step_of_a_wider_type(self, spark):
@@ -510,7 +510,7 @@ class TestSparkFunctionsArray:
                 assert res.schema.simpleString() == "struct<s:array<bigint>>"
                 assert res.collect() == [Row(s=[1])]
             else:
-                with pytest.raises(duckdb.InvalidInputException, match="wider integral type"):
+                with pytest.raises(quacklab.InvalidInputException, match="wider integral type"):
                     res.collect()
 
     def test_sequence_without_steps_to_take(self, spark):

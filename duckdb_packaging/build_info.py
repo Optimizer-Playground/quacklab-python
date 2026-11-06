@@ -39,7 +39,7 @@ OVERRIDE_GIT_DESCRIBE_ENV_VAR = "OVERRIDE_GIT_DESCRIBE"
 OVERRIDE_DUCKDB_GIT_DESCRIBE_ENV_VAR = "OVERRIDE_DUCKDB_GIT_DESCRIBE"
 
 BUILD_INFO_JSON = Path(__file__).with_name("build_info.json")
-BUILD_INFO_MODULE = PROJECT_ROOT / "duckdb" / "_build_info.py"
+BUILD_INFO_MODULE = PROJECT_ROOT / "quacklab" / "_build_info.py"
 
 # A forced package version is an exact release: vX.Y.Z with an optional -postN or
 # pre-release suffix. A describe distance (-N-g<hash>) has no meaning for a release.
@@ -144,11 +144,11 @@ def duckdb_submodule_path() -> Path:
         if cur_module_reponame is not None and cur_module_path is not None:
             modules[cur_module_reponame] = cur_module_path
 
-    if "duckdb" not in modules:
+    if "quacklab" not in modules:
         msg = "DuckDB submodule missing"
         raise RuntimeError(msg)
 
-    duckdb_path = modules["duckdb"]
+    duckdb_path = modules["quacklab"]
     status = subprocess.run(
         ["git", "submodule", "status", duckdb_path],
         capture_output=True,

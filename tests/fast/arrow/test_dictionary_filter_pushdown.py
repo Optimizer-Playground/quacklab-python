@@ -16,8 +16,8 @@ from typing import NamedTuple
 import pytest
 from _pushdown_helpers import assert_fully_pushed, assert_kept_above, assert_query_keeps_filter_above
 
-import duckdb
-from duckdb._sources.to_arrow import dictionary_kernels_exact
+import quacklab
+from quacklab._sources.to_arrow import dictionary_kernels_exact
 
 pa = pytest.importorskip("pyarrow")
 pc = pytest.importorskip("pyarrow.compute")
@@ -170,7 +170,7 @@ NESTED_SHAPES = ["in_null_struct", "two_structs_deep"]
 # The struct is NULL on rows whose dictionary value matches, so a filter ignoring the parent's validity returns them.
 NULL_STRUCT_ROWS = [False, True, False, False, False, False, True]
 
-INVALIDATING = (duckdb.InternalException, duckdb.FatalException)
+INVALIDATING = (quacklab.InternalException, quacklab.FatalException)
 
 
 def _dictionary(case):
@@ -228,7 +228,7 @@ def _arrow_rows(con, predicate):
     try:
         return _rows(con, "arrow_t", predicate)
     except INVALIDATING as error:
-        # InternalException and FatalException derive from duckdb.Error, which some strict xfail markers expect.
+        # InternalException and FatalException derive from quacklab.Error, which some strict xfail markers expect.
         pytest.fail(f"the Arrow query invalidated the database: {error}")
 
 
@@ -634,7 +634,7 @@ def test_zoned_timestamp_beyond_the_microsecond_limit(duckdb_cursor, unit, shape
     _register_raw_zoned(duckdb_cursor, unit, [first - 1, first], shape)
     predicate = f"p {ZONED_COMPARISONS[op]} {EPOCH_LITERAL}"
     # The scan converts every row before DuckDB filters, and the overflowing row has no DuckDB TIMESTAMPTZ.
-    with pytest.raises(duckdb.ConversionException, match="Could not convert TimestampTZ to Microsecond"):
+    with pytest.raises(quacklab.ConversionException, match="Could not convert TimestampTZ to Microsecond"):
         _rows(duckdb_cursor, "arrow_t", predicate)
     assert duckdb_cursor.execute("SELECT 42").fetchall() == [(42,)]
 

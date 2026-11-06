@@ -9,14 +9,14 @@ from unittest import mock
 
 import pytest
 
-from duckdb._sources import ArrowScanSource, Source, adapt
-from duckdb._sources.arrow import ArrowArraySource, ArrowCapsuleSource, ArrowStreamSource
-from duckdb._sources.nodes import Binary, Col, In, Lit, Postfix, Unary
+from quacklab._sources import ArrowScanSource, Source, adapt
+from quacklab._sources.arrow import ArrowArraySource, ArrowCapsuleSource, ArrowStreamSource
+from quacklab._sources.nodes import Binary, Col, In, Lit, Postfix, Unary
 
 pa = pytest.importorskip("pyarrow")
 ds = pytest.importorskip("pyarrow.dataset")
 
-from duckdb._sources.pyarrow import (  # noqa: E402
+from quacklab._sources.pyarrow import (  # noqa: E402
     DatasetSource,
     PyArrowArraySource,
     PyArrowDatasetSource,
@@ -176,7 +176,7 @@ class TestClassification:
         assert type(source) is PyArrowTableSource
         assert isinstance(source.obj, pa.Table)
         assert source.obj.equals(frame.to_arrow())
-        from duckdb._sources.polars import LazyFrameSource, PolarsStreamSource
+        from quacklab._sources.polars import LazyFrameSource, PolarsStreamSource
 
         assert type(adapt(frame.lazy())) is LazyFrameSource
         assert type(adapt(frame["n"])) is PolarsStreamSource
@@ -660,9 +660,9 @@ class TestSchemaHook:
 
 
 def native_ids(create, rows, predicate):
-    import duckdb
+    import quacklab
 
-    with duckdb.connect() as con:
+    with quacklab.connect() as con:
         con.execute(create)
         con.executemany(f"INSERT INTO t VALUES ({', '.join('?' * len(rows[0]))})", [list(row) for row in rows])
         return [row[0] for row in con.execute(f"SELECT id FROM t WHERE {predicate} ORDER BY id").fetchall()]
@@ -800,19 +800,19 @@ def test_importing_the_sources_imports_no_data_library():
                     raise ImportError(name)
 
         sys.meta_path.insert(0, Block())
-        import duckdb._sources
-        import duckdb._sources.arrow
-        import duckdb._sources.nodes
-        import duckdb._sources.polars
-        import duckdb._sources.pyarrow
-        import duckdb._sources.to_arrow
-        import duckdb._sources.to_polars
+        import quacklab._sources
+        import quacklab._sources.arrow
+        import quacklab._sources.nodes
+        import quacklab._sources.polars
+        import quacklab._sources.pyarrow
+        import quacklab._sources.to_arrow
+        import quacklab._sources.to_polars
 
         class Exporter:
             def __arrow_c_stream__(self, requested_schema=None):
                 raise AssertionError
 
-        assert type(duckdb._sources.adapt(Exporter())).__name__ == "ArrowStreamSource"
+        assert type(quacklab._sources.adapt(Exporter())).__name__ == "ArrowStreamSource"
         print(sorted(name for name in sys.modules if name.partition(".")[0] in {"pyarrow", "polars", "pandas"}))
         """
     )
@@ -823,21 +823,21 @@ def test_importing_the_sources_imports_no_data_library():
 
 def test_no_call_imports_a_duckdb_module(pl, numbers):
     """A call that imported a duckdb module while duckdb is out of sys.modules would load the extension again."""
-    import duckdb._sources
+    import quacklab._sources
 
     predicate = GREATER
     with mock.patch.dict(sys.modules):
-        for name in [name for name in sys.modules if name == "duckdb" or name.startswith("duckdb.")]:
+        for name in [name for name in sys.modules if name == "quacklab" or name.startswith("quacklab.")]:
             del sys.modules[name]
         for obj in (numbers, ds.dataset(numbers), pl.from_arrow(numbers).lazy(), pl.from_arrow(numbers)):
-            source = duckdb._sources.adapt(obj)
+            source = quacklab._sources.adapt(obj)
             source.rows()
             if source.accepts(predicate):
                 read(source.stream([0], (predicate,))[0])
             read(source.stream(None, ())[0])
             assert source.__arrow_c_schema__()
         assert predicate.fragment() == '("n" > 1)'
-        assert not [name for name in sys.modules if name == "duckdb" or name.startswith("duckdb.")]
+        assert not [name for name in sys.modules if name == "quacklab" or name.startswith("quacklab.")]
 
 
 def test_a_source_is_a_plain_python_object():

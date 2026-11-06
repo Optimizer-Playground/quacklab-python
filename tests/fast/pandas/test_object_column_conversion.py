@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-import duckdb
+import quacklab
 import numpy as np
 import pandas as pd
 
@@ -70,7 +70,7 @@ def read_row(con, at=UNSAMPLED):
 
 
 def invalid_input_message(con, query="SELECT amount FROM frame"):
-    with pytest.raises(duckdb.InvalidInputException) as error:
+    with pytest.raises(quacklab.InvalidInputException) as error:
         con.execute(query).fetchall()
     return str(error.value)
 
@@ -752,7 +752,7 @@ def test_bool_outside_a_struct_text_leaf_sample_reads_as_text(duckdb_cursor):
 @not_built("a bool in a text list leaf fails without naming its column and row")
 def test_bool_outside_a_list_text_leaf_sample_names_column_and_row(duckdb_cursor):
     duckdb_cursor.register("frame", column(["a"], [True]))
-    with pytest.raises(duckdb.TypeMismatchException) as error:
+    with pytest.raises(quacklab.TypeMismatchException) as error:
         duckdb_cursor.execute("SELECT amount FROM frame").fetchall()
     assert_names(str(error.value), "amount", UNSAMPLED)
 
@@ -841,7 +841,7 @@ def test_other_conversion_errors_keep_their_type_with_column_and_row(duckdb_curs
 )
 def test_numpy_scalars_and_class_instances_keep_not_implemented(duckdb_cursor, value):
     duckdb_cursor.register("frame", column(1, value))
-    with pytest.raises(duckdb.NotImplementedException) as error:
+    with pytest.raises(quacklab.NotImplementedException) as error:
         duckdb_cursor.execute("SELECT amount FROM frame").fetchall()
     assert_names(str(error.value), "amount", UNSAMPLED, python_type_name(value))
 
@@ -961,20 +961,20 @@ def test_unread_column_does_not_raise(duckdb_cursor):
 
 def test_read_column_with_the_same_value_raises(duckdb_cursor):
     duckdb_cursor.register("frame", frame_with_a_refused_value())
-    with pytest.raises(duckdb.InvalidInputException):
+    with pytest.raises(quacklab.InvalidInputException):
         duckdb_cursor.execute("SELECT amount FROM frame").fetchall()
 
 
 def array_value():
-    return duckdb.Value([1, 2, 3], duckdb.sqltype("INTEGER[3]"))
+    return quacklab.Value([1, 2, 3], quacklab.sqltype("INTEGER[3]"))
 
 
 def union_value():
-    return duckdb.Value(1, duckdb.sqltype("UNION(i INTEGER, s VARCHAR)"))
+    return quacklab.Value(1, quacklab.sqltype("UNION(i INTEGER, s VARCHAR)"))
 
 
 def enum_value():
-    return duckdb.Value("a", duckdb.sqltype("ENUM('a', 'b')"))
+    return quacklab.Value("a", quacklab.sqltype("ENUM('a', 'b')"))
 
 
 def value_cells(*cells):
@@ -1027,25 +1027,25 @@ def assert_connection_answers(con):
             id="dicts_of_arrays",
         ),
         pytest.param(
-            lambda: value_cells(duckdb.Value([[1, 2, 3]], duckdb.sqltype("INTEGER[3][]"))),
+            lambda: value_cells(quacklab.Value([[1, 2, 3]], quacklab.sqltype("INTEGER[3][]"))),
             "SELECT DISTINCT typeof(amount) FROM frame",
             [("VARCHAR",)],
             id="list_of_array_type",
         ),
         pytest.param(
-            lambda: value_cells(duckdb.Value({"v": [1, 2, 3]}, duckdb.sqltype("STRUCT(v INTEGER[3])"))),
+            lambda: value_cells(quacklab.Value({"v": [1, 2, 3]}, quacklab.sqltype("STRUCT(v INTEGER[3])"))),
             "SELECT DISTINCT typeof(amount) FROM frame",
             [("VARCHAR",)],
             id="struct_of_array_type",
         ),
         pytest.param(
-            lambda: value_cells(duckdb.Value({"k": 1}, duckdb.sqltype("MAP(VARCHAR, UNION(i INTEGER))"))),
+            lambda: value_cells(quacklab.Value({"k": 1}, quacklab.sqltype("MAP(VARCHAR, UNION(i INTEGER))"))),
             "SELECT DISTINCT typeof(amount) FROM frame",
             [("VARCHAR",)],
             id="map_of_union_type",
         ),
         pytest.param(
-            lambda: value_cells(duckdb.DoubleValue(2.5), duckdb.DoubleValue(2.5)),
+            lambda: value_cells(quacklab.DoubleValue(2.5), quacklab.DoubleValue(2.5)),
             "SELECT typeof(amount), amount FROM frame",
             [("DOUBLE", 2.5)] * 2,
             id="doubles",
@@ -1075,27 +1075,27 @@ def test_sampled_array_value_with_plain_lists_after_it_binds_varchar(duckdb_curs
     ("cells", "expected"),
     [
         pytest.param(
-            [duckdb.Value([1, 2], duckdb.sqltype("BIGINT[]")), [3, 4]],
+            [quacklab.Value([1, 2], quacklab.sqltype("BIGINT[]")), [3, 4]],
             [("BIGINT[]", [1, 2]), ("BIGINT[]", [3, 4])],
             id="list_value_then_a_plain_list",
         ),
         pytest.param(
-            [duckdb.Value({"v": 1}, duckdb.sqltype("STRUCT(v BIGINT)")), {"v": 2}],
+            [quacklab.Value({"v": 1}, quacklab.sqltype("STRUCT(v BIGINT)")), {"v": 2}],
             [("STRUCT(v BIGINT)", {"v": 1}), ("STRUCT(v BIGINT)", {"v": 2})],
             id="struct_value_then_a_plain_dict",
         ),
         pytest.param(
-            [duckdb.Value({"k": 1}, duckdb.sqltype("MAP(VARCHAR, INTEGER)"))] * 2,
+            [quacklab.Value({"k": 1}, quacklab.sqltype("MAP(VARCHAR, INTEGER)"))] * 2,
             [("MAP(VARCHAR, INTEGER)", {"k": 1})] * 2,
             id="map_values",
         ),
         pytest.param(
-            [duckdb.HugeIntegerValue(2**70), 2**70],
+            [quacklab.HugeIntegerValue(2**70), 2**70],
             [("HUGEINT", 2**70)] * 2,
             id="hugeint_value_then_a_plain_int",
         ),
         pytest.param(
-            [duckdb.UnsignedHugeIntegerValue(2**127)] * 2,
+            [quacklab.UnsignedHugeIntegerValue(2**127)] * 2,
             [("UHUGEINT", 2**127)] * 2,
             id="uhugeint_values",
         ),
@@ -1109,10 +1109,10 @@ def test_value_elements_keep_their_type(duckdb_cursor, cells, expected):
 @pytest.mark.parametrize(
     ("value", "rows_equal_to_a"),
     [
-        pytest.param(duckdb.Value('{"a": 1}', duckdb.sqltype("JSON")), 0, id="json"),
+        pytest.param(quacklab.Value('{"a": 1}', quacklab.sqltype("JSON")), 0, id="json"),
         # Only the lower case cell equals 'a': a NOCASE column would match the upper case one too.
-        pytest.param(duckdb.Value("a", duckdb.sqltype("VARCHAR COLLATE NOCASE")), 1, id="nocase"),
-        pytest.param(duckdb.Value(["1"], duckdb.sqltype("JSON[]")), 0, id="list_of_json"),
+        pytest.param(quacklab.Value("a", quacklab.sqltype("VARCHAR COLLATE NOCASE")), 1, id="nocase"),
+        pytest.param(quacklab.Value(["1"], quacklab.sqltype("JSON[]")), 0, id="list_of_json"),
     ],
 )
 def test_value_element_of_an_aliased_or_collated_type_binds_plain_varchar(duckdb_cursor, value, rows_equal_to_a):
@@ -1125,16 +1125,16 @@ def test_value_element_of_an_aliased_or_collated_type_binds_plain_varchar(duckdb
 
 
 _TYPE_NAME_ON_THE_DEFAULT_CONNECTION_CHILD = """
-import duckdb
+import quacklab
 import pandas as pd
 
-value = duckdb.Value(5, "INTEGER")
+value = quacklab.Value(5, "INTEGER")
 frame = pd.DataFrame({"amount": pd.Series([value, value], dtype=object)})
 try:
     print("rows", QUERY.fetchall(), flush=True)
-except duckdb.Error as error:
+except quacklab.Error as error:
     print("raised", type(error).__name__, str(error).splitlines()[0], flush=True)
-print("answers", duckdb.sql("SELECT 42").fetchall(), flush=True)
+print("answers", quacklab.sql("SELECT 42").fetchall(), flush=True)
 """
 TYPE_NAME_CHILD_TIMEOUT = 60
 
@@ -1142,10 +1142,10 @@ TYPE_NAME_CHILD_TIMEOUT = 60
 @pytest.mark.parametrize(
     "query",
     [
-        pytest.param('duckdb.sql("SELECT amount FROM frame")', id="sql"),
-        pytest.param('duckdb.default_connection().sql("SELECT amount FROM frame")', id="default_connection_sql"),
-        pytest.param("duckdb.from_df(frame)", id="from_df"),
-        pytest.param('duckdb.execute("SELECT amount FROM frame")', id="execute"),
+        pytest.param('quacklab.sql("SELECT amount FROM frame")', id="sql"),
+        pytest.param('quacklab.default_connection().sql("SELECT amount FROM frame")', id="default_connection_sql"),
+        pytest.param("quacklab.from_df(frame)", id="from_df"),
+        pytest.param('quacklab.execute("SELECT amount FROM frame")', id="execute"),
     ],
 )
 def test_value_element_with_a_type_name_on_the_default_connection_raises(query):
@@ -1175,17 +1175,17 @@ import sys
 import threading
 import time
 
-import duckdb
+import quacklab
 import pandas as pd
 
 rows, at = int(sys.argv[1]), int(sys.argv[2])
 cells = [1] * rows
-cells[at] = duckdb.Value(5, "INTEGER")
+cells[at] = quacklab.Value(5, "INTEGER")
 columns = {f"c{i}": pd.Series([str(j) for j in range(rows)], dtype=object) for i in range(40)}
 columns["amount"] = pd.Series(cells, dtype=object)
 heavy = pd.DataFrame(columns)
 light = pd.DataFrame({"x": pd.Series(["a", "b"], dtype=object)})
-con = duckdb.connect()
+con = quacklab.connect()
 con.execute("SET enable_progress_bar = false")
 idle = repr(con.sql("SELECT sum(amount) FROM heavy").fetchall())
 stop = time.monotonic() + 4
@@ -1197,14 +1197,14 @@ def read_heavy():
     while time.monotonic() < stop:
         try:
             outcomes[repr(con.sql("SELECT sum(amount) FROM heavy").fetchall())] += 1
-        except duckdb.Error as error:
+        except quacklab.Error as error:
             outcomes[type(error).__name__] += 1
 
 
 def bind_light_on_the_default_connection():
     global default_binds
     while time.monotonic() < stop:
-        duckdb.sql("SELECT * FROM light")
+        quacklab.sql("SELECT * FROM light")
         default_binds += 1
 
 
@@ -1246,7 +1246,7 @@ _TYPE_NAME_WHILE_ANOTHER_THREAD_REPLACES_THE_CELLS_CHILD = """
 import sys
 import threading
 
-import duckdb
+import quacklab
 import numpy as np
 
 sys.setswitchinterval(1e-4)
@@ -1254,9 +1254,9 @@ rows = 300
 cells = np.empty(rows, dtype=object)
 cells[0] = 1
 for i in range(1, rows):
-    cells[i] = duckdb.Value(5, "INTEGER")
+    cells[i] = quacklab.Value(5, "INTEGER")
 data = {"amount": cells}
-con = duckdb.connect()
+con = quacklab.connect()
 con.execute("SET enable_progress_bar = false")
 con.execute("SET pandas_analyze_sample=1")
 con.execute("SET threads=1")
@@ -1266,7 +1266,7 @@ stop = threading.Event()
 def replace_cells():
     while not stop.is_set():
         for i in range(1, rows):
-            cells[i] = duckdb.Value(5, "INTEGER")
+            cells[i] = quacklab.Value(5, "INTEGER")
 
 
 replacer = threading.Thread(target=replace_cells)
@@ -1295,16 +1295,16 @@ def test_value_elements_with_a_type_name_while_another_thread_replaces_them():
 
 
 def test_value_element_whose_type_is_not_a_duckdb_type_raises(duckdb_cursor):
-    value = duckdb.IntegerValue(1)
+    value = quacklab.IntegerValue(1)
     value.type = 5
-    with pytest.raises(duckdb.InvalidInputException, match="should be of type DuckDBPyType"):
+    with pytest.raises(quacklab.InvalidInputException, match="should be of type DuckDBPyType"):
         duckdb_cursor.register("frame", value_cells(value, value))
     assert_connection_answers(duckdb_cursor)
 
 
 @not_built(MISMATCH_NOT_RAISED)
 def test_double_value_element_outside_an_integer_sample_raises(duckdb_cursor):
-    duckdb_cursor.register("frame", column(1, duckdb.DoubleValue(2.5)))
+    duckdb_cursor.register("frame", column(1, quacklab.DoubleValue(2.5)))
     assert_names(invalid_input_message(duckdb_cursor), "amount", UNSAMPLED, "INTEGER")
     assert_connection_answers(duckdb_cursor)
 
@@ -1319,8 +1319,8 @@ def test_array_value_element_outside_a_list_sample_raises(duckdb_cursor):
 @pytest.mark.parametrize(
     ("make_value", "expected"),
     [
-        pytest.param(lambda: duckdb.IntegerValue(5), 5, id="integer_value"),
-        pytest.param(lambda: duckdb.DoubleValue(3.0), 3, id="integral_double_value"),
+        pytest.param(lambda: quacklab.IntegerValue(5), 5, id="integer_value"),
+        pytest.param(lambda: quacklab.DoubleValue(3.0), 3, id="integral_double_value"),
     ],
 )
 def test_exact_value_element_outside_an_integer_sample_converts(duckdb_cursor, make_value, expected):
@@ -1331,7 +1331,7 @@ def test_exact_value_element_outside_an_integer_sample_converts(duckdb_cursor, m
 
 def udf_result(value, type_name):
     def prepare(con):
-        con.create_function("produce", lambda: value, [], duckdb.sqltype(type_name), side_effects=True)
+        con.create_function("produce", lambda: value, [], quacklab.sqltype(type_name), side_effects=True)
         return lambda: con.execute("SELECT produce()").fetchall()
 
     return prepare
@@ -1339,7 +1339,7 @@ def udf_result(value, type_name):
 
 def typed_value_parameter(value, type_name):
     def prepare(con):
-        parameter = duckdb.Value(value, duckdb.sqltype(type_name))
+        parameter = quacklab.Value(value, quacklab.sqltype(type_name))
         return lambda: con.execute("SELECT $1, typeof($1)", [parameter]).fetchall()
 
     return prepare
@@ -1372,34 +1372,36 @@ def values_relation(con):
         pytest.param(udf_result({"x": 2.5}, "STRUCT(x INTEGER)"), [({"x": 2},)], id="udf_float_into_struct_leaf"),
         pytest.param(
             udf_result({"x": 3.7}, "STRUCT(x DECIMAL(2,1))"),
-            duckdb.ConversionException,
+            quacklab.ConversionException,
             id="udf_float_into_decimal_struct_leaf",
         ),
         pytest.param(
             udf_result({"a": 3.7}, "MAP(VARCHAR, DECIMAL(2,1))"),
-            duckdb.ConversionException,
+            quacklab.ConversionException,
             id="udf_float_into_decimal_map_value",
         ),
         pytest.param(
-            udf_result({"x": JAN_FIRST}, "STRUCT(x DATE)"), duckdb.ConversionException, id="udf_datetime_into_date_leaf"
+            udf_result({"x": JAN_FIRST}, "STRUCT(x DATE)"),
+            quacklab.ConversionException,
+            id="udf_datetime_into_date_leaf",
         ),
         pytest.param(udf_result({"x": True}, "STRUCT(x INTEGER)"), [({"x": 1},)], id="udf_bool_into_struct_leaf"),
         pytest.param(udf_result({"x": 7}, "STRUCT(x BOOLEAN)"), [({"x": True},)], id="udf_int_into_bool_leaf"),
         pytest.param(udf_result(7, "BOOLEAN"), [(True,)], id="udf_int_into_boolean"),
         pytest.param(
-            udf_result((True,), "STRUCT(x INTEGER)"), duckdb.TypeMismatchException, id="udf_bool_tuple_into_struct"
+            udf_result((True,), "STRUCT(x INTEGER)"), quacklab.TypeMismatchException, id="udf_bool_tuple_into_struct"
         ),
-        pytest.param(udf_result([True], "INTEGER[]"), duckdb.TypeMismatchException, id="udf_bool_into_list_leaf"),
-        pytest.param(udf_result(True, "INTEGER"), duckdb.TypeMismatchException, id="udf_bool_into_integer"),
+        pytest.param(udf_result([True], "INTEGER[]"), quacklab.TypeMismatchException, id="udf_bool_into_list_leaf"),
+        pytest.param(udf_result(True, "INTEGER"), quacklab.TypeMismatchException, id="udf_bool_into_integer"),
         pytest.param(udf_result(3.7, "DECIMAL(2,1)"), [(Decimal("3.7"),)], id="udf_float_into_decimal"),
         pytest.param(
             typed_value_parameter({"x": 3.7}, "STRUCT(x DECIMAL(2,1))"),
-            duckdb.ConversionException,
+            quacklab.ConversionException,
             id="value_float_into_decimal_struct_leaf",
         ),
         pytest.param(
             typed_value_parameter({"x": JAN_FIRST}, "STRUCT(x DATE)"),
-            duckdb.ConversionException,
+            quacklab.ConversionException,
             id="value_datetime_into_date_leaf",
         ),
         pytest.param(
@@ -1424,8 +1426,8 @@ def test_other_conversions_keep_their_casts(duckdb_cursor, prepare, expected):
 
 
 def test_bool_refused_by_a_number_type_names_the_expected_type(duckdb_cursor):
-    duckdb_cursor.create_function("produce", lambda: True, [], duckdb.sqltype("INTEGER"), side_effects=True)
-    with pytest.raises(duckdb.TypeMismatchException) as error:
+    duckdb_cursor.create_function("produce", lambda: True, [], quacklab.sqltype("INTEGER"), side_effects=True)
+    with pytest.raises(quacklab.TypeMismatchException) as error:
         duckdb_cursor.execute("SELECT produce()").fetchall()
     message = str(error.value)
     assert "%s" not in message
@@ -1476,9 +1478,9 @@ def test_error_names_a_module_qualified_type(duckdb_cursor):
 )
 def test_python_error_from_a_conversion_passes_through(duckdb_cursor, frame, raised):
     duckdb_cursor.register("frame", frame)
-    with pytest.raises(duckdb.Error) as error:
+    with pytest.raises(quacklab.Error) as error:
         duckdb_cursor.execute("SELECT amount FROM frame").fetchall()
-    assert type(error.value) is duckdb.Error
+    assert type(error.value) is quacklab.Error
     assert re.fullmatch(rf"Traceback \(most recent call last\):\n(.*\n)*{re.escape(raised)}\n?", str(error.value))
 
 
@@ -1554,15 +1556,15 @@ def test_python_error_from_a_conversion_on_an_engine_thread_passes_through(base,
     for part in range(PARTS):
         # The analyzer samples every 512th row of this frame, so it never converts these cells.
         values[part * PART_ROWS + 1] = make_cell(raiser)
-    con = duckdb.connect(config={"threads": 4})
+    con = quacklab.connect(config={"threads": 4})
     con.register("frame", pd.DataFrame({"amount": pd.Series(values, dtype=object)}))
-    with pytest.raises(duckdb.Error) as raised:
+    with pytest.raises(quacklab.Error) as raised:
         con.execute("SELECT amount FROM frame").fetchall()
     if raiser.timed_out.is_set():
         pytest.fail("no engine thread raised within 10 seconds")
     assert raiser.raised_on, "every conversion ran on the submitting thread, so no engine thread raised"
     assert raiser.raised_on[0] != raiser.submitting
-    assert type(raised.value) is duckdb.Error
+    assert type(raised.value) is quacklab.Error
     text = re.escape(f"{type(error).__name__}: {error}")
     assert re.fullmatch(rf"Traceback \(most recent call last\):\n(.*\n)*{text}\n?", str(raised.value))
     assert_connection_answers(con)

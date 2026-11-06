@@ -1,13 +1,13 @@
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 
 
 class TestArrowBinaryView:
     def test_arrow_binary_view(self, duckdb_cursor):
-        con = duckdb.connect()
+        con = quacklab.connect()
         tab = pa.table({"x": pa.array([b"abc", b"thisisaverybigbinaryyaymorethanfifteen", None], pa.binary_view())})
         assert con.execute("FROM tab").fetchall() == [(b"abc",), (b"thisisaverybigbinaryyaymorethanfifteen",), (None,)]
         # By default we won't export a view

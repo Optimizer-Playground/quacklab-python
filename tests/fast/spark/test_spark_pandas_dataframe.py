@@ -4,10 +4,10 @@ from decimal import Decimal
 
 import pytest
 
-import duckdb
+import quacklab
 import numpy as np
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 pd = pytest.importorskip("pandas")
 
 from pandas.testing import assert_frame_equal
@@ -473,7 +473,7 @@ class TestPandasObjectColumnsWithASchema:
 
     def test_map_keys_that_collapse_are_refused(self, spark):
         frame = pd.DataFrame({"m": _outside_the_sample({"x": 1}, {True: 1, "true": 2})})
-        with pytest.raises(duckdb.InvalidInputException, match=r"(?i)unique|duplicat"):
+        with pytest.raises(quacklab.InvalidInputException, match=r"(?i)unique|duplicat"):
             spark.createDataFrame(frame, "m map<string,int>").collect()
 
     def test_array_keys_of_a_map_reach_the_engine(self, spark):
@@ -538,7 +538,7 @@ class TestPandasObjectColumnsWithoutASchema:
     @pytest.mark.xfail(strict=True, reason="not built: a value outside the sample is converted into the sampled type")
     def test_object_value_outside_the_sample_that_does_not_fit_raises(self, spark, column, match):
         df = spark.createDataFrame(pd.DataFrame({"a": column}))
-        with pytest.raises(duckdb.InvalidInputException, match=match):
+        with pytest.raises(quacklab.InvalidInputException, match=match):
             df.collect()
 
     def test_midnight_datetime_outside_the_sample_of_dates_reads_as_its_date(self, spark):

@@ -6,12 +6,12 @@ import re
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 @pytest.fixture
 def con(tmp_path):
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     register_tick(connection)
     connection.execute("CREATE TABLE t AS SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')) v(i, x)")
     connection.execute("CREATE MACRO plus_one(a) AS a + 1")
@@ -86,7 +86,7 @@ class TestReadsAreLazy:
     def test_an_error_in_the_values_raises_at_the_read(self, con):
         rel = con.sql("SELECT i, error(?) AS e FROM t", params=["boom"])
         assert rel.columns == ["i", "e"]
-        with pytest.raises(duckdb.InvalidInputException, match="boom"):
+        with pytest.raises(quacklab.InvalidInputException, match="boom"):
             rel.fetchall()
 
 
@@ -260,7 +260,7 @@ class TestStepsOverAParameterisedRelation:
     def test_the_same_name_on_both_sides_is_refused(self, con):
         left = con.sql("SELECT $x AS a", params={"x": 1})
         right = con.sql("SELECT $x AS b", params={"x": 2})
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             left.cross(right)
 
 
@@ -288,12 +288,12 @@ class TestParameterNamesFoldAsTheEngineFoldsThem:
     def test_two_relations_whose_names_differ_only_in_case_are_refused(self, con):
         left = con.sql("SELECT $P AS v", params={"P": 1})
         right = con.sql("SELECT $p AS v", params={"p": 2})
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             left.union(right).fetchall()
 
     def test_one_mapping_with_both_spellings_is_refused_at_the_call(self, con):
         # The mapping gives one engine parameter two values, so it is refused rather than bound to one.
-        with pytest.raises(duckdb.InvalidInputException) as error:
+        with pytest.raises(quacklab.InvalidInputException) as error:
             con.sql("SELECT $P AS upper_value, $p AS lower_value", params={"P": 1, "p": 2})
         message = str(error.value)
         assert re.search(r"\bP\b", message)
@@ -330,16 +330,18 @@ class TestValuesMustMatchTheMarkers:
         ],
     )
     def test_the_call_refuses_them(self, con, sql, params):
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             con.sql(sql, params=params)
 
     @pytest.mark.parametrize(
         ("sql", "params", "error"),
         [
-            pytest.param("SELECT 1 AS p", [1], duckdb.BinderException, id="text_without_markers"),
-            pytest.param("SELECT 1 AS p", {"a": 1}, duckdb.BinderException, id="text_without_markers_named"),
-            pytest.param("SELECT ? AS a, $b AS b", [1], duckdb.NotImplementedException, id="mixed_markers"),
-            pytest.param("SELECT ? AS a, $b AS b", {"b": 1}, duckdb.NotImplementedException, id="mixed_markers_named"),
+            pytest.param("SELECT 1 AS p", [1], quacklab.BinderException, id="text_without_markers"),
+            pytest.param("SELECT 1 AS p", {"a": 1}, quacklab.BinderException, id="text_without_markers_named"),
+            pytest.param("SELECT ? AS a, $b AS b", [1], quacklab.NotImplementedException, id="mixed_markers"),
+            pytest.param(
+                "SELECT ? AS a, $b AS b", {"b": 1}, quacklab.NotImplementedException, id="mixed_markers_named"
+            ),
         ],
     )
     def test_the_call_refuses_markers_that_cannot_take_them(self, con, sql, params, error):

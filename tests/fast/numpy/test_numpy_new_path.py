@@ -11,7 +11,7 @@ from datetime import timedelta
 import pytest
 from conftest import PANDAS_GE_3
 
-import duckdb
+import quacklab
 import numpy as np
 
 
@@ -88,31 +88,31 @@ class TestScanNumpy:
         res = duckdb_cursor.sql("select * from z").fetchall()
         assert res == [(1, "z"), (2, "x"), (3, "c")]
 
-        # currently unsupported formats, will throw duckdb.InvalidInputException
+        # currently unsupported formats, will throw quacklab.InvalidInputException
 
         # list of arrays with different length
         z = [np.array([1, 2]), np.array([3])]
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             duckdb_cursor.sql("select * from z")
 
         # dict of ndarrays of different length
         z = {"z": np.array([1, 2]), "x": np.array([3])}
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             duckdb_cursor.sql("select * from z")
 
         # high dimensional tensors
         z = np.array([[[1, 2]]])
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             duckdb_cursor.sql("select * from z")
 
         # list of ndarrys with len(shape) > 1
         z = [np.array([[1, 2], [3, 4]])]
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             duckdb_cursor.sql("select * from z")
 
         # dict of ndarrays with len(shape) > 1
         z = {"x": np.array([[1, 2], [3, 4]])}
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             duckdb_cursor.sql("select * from z")
 
 
@@ -128,7 +128,7 @@ def test_masked_structured_array_fails_like_the_plain_array(duckdb_cursor, mask)
     source = np.zeros(3, dtype=[("a", "i4"), ("b", "i4")])
     if mask is not None:
         source = np.ma.masked_array(source, mask=mask)
-    with pytest.raises(duckdb.NotImplementedException, match="not recognized"):
+    with pytest.raises(quacklab.NotImplementedException, match="not recognized"):
         duckdb_cursor.sql("SELECT * FROM source")
 
 
@@ -139,10 +139,10 @@ def test_first_column_mask_of_another_length_is_refused(duckdb_cursor, route, le
     source._mask = np.zeros(length, dtype=bool)
     message = f"Column 'column0' has {length} rows where its data has 50"
     if route == "register":
-        with pytest.raises(duckdb.InvalidInputException, match=message):
+        with pytest.raises(quacklab.InvalidInputException, match=message):
             duckdb_cursor.register("registered", source)
     else:
-        with pytest.raises(duckdb.InvalidInputException, match=message):
+        with pytest.raises(quacklab.InvalidInputException, match=message):
             duckdb_cursor.sql("SELECT * FROM source")
 
 
@@ -154,7 +154,7 @@ def test_mask_of_a_column_that_imports_numpy_ma_when_read():
         """
         import sys
 
-        import duckdb
+        import quacklab
         import numpy as np
 
         assert "numpy.ma" not in sys.modules
@@ -170,7 +170,7 @@ def test_mask_of_a_column_that_imports_numpy_ma_when_read():
 
 
         source = ImportsOnRead(plain=np.array([1, 2, 3]), masked=np.zeros(3, dtype="int64"))
-        print(duckdb.connect().execute("SELECT * FROM source").fetchall())
+        print(quacklab.connect().execute("SELECT * FROM source").fetchall())
         """
     )
     # An editable install that rebuilds on import otherwise prints its cmake command into the child's stdout.

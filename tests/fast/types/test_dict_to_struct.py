@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-import duckdb
+import quacklab
 
 AB = "STRUCT(a INTEGER, b INTEGER)"
 NESTED = f"STRUCT(s {AB})"
@@ -16,11 +16,11 @@ def resolve(con, target):
 
 
 def via_value_parameter(con, target, obj):
-    return con.execute("SELECT ?", [duckdb.Value(obj, resolve(con, target))]).fetchone()[0]
+    return con.execute("SELECT ?", [quacklab.Value(obj, resolve(con, target))]).fetchone()[0]
 
 
 def via_constant_expression(con, target, obj):
-    expression = duckdb.ConstantExpression(duckdb.Value(obj, resolve(con, target)))
+    expression = quacklab.ConstantExpression(quacklab.Value(obj, resolve(con, target)))
     return con.sql("SELECT 1").select(expression).fetchall()[0][0]
 
 
@@ -98,18 +98,18 @@ class TestDictToStruct:
     @pytest.mark.parametrize("path", PATHS)
     @pytest.mark.parametrize(("target", "obj", "expected"), CONVERTED)
     def test_converted(self, path, target, obj, expected):
-        con = duckdb.connect()
+        con = quacklab.connect()
         assert path(con, target, obj) == expected
 
     @pytest.mark.parametrize("path", PATHS)
     @pytest.mark.parametrize(("target", "obj", "reported_obj", "reported_target"), REFUSED)
     def test_refused(self, path, target, obj, reported_obj, reported_target):
-        con = duckdb.connect()
-        with pytest.raises(duckdb.InvalidInputException, match=conversion_error(reported_obj, reported_target)):
+        con = quacklab.connect()
+        with pytest.raises(quacklab.InvalidInputException, match=conversion_error(reported_obj, reported_target)):
             path(con, target, obj)
 
     def test_untyped_bytes_key_named_by_str(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         assert con.execute("SELECT ?", [{b"a": 42}]).fetchall() == [({"b'a'": 42},)]
 
     @pytest.mark.parametrize(
@@ -126,7 +126,7 @@ class TestDictToStruct:
     )
     def test_pandas_bytes_keys_named_by_str(self, rows, expected_type, expected):
         pd = pytest.importorskip("pandas")
-        con = duckdb.connect()
+        con = quacklab.connect()
         df = pd.DataFrame({"col": rows})  # noqa: F841
         rel = con.sql("SELECT col FROM df")
         assert str(rel.types[0]) == expected_type
@@ -134,15 +134,15 @@ class TestDictToStruct:
 
     def test_pandas_keys_equal_ignoring_case_refused(self):
         pd = pytest.importorskip("pandas")
-        con = duckdb.connect()
+        con = quacklab.connect()
         obj = {"a": 1, "A": 2}
         df = pd.DataFrame({"col": [obj]})  # noqa: F841
-        with pytest.raises(duckdb.InvalidInputException, match=conversion_error(obj, "STRUCT(a INTEGER, A INTEGER)")):
+        with pytest.raises(quacklab.InvalidInputException, match=conversion_error(obj, "STRUCT(a INTEGER, A INTEGER)")):
             con.sql("SELECT col FROM df").fetchall()
 
     def test_numpy_object_row_outside_the_sample(self):
         np = pytest.importorskip("numpy")
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("SET pandas_analyze_sample=1")
         col = np.empty(2, dtype=object)
         col[0] = {"a": 10, "b": 20}
@@ -150,7 +150,7 @@ class TestDictToStruct:
         data = {"col": col}  # noqa: F841
         assert con.sql("SELECT col FROM data").fetchall() == [({"a": 10, "b": 20},), ({"a": 1, "b": 2},)]
         col[1] = {"k1": 1, "k2": 2}
-        with pytest.raises(duckdb.InvalidInputException, match=conversion_error(col[1], AB)):
+        with pytest.raises(quacklab.InvalidInputException, match=conversion_error(col[1], AB)):
             con.sql("SELECT col FROM data").fetchall()
 
     @pytest.mark.parametrize(
@@ -162,7 +162,7 @@ class TestDictToStruct:
     )
     def test_pandas_row_outside_the_sample_converted(self, row, expected):
         pd = pytest.importorskip("pandas")
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("SET pandas_analyze_sample=1")
         df = pd.DataFrame({"col": [{"a": 10, "b": 20}, row]})  # noqa: F841
         assert con.sql("SELECT col FROM df").fetchall() == [({"a": 10, "b": 20},), (expected,)]
@@ -177,8 +177,8 @@ class TestDictToStruct:
     )
     def test_pandas_row_outside_the_sample_refused(self, row):
         pd = pytest.importorskip("pandas")
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("SET pandas_analyze_sample=1")
         df = pd.DataFrame({"col": [{"a": 10, "b": 20}, row]})  # noqa: F841
-        with pytest.raises(duckdb.InvalidInputException, match=conversion_error(row, AB)):
+        with pytest.raises(quacklab.InvalidInputException, match=conversion_error(row, AB)):
             con.sql("SELECT col FROM df").fetchall()

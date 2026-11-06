@@ -15,8 +15,8 @@ import uuid
 
 import pytest
 
-import duckdb
-from duckdb import (
+import quacklab
+from quacklab import (
     CaseExpression,
     CoalesceOperator,
     ColumnExpression,
@@ -36,7 +36,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture
 def rel():
     """A one-row relation with columns of various types."""
-    con = duckdb.connect()
+    con = quacklab.connect()
     r = con.sql(
         """
         SELECT
@@ -90,7 +90,7 @@ def test_binary_operator_constant_rhs(rel, value, column):
     expr = ColumnExpression(column) == value
     # `==` must build a SQL Expression, never fall back to a Python bool: a bool RHS would still let
     # select() yield one row, masking a None/operator regression -- so assert the type explicitly.
-    assert isinstance(expr, duckdb.Expression)
+    assert isinstance(expr, quacklab.Expression)
     result = rel.select(expr).fetchall()
     assert len(result) == 1
 
@@ -139,13 +139,13 @@ def test_binary_operator_constant_rhs(rel, value, column):
 def test_none_operand_builds_sql_null_expression(build):
     """A None operand becomes a SQL NULL constant on every operator/between, yielding a real Expression."""
     expr = build(ColumnExpression("a"))
-    assert isinstance(expr, duckdb.Expression)
+    assert isinstance(expr, quacklab.Expression)
     assert "NULL" in str(expr)
 
 
 def test_none_filter_keeps_no_rows():
     """`col != None` builds `(col != NULL)`: SQL NULL semantics keep no rows (a Python-bool True kept all)."""
-    rel = duckdb.connect().sql("SELECT * FROM (VALUES (1), (NULL), (3)) t(a)")
+    rel = quacklab.connect().sql("SELECT * FROM (VALUES (1), (NULL), (3)) t(a)")
     assert rel.filter(ColumnExpression("a") != None).fetchall() == []  # noqa: E711
 
 
@@ -185,7 +185,7 @@ def test_binary_operator_bytes_rhs(rel):
     Changed: bytes, like bytearray, is a BLOB value; it was a column reference.
     """
     expr = ColumnExpression("s").cast("BLOB") == b"hello"
-    assert isinstance(expr, duckdb.Expression)
+    assert isinstance(expr, quacklab.Expression)
     assert str(expr) == "(CAST(\"s\" AS BLOB) = '\\x68\\x65\\x6c\\x6c\\x6f'::BLOB)"
     assert rel.select(expr).fetchall() == [(True,)]
 
@@ -294,7 +294,7 @@ def test_function_expression_with_scalars(rel):
 
 
 def test_sort_with_string():
-    con = duckdb.connect()
+    con = quacklab.connect()
     rel = con.sql("SELECT * FROM (VALUES (2, 'b'), (1, 'a'), (3, 'c')) t(x, y)")
     result = rel.sort("x").fetchall()
     assert result == [(1, "a"), (2, "b"), (3, "c")]
@@ -360,7 +360,7 @@ def test_project_with_scalar(rel):
 
 
 def test_aggregate_with_scalar():
-    con = duckdb.connect()
+    con = quacklab.connect()
     rel = con.sql("SELECT * FROM (VALUES (1), (2), (3)) t(a)")
     # A bare int as an aggregate expression is accepted (non-aggregate, one per row)
     result = rel.aggregate([5]).fetchall()

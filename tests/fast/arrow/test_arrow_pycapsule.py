@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 pl = pytest.importorskip("polars")
@@ -21,7 +21,7 @@ class TestArrowPyCapsuleExport:
 
     def test_capsule_matches_to_arrow_table(self):
         """Fast path produces identical data to to_arrow_table for various types."""
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         sql = """
             SELECT
                 i AS int_col,
@@ -37,7 +37,7 @@ class TestArrowPyCapsuleExport:
 
     def test_capsule_matches_to_arrow_table_nested_types(self):
         """Fast path handles nested types (struct, list, map)."""
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         sql = """
             SELECT
                 {'x': i, 'y': i::VARCHAR} AS struct_col,
@@ -51,7 +51,7 @@ class TestArrowPyCapsuleExport:
 
     def test_capsule_multi_batch(self):
         """Data exceeding the 1M batch size produces multiple batches, all yielded correctly."""
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         sql = "SELECT i, i::DOUBLE AS d FROM range(1500000) t(i)"
         expected = conn.sql(sql).to_arrow_table()
         actual = pa.table(conn.sql(sql))
@@ -60,7 +60,7 @@ class TestArrowPyCapsuleExport:
 
     def test_capsule_empty_result(self):
         """Empty result set produces a valid empty table with correct schema."""
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         sql = "SELECT i AS a, i::VARCHAR AS b FROM range(10) t(i) WHERE i < 0"
         expected = conn.sql(sql).to_arrow_table()
         actual = pa.table(conn.sql(sql))
@@ -68,7 +68,7 @@ class TestArrowPyCapsuleExport:
         assert actual.schema.equals(expected.schema)
 
     def test_capsule_of_a_materialized_relation(self):
-        conn = duckdb.connect()
+        conn = quacklab.connect()
         sql = "SELECT i, i::DOUBLE AS d FROM range(500) t(i)"
         expected = conn.sql(sql).to_arrow_table()
 
@@ -116,7 +116,7 @@ class TestArrowPyCapsule:
 
     def test_capsule_roundtrip(self, duckdb_cursor):
         def create_capsule():
-            conn = duckdb.connect()
+            conn = quacklab.connect()
             rel = conn.sql("select i, i+1, -i from range(100) t(i)")
 
             capsule = rel.__arrow_c_stream__()
@@ -144,7 +144,7 @@ class TestArrowPyCapsule:
         capsule = tbl.__arrow_c_stream__()  # noqa: F841
         rel = duckdb_cursor.sql("SELECT * FROM capsule")
         rel.fetchall()  # consumes the capsule
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             rel.fetchall()  # re-execution should be InvalidInputException, not InternalException
 
     def test_consumer_interface_roundtrip(self, duckdb_cursor):
@@ -157,7 +157,7 @@ class TestArrowPyCapsule:
                 def __arrow_c_stream__(self, requested_schema=None) -> object:
                     return self.rel.__arrow_c_stream__(requested_schema=requested_schema)
 
-            conn = duckdb.connect()
+            conn = quacklab.connect()
             rel = conn.sql("select i, i+1, -i from range(100) t(i)")
             return MyTable(rel, conn)
 

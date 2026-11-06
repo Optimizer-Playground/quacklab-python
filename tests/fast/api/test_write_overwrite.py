@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-import duckdb
+import quacklab
 
 FIRST = "SELECT 1 AS v, p FROM (VALUES ('a'), ('c')) t(p)"
 SECOND = "SELECT 2 AS v, p FROM (VALUES ('a'), ('b')) t(p)"
@@ -34,7 +34,7 @@ def rel_to_parquet(con, path, **kwargs):
 
 
 def module_write_csv(con, path, **kwargs):
-    duckdb.write_csv(con.sql(SECOND).df(), path, connection=con, **kwargs)
+    quacklab.write_csv(con.sql(SECOND).df(), path, connection=con, **kwargs)
 
 
 WRITERS = {
@@ -42,7 +42,7 @@ WRITERS = {
     "rel.to_csv": (rel_to_csv, "csv"),
     "rel.write_parquet": (rel_write_parquet, "parquet"),
     "rel.to_parquet": (rel_to_parquet, "parquet"),
-    "duckdb.write_csv": (module_write_csv, "csv"),
+    "quacklab.write_csv": (module_write_csv, "csv"),
 }
 PARQUET_WRITERS = ["rel.write_parquet", "rel.to_parquet"]
 
@@ -108,7 +108,7 @@ class TestWriteOverwrite:
         write_first_file(duckdb_cursor, target, fmt)
         before = files_under(tmp_path)
 
-        with pytest.raises(duckdb.IOException, match=exactly(message, target)):
+        with pytest.raises(quacklab.IOException, match=exactly(message, target)):
             writer(duckdb_cursor, str(target), overwrite=False, **options)
 
         assert files_under(tmp_path) == before
@@ -122,7 +122,7 @@ class TestWriteOverwrite:
         write_first_partitioned(duckdb_cursor, target, fmt)
         before = files_under(tmp_path)
 
-        with pytest.raises(duckdb.IOException, match=exactly(ENGINE_REFUSED_DIRECTORY, target)):
+        with pytest.raises(quacklab.IOException, match=exactly(ENGINE_REFUSED_DIRECTORY, target)):
             writer(duckdb_cursor, str(target), **kwargs_with(options, overwrite))
 
         assert files_under(tmp_path) == before
@@ -133,7 +133,7 @@ class TestWriteOverwrite:
         write_first_file(duckdb_cursor, target, fmt)
         before = files_under(tmp_path)
 
-        with pytest.raises(duckdb.BinderException, match=re.escape(APPEND_WITH_OVERWRITE) + "$"):
+        with pytest.raises(quacklab.BinderException, match=re.escape(APPEND_WITH_OVERWRITE) + "$"):
             writer(duckdb_cursor, str(target), overwrite=False, append=True)
 
         assert files_under(tmp_path) == before
@@ -201,7 +201,7 @@ class TestWriteOverwriteRegisteredFilesystem:
         write_first_file(duckdb_cursor, target, fmt)
         before = memory_fs.cat(f"out.{fmt}")
 
-        with pytest.raises(duckdb.IOException, match=exactly(REFUSED_SINGLE_FILE, target)):
+        with pytest.raises(quacklab.IOException, match=exactly(REFUSED_SINGLE_FILE, target)):
             writer(duckdb_cursor, target, overwrite=False)
 
         assert memory_fs.find("/") == [f"/out.{fmt}"]

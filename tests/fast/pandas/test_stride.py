@@ -1,6 +1,6 @@
 import datetime
 
-import duckdb
+import quacklab
 import numpy as np
 import pandas as pd
 
@@ -9,7 +9,7 @@ class TestPandasStride:
     def test_stride(self, duckdb_cursor):
         expected_df = pd.DataFrame(np.arange(20).reshape(5, 4), columns=["a", "b", "c", "d"], copy=False)
         assert expected_df["a"].to_numpy().strides[0] == 4 * expected_df["a"].to_numpy().itemsize
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("df_view", expected_df)
         output_df = con.execute("SELECT * FROM df_view;").fetchdf()
         pd.testing.assert_frame_equal(expected_df, output_df)
@@ -19,7 +19,7 @@ class TestPandasStride:
             np.arange(20, dtype="float32").reshape(5, 4), columns=["a", "b", "c", "d"], copy=False
         )
         assert expected_df["a"].to_numpy().strides[0] == 4 * expected_df["a"].to_numpy().itemsize
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("df_view", expected_df)
         output_df = con.execute("SELECT * FROM df_view;").fetchdf()
         for col in output_df.columns:
@@ -69,7 +69,7 @@ class TestPandasStride:
             np.arange(20, dtype="float64").reshape(5, 4), columns=["a", "b", "c", "d"], copy=False
         )
         assert expected_df["a"].to_numpy().strides[0] == 4 * expected_df["a"].to_numpy().itemsize
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.register("df_view", expected_df)
         output_df = con.execute("SELECT * FROM df_view;").fetchdf()
         for col in output_df.columns:

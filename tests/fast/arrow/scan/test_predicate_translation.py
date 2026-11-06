@@ -16,8 +16,8 @@ from typing import ClassVar
 import _duckdb
 import pytest
 
-import duckdb
-from duckdb._sources.nodes import Binary, Col, In, Lit, Postfix, Unary
+import quacklab
+from quacklab._sources.nodes import Binary, Col, In, Lit, Postfix, Unary
 
 REFUSED = None
 
@@ -56,8 +56,8 @@ COLUMNS = {
 
 
 @pytest.fixture
-def con() -> duckdb.DuckDBPyConnection:
-    connection = duckdb.connect()
+def con() -> quacklab.DuckDBPyConnection:
+    connection = quacklab.connect()
     # A zoned constant renders in the session time zone, so the pinned texts need one zone on every runner.
     connection.execute("SET TimeZone = 'UTC'")
     yield connection
@@ -699,10 +699,10 @@ CHILD_TIMEOUT = 60
 REENTRANT_SCHEMA = """
 import json
 import _duckdb
-import duckdb
+import quacklab
 import pyarrow as pa
 
-con = duckdb.connect()
+con = quacklab.connect()
 
 
 class Reentrant:
@@ -716,7 +716,7 @@ try:
     outcome = "no error"
 except Exception as error:
     outcome = str(error)
-other = duckdb.connect()
+other = quacklab.connect()
 
 
 class UsesAnotherConnection:
@@ -733,7 +733,7 @@ print("outcome " + json.dumps([outcome, [node.fragment() for _, node in entries]
 class TestHook:
     def test_the_temporary_table_is_dropped(self, con):
         offered(con, "n > 1")
-        with pytest.raises(duckdb.ParserException):
+        with pytest.raises(quacklab.ParserException):
             offered(con, "n >")
         assert con.sql(
             "SELECT count(*) FROM duckdb_tables() WHERE table_name LIKE '__duckdb_predicate_probe%'"
@@ -754,17 +754,17 @@ class TestHook:
         assert con.sql("SELECT k FROM kept").fetchall() == [(1,)]
 
     def test_more_than_one_statement_is_refused(self, con):
-        with pytest.raises(duckdb.InvalidInputException, match="one expression"):
+        with pytest.raises(quacklab.InvalidInputException, match="one expression"):
             offered(con, "n > 1; SELECT 1")
 
     def test_a_subquery_is_refused(self, con):
-        with pytest.raises(duckdb.InvalidInputException, match="shape of the plan"):
+        with pytest.raises(quacklab.InvalidInputException, match="shape of the plan"):
             offered(con, "n IN (SELECT 1)")
 
     def test_either_columns_or_a_schema(self, con):
-        with pytest.raises(duckdb.InvalidInputException, match="either the columns or an Arrow schema"):
+        with pytest.raises(quacklab.InvalidInputException, match="either the columns or an Arrow schema"):
             _duckdb._translate_predicate(con, "n > 1", None, None)
-        with pytest.raises(duckdb.InvalidInputException, match="either the columns or an Arrow schema"):
+        with pytest.raises(quacklab.InvalidInputException, match="either the columns or an Arrow schema"):
             _duckdb._translate_predicate(con, "n > 1", {"n": "INTEGER"}, object())
 
     def test_a_type_whose_text_uses_the_connection_is_refused(self, con):
@@ -773,7 +773,7 @@ class TestHook:
                 con.sql("SELECT 42").fetchall()
                 return "INTEGER"
 
-        with pytest.raises(duckdb.Error, match="cannot use that query's connection"):
+        with pytest.raises(quacklab.Error, match="cannot use that query's connection"):
             _duckdb._translate_predicate(con, "n > 1", {"n": Reentrant()})
         assert offered(con, "n > 1", {"n": "INTEGER"}) == [("(n > 1)", '("n" > 1)')]
 

@@ -8,14 +8,14 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-import duckdb
+import quacklab
 
 pl = pytest.importorskip("polars")
 pytest.importorskip("pyarrow")
 pl_testing = pytest.importorskip("polars.testing")
 
-from duckdb import polars_io  # noqa: E402
-from duckdb.polars_io import _pl_tree_to_sql, _predicate_to_expression  # noqa: E402
+from quacklab import polars_io  # noqa: E402
+from quacklab.polars_io import _pl_tree_to_sql, _predicate_to_expression  # noqa: E402
 
 EPOCH = datetime.datetime(1970, 1, 1)
 EPOCH_UTC = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
@@ -198,7 +198,7 @@ class TestDatetimeLiteralPushdown:
             expected_type = "TIMESTAMP WITH TIME ZONE"
             expected_us = (aware - EPOCH_UTC) // datetime.timedelta(microseconds=1)
         sql = _pl_tree_to_sql(json.loads(literal.meta.serialize(format="json")))
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("SET TimeZone = 'Asia/Kathmandu'")
         assert con.execute(f"SELECT typeof({sql}), epoch_us({sql})").fetchone() == (expected_type, expected_us)
 
@@ -243,7 +243,7 @@ class TestNonFiniteFloatLiteralPushdown:
 
             import polars as pl
 
-            from duckdb.polars_io import _predicate_to_expression
+            from quacklab.polars_io import _predicate_to_expression
 
             if sys.flags.optimize == 0:
                 sys.exit("assertions are not stripped")

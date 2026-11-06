@@ -10,8 +10,8 @@ from typing import NoReturn
 
 import pytest
 
-import duckdb
-from duckdb.sqltypes import BIGINT
+import quacklab
+from quacklab.sqltypes import BIGINT
 
 
 class CustomBaseException(BaseException):
@@ -86,44 +86,44 @@ class TestUDFErrorPropagation:
     @pytest.mark.parametrize("udf_type", ["native", "arrow"])
     @pytest.mark.parametrize("exc", params(MUST_REACH_CALLER))
     def test_return_null_lets_a_fatal_exception_reach_the_caller(self, exc, udf_type):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("boom", raising_udf(exc), exception_handling="return_null", type=udf_type)
-        with pytest.raises(duckdb.InvalidInputException, match=f"{FORWARDED}{exc.__name__}: boom in udf"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"{FORWARDED}{exc.__name__}: boom in udf"):
             con.sql("select boom(i) from range(3) t(i)").fetchall()
 
     @pytest.mark.parametrize("udf_type", ["native", "arrow"])
     @pytest.mark.parametrize("exc", params(ORDINARY))
     def test_return_null_turns_an_ordinary_exception_into_null(self, exc, udf_type):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("boom", raising_udf(exc), exception_handling="return_null", type=udf_type)
         assert con.sql("select boom(i) from range(3) t(i)").fetchall() == [(None,), (None,), (None,)]
 
     @pytest.mark.parametrize("udf_type", ["native", "arrow"])
     @pytest.mark.parametrize("exc", params(MUST_REACH_CALLER + ORDINARY))
     def test_forward_error_reports_every_class(self, exc, udf_type):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("boom", raising_udf(exc), type=udf_type)
-        with pytest.raises(duckdb.InvalidInputException, match=f"{FORWARDED}{exc.__name__}: boom in udf"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"{FORWARDED}{exc.__name__}: boom in udf"):
             con.sql("select boom(i) from range(3) t(i)").fetchall()
 
     @pytest.mark.parametrize("exception_handling", ["default", "return_null"])
     @pytest.mark.parametrize("udf_type", ["native", "arrow"])
     def test_unprintable_fatal_exception_is_still_reported(self, udf_type, exception_handling):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function(
             "boom", raising_udf(UnprintableMemoryError), exception_handling=exception_handling, type=udf_type
         )
-        with pytest.raises(duckdb.InvalidInputException, match=f"{FORWARDED}UnprintableMemoryError$"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"{FORWARDED}UnprintableMemoryError$"):
             con.sql("select boom(1)").fetchall()
 
     @pytest.mark.parametrize("exception_handling", ["default", "return_null"])
     @pytest.mark.parametrize("udf_type", ["native", "arrow"])
     def test_class_whose_name_lookup_raises_is_still_reported(self, udf_type, exception_handling):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function(
             "boom", raising_udf(NamelessMemoryError), exception_handling=exception_handling, type=udf_type
         )
-        with pytest.raises(duckdb.InvalidInputException, match=f"{FORWARDED}NamelessMemoryError: boom in udf"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"{FORWARDED}NamelessMemoryError: boom in udf"):
             con.sql("select boom(1)").fetchall()
 
     @pytest.mark.parametrize("exception_handling", ["default", "return_null"])
@@ -133,10 +133,10 @@ class TestUDFErrorPropagation:
             msg = "bad \udcff message"
             raise MemoryError(msg)
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("boom", boom, exception_handling=exception_handling, type=udf_type)
         with pytest.raises(
-            duckdb.InvalidInputException, match=FORWARDED + re.escape("MemoryError: bad \\udcff message")
+            quacklab.InvalidInputException, match=FORWARDED + re.escape("MemoryError: bad \\udcff message")
         ):
             con.sql("select boom(1)").fetchall()
 
@@ -149,11 +149,11 @@ class TestUDFErrorPropagation:
         ],
     )
     def test_connection_stays_usable_after_a_udf_error(self, udf_type, expected_with_a_null_row):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function(
             "f", recovering_udf(udf_type), [BIGINT], BIGINT, exception_handling="return_null", type=udf_type
         )
-        with pytest.raises(duckdb.InvalidInputException, match=f"{FORWARDED}MemoryError: boom in udf"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"{FORWARDED}MemoryError: boom in udf"):
             con.sql("select f(0)").fetchall()
         rows = "(values (1, 1), (2, 2), (3, NULL), (4, 3)) t(k, x)"
         assert con.sql(f"select f(x) from {rows} order by k").fetchall() == expected_with_a_null_row
@@ -189,14 +189,14 @@ class TestUDFErrorPropagation:
             return column
 
         udf = native if udf_type == "native" else arrow
-        con = duckdb.connect(config={"threads": 4})
+        con = quacklab.connect(config={"threads": 4})
         # Five row groups give the scan several tasks, where range() gives one.
         con.execute("create table t as select range i from range(500000)")
         con.create_function("boom", udf, [BIGINT], BIGINT, exception_handling="return_null", type=udf_type)
         forwarded = ""
         try:
             con.sql("select sum(boom(i)) from t").fetchall()
-        except duckdb.InvalidInputException as error:
+        except quacklab.InvalidInputException as error:
             forwarded = str(error)
         assert raised_on, "every call of the UDF ran on the submitting thread, so no engine worker thread raised"
         assert raised_on[0] != submitting
@@ -232,27 +232,27 @@ class TestUDFErrorPropagation:
             raised.set()
             return UnsizedList([x])
 
-        con = duckdb.connect(config={"threads": 4})
+        con = quacklab.connect(config={"threads": 4})
         # Three row groups give the scan several tasks, where range() gives one.
         con.execute("create table t as select range i from range(250000)")
         con.create_function("unsized", unsized_once_off_the_submitting_thread, [BIGINT], "BIGINT[]")
-        with pytest.raises(duckdb.Error) as error:
+        with pytest.raises(quacklab.Error) as error:
             con.sql("select sum(len(unsized(i))) from t").fetchall()
         if timed_out.is_set():
             pytest.fail("no worker thread raised within 10 seconds")
         assert raised_on, "every call of the UDF ran on the submitting thread, so no engine worker thread raised"
         assert raised_on[0] != submitting
         # Raised by the conversion around the UDF, not by the UDF, so it is not the UDF's forwarded error.
-        assert type(error.value) is duckdb.Error
+        assert type(error.value) is quacklab.Error
         assert re.fullmatch(r"Traceback \(most recent call last\):\n(.*\n)*ValueError: no length\n?", str(error.value))
         assert con.sql("select 42").fetchall() == [(42,)]
         assert con.sql("select unsized(1)").fetchall() == [([1],)]
 
     def test_arrow_table_conversion_error_names_the_pyarrow_reason(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("mixed", lambda x: [1, "a"], [BIGINT], BIGINT, type="arrow")
         with pytest.raises(
-            duckdb.InvalidInputException, match=f"{ARROW_TABLE}ArrowInvalid: Could not convert 'a' with type str"
+            quacklab.InvalidInputException, match=f"{ARROW_TABLE}ArrowInvalid: Could not convert 'a' with type str"
         ):
             con.sql("select mixed(i) from range(2) t(i)").fetchall()
 
@@ -261,7 +261,7 @@ class TestUDFErrorPropagation:
             def __arrow_array__(self, type=None) -> NoReturn:
                 raise UnprintableMemoryError
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.create_function("unconvertible", lambda x: Unconvertible(), [BIGINT], BIGINT, type="arrow")
-        with pytest.raises(duckdb.InvalidInputException, match=f"{ARROW_TABLE}UnprintableMemoryError$"):
+        with pytest.raises(quacklab.InvalidInputException, match=f"{ARROW_TABLE}UnprintableMemoryError$"):
             con.sql("select unconvertible(1)").fetchall()

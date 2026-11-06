@@ -9,14 +9,14 @@ import re
 
 import pytest
 
-import duckdb
+import quacklab
 
 ROW_SHAPE = "a relation returns as many values as it declares columns"
 
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     yield connection
     connection.close()
 
@@ -84,7 +84,7 @@ class TestAReaderKeepsTheSchemaItBound:
     def test_a_csv_file_that_gained_a_column_is_refused(self, con, tmp_path):
         rel, path = built_over(con, tmp_path, "csv", FIRST["csv"])
         written(path, "csv", GAINED["csv"])
-        with pytest.raises(duckdb.InvalidInputException, match="CSV Error"):
+        with pytest.raises(quacklab.InvalidInputException, match="CSV Error"):
             rel.fetchall()
 
     def test_a_json_file_that_gained_a_field_answers_the_declared_columns_only(self, con, tmp_path):
@@ -106,7 +106,7 @@ class TestAReaderKeepsTheSchemaItBound:
     def test_a_csv_file_that_lost_a_column_is_refused(self, con, tmp_path):
         rel, path = built_over(con, tmp_path, "csv", FIRST["csv"])
         written(path, "csv", LOST["csv"])
-        with pytest.raises(duckdb.InvalidInputException, match="CSV Error"):
+        with pytest.raises(quacklab.InvalidInputException, match="CSV Error"):
             rel.fetchall()
 
     def test_a_json_file_that_lost_a_field_answers_null_for_it(self, con, tmp_path):
@@ -270,7 +270,7 @@ class TestGeneratedColumns:
         declared = rel.columns
         assert len(declared) == len(rel.fetchall()[0]), ROW_SHAPE
         written_file.write_text("a,b\n1,2\n")
-        with pytest.raises(duckdb.Error, match="CSV Error"):
+        with pytest.raises(quacklab.Error, match="CSV Error"):
             rel.fetchall()
 
 
@@ -319,7 +319,7 @@ class TestEveryOptionKeepsThePin:
 
     def test_a_pinned_call_that_cannot_bind_raises_at_construction(self, con, tmp_path, monkeypatch):
         # The reader never falls back to the sniffing call; a pin it cannot keep is an error at the call.
-        from duckdb import _seam
+        from quacklab import _seam
 
         path = tmp_path / "plain.csv"
         path.write_text("a\n1\n")
@@ -328,11 +328,11 @@ class TestEveryOptionKeepsThePin:
         def refusing(connection, sql, *args, **kwargs):
             if "auto_detect := false" in sql:
                 message = "the pinned call cannot bind"
-                raise duckdb.BinderException(message)
+                raise quacklab.BinderException(message)
             return bind(connection, sql, *args, **kwargs)
 
         monkeypatch.setattr(_seam, "bind", refusing)
-        with pytest.raises(duckdb.BinderException, match="pinned call cannot bind"):
+        with pytest.raises(quacklab.BinderException, match="pinned call cannot bind"):
             con.read_csv(str(path))
 
 
@@ -342,7 +342,7 @@ class TestANameTheReaderMadeUpCannotBePinned:
     def test_keys_differing_only_in_case_are_refused_at_construction_naming_them(self, con, tmp_path):
         path = tmp_path / "keys.json"
         path.write_text('{"a": 1, "A": 2}\n')
-        with pytest.raises(duckdb.InvalidInputException) as error:
+        with pytest.raises(quacklab.InvalidInputException) as error:
             con.read_json(str(path))
         message = str(error.value)
         assert re.search(r"\ba\b", message)

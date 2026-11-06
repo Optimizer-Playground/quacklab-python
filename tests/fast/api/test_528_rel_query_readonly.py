@@ -11,14 +11,14 @@ rel.query() trips the bug.
 
 from __future__ import annotations
 
-import duckdb
+import quacklab
 
 
 def test_rel_query_on_readonly_database(tmp_path):
     db_path = tmp_path / "readonly.duckdb"
 
     # Step 1: create the database with test data using a writable connection
-    with duckdb.connect(str(db_path)) as setup_conn:
+    with quacklab.connect(str(db_path)) as setup_conn:
         setup_conn.execute(
             """
             CREATE TABLE orders AS
@@ -29,7 +29,7 @@ def test_rel_query_on_readonly_database(tmp_path):
         )
 
     # Step 2: reopen read-only and exercise rel.query()
-    conn = duckdb.connect(str(db_path), read_only=True)
+    conn = quacklab.connect(str(db_path), read_only=True)
     try:
         rel = conn.sql("SELECT * FROM orders")
         result = rel.query(
@@ -45,14 +45,14 @@ def test_rel_query_on_readonly_database(tmp_path):
 def test_rel_select_on_readonly_database_still_works(tmp_path):
     """Sanity: rel.select() (which doesn't create a view) must continue to work."""
     db_path = tmp_path / "readonly.duckdb"
-    with duckdb.connect(str(db_path)) as setup_conn:
+    with quacklab.connect(str(db_path)) as setup_conn:
         setup_conn.execute("CREATE TABLE t AS SELECT 1 AS x")
 
-    conn = duckdb.connect(str(db_path), read_only=True)
+    conn = quacklab.connect(str(db_path), read_only=True)
     try:
         rel = conn.sql("SELECT * FROM t")
         result = rel.select(
-            duckdb.FunctionExpression("current_setting", duckdb.ConstantExpression("TimeZone"))
+            quacklab.FunctionExpression("current_setting", quacklab.ConstantExpression("TimeZone"))
         ).fetchall()[0]
         assert result is not None
         assert isinstance(result[0], str)
@@ -63,10 +63,10 @@ def test_rel_select_on_readonly_database_still_works(tmp_path):
 def test_conn_sql_on_readonly_database_still_works(tmp_path):
     """Sanity: conn.sql() (no view created) must continue to work."""
     db_path = tmp_path / "readonly.duckdb"
-    with duckdb.connect(str(db_path)) as setup_conn:
+    with quacklab.connect(str(db_path)) as setup_conn:
         setup_conn.execute("CREATE TABLE t AS SELECT 1 AS x")
 
-    conn = duckdb.connect(str(db_path), read_only=True)
+    conn = quacklab.connect(str(db_path), read_only=True)
     try:
         result = conn.sql("SELECT value FROM duckdb_settings() WHERE name = 'TimeZone'").fetchall()[0]
         assert result is not None

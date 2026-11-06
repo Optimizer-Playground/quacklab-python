@@ -22,8 +22,8 @@ from contextlib import contextmanager
 
 import pytest
 
-import duckdb
-from duckdb.sqltypes import BIGINT
+import quacklab
+from quacklab.sqltypes import BIGINT
 
 pa = pytest.importorskip("pyarrow")
 
@@ -39,7 +39,7 @@ TABLE = "to_arrow_table"
 READER = "to_arrow_reader"
 # The same two names on the connection and as module functions over the default connection.
 FORMS = [TABLE, READER]
-# Deprecated before the removal, so they stay gone; duckdb.arrow builds a relation from an Arrow object.
+# Deprecated before the removal, so they stay gone; quacklab.arrow builds a relation from an Arrow object.
 GONE = ["fetch_arrow_table", "fetch_record_batch", "pl"]
 
 # A plain warning, not a deprecation: one text per method, naming no version.
@@ -82,7 +82,7 @@ def expected_text(form):
 def zero_batch_refusal(form):
     if form == READER:
         return RuntimeError, READER_ZERO_BATCH
-    return duckdb.InvalidInputException, TABLE_ZERO_BATCH
+    return quacklab.InvalidInputException, TABLE_ZERO_BATCH
 
 
 def warns(form):
@@ -155,7 +155,7 @@ class TestSurface:
 
     @pytest.mark.parametrize("form", FORMS)
     def test_the_module_form_adds_a_keyword_only_connection(self, form):
-        parameters = list(inspect.signature(getattr(duckdb, form)).parameters.values())
+        parameters = list(inspect.signature(getattr(quacklab, form)).parameters.values())
         assert [(p.name, p.default, p.kind) for p in parameters] == [
             ("batch_size", DEFAULT_BATCH_SIZE, inspect.Parameter.POSITIONAL_OR_KEYWORD),
             ("connection", None, inspect.Parameter.KEYWORD_ONLY),
@@ -163,30 +163,30 @@ class TestSurface:
 
     @pytest.mark.parametrize("form", FORMS)
     def test_a_module_form_reads_the_default_connection(self, form):
-        duckdb.execute("SELECT 42 AS a")
-        assert as_table(duckdb, form).column("a").to_pylist() == [42]
+        quacklab.execute("SELECT 42 AS a")
+        assert as_table(quacklab, form).column("a").to_pylist() == [42]
 
     def test_a_module_form_takes_the_batch_size_positionally(self):
-        duckdb.execute("SELECT i AS a FROM range(3000) t(i)")
-        table = as_table(duckdb, READER, 1024)
+        quacklab.execute("SELECT i AS a FROM range(3000) t(i)")
+        table = as_table(quacklab, READER, 1024)
         assert [len(batch) for batch in table.to_batches()] == [1024, 1024, 952]
         assert table.column("a").to_pylist() == list(range(3000))
 
     def test_a_module_form_takes_the_connection_by_keyword(self, duckdb_cursor):
         duckdb_cursor.execute("SELECT 42 AS a")
-        assert as_table(duckdb, TABLE, connection=duckdb_cursor).column("a").to_pylist() == [42]
+        assert as_table(quacklab, TABLE, connection=duckdb_cursor).column("a").to_pylist() == [42]
 
     @pytest.mark.parametrize("name", GONE)
     def test_a_name_deprecated_before_the_removal_stays_gone(self, name, duckdb_cursor):
         assert not hasattr(duckdb_cursor, name)
-        assert not hasattr(duckdb, name)
+        assert not hasattr(quacklab, name)
 
     def test_arrow_stays_a_relation_builder_and_not_a_reader(self, duckdb_cursor):
         assert not hasattr(duckdb_cursor, "arrow")
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            relation = duckdb.arrow(pa.table({"a": [1]}))
-        assert isinstance(relation, duckdb.DuckDBPyRelation)
+            relation = quacklab.arrow(pa.table({"a": [1]}))
+        assert isinstance(relation, quacklab.DuckDBPyRelation)
 
     @pytest.mark.parametrize("ecosystem_call", ECOSYSTEM_CALLS_THAT_STAY_GONE)
     def test_an_ecosystem_call_through_a_deprecated_name_still_fails(self, ecosystem_call, duckdb_cursor):
@@ -296,7 +296,7 @@ class TestConsumption:
         # The consumed answer is two answers: the row lists answer [] and the rest answer None.
         pytest.importorskip("pandas")
         query = "SELECT i FROM range(10) t(i)"
-        drained = duckdb.connect()
+        drained = quacklab.connect()
         drained.execute(query).fetchall()
         assert terminal(drained) == consumed
         duckdb_cursor.execute(query)
@@ -354,7 +354,7 @@ class TestTheConnectionIsFree:
         assert 0 < len(reader.read_next_batch()) <= 1024
         # The rows were taken out of the DB-API result, so the refusal names the open Arrow stream
         # rather than the unfinished result of execute().
-        with pytest.raises(duckdb.ResourceInUseException, match=OPEN_RESULT):
+        with pytest.raises(quacklab.ResourceInUseException, match=OPEN_RESULT):
             big.execute("SELECT 42")
         assert reader.read_all().num_rows == ROW_GROUPS - 1024
         assert big.execute("SELECT 42").fetchall() == [(42,)]
@@ -385,7 +385,7 @@ class TestTheConnectionIsFree:
         assert reader.read_all().num_rows == ROW_GROUPS - 1024
 
     def test_a_reader_survives_del_conn(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("SELECT i, i::VARCHAR AS s FROM range(2000) t(i)")
         reader = call(con, READER, 512)
         del con
@@ -398,7 +398,7 @@ class TestTheConnectionIsFree:
         # A reader owns the stream it is reading, so close() beside it is accepted and the rest
         # reads out, because those rows are in client memory. A call started after close() is
         # refused instead, since it needs a live connection to run a statement on.
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute(f"SELECT i FROM range({ROW_GROUPS}) t(i)")
         reader = call(con, READER, 1024)
         first = len(reader.read_next_batch())
@@ -542,8 +542,8 @@ class TestEncoding:
         assert actual.column("g").to_pylist() == expected.column("g").to_pylist()
 
     def test_geometry_reads_as_geoarrow_wkb_after_the_connection_is_gone(self):
-        expected = duckdb.connect().sql(GEOM_SQL).to_arrow_table()
-        con = duckdb.connect()
+        expected = quacklab.connect().sql(GEOM_SQL).to_arrow_table()
+        con = quacklab.connect()
         con.execute(GEOM_SQL)
         reader = call(con, READER)
         del con
@@ -717,8 +717,8 @@ class TestWarning:
 
     @pytest.mark.parametrize("form", FORMS)
     def test_a_module_form_warns_too(self, form):
-        method = getattr(duckdb, form)
-        duckdb.execute("SELECT 42 AS a")
+        method = getattr(quacklab, form)
+        quacklab.execute("SELECT 42 AS a")
         with pytest.warns(UserWarning, match="extra copy") as record:
             method()
         assert [(type(warning.message), str(warning.message)) for warning in record] == [
@@ -764,7 +764,7 @@ class TestStatementKinds:
         # 21 kinds, including Count BIGINT with no rows for a DDL statement and Success BOOLEAN with
         # none for SET, with the side effects applied once.
         pytest.importorskip("pandas")
-        reference, actual = duckdb.connect(), duckdb.connect()
+        reference, actual = quacklab.connect(), quacklab.connect()
         for con in (reference, actual):
             for line in setup:
                 con.execute(line)
@@ -775,7 +775,7 @@ class TestStatementKinds:
         assert table.schema.names == names
         assert rows_of(table) == expected
         # The DB-API's DataFrame answer for the same statement agrees on the columns and the count.
-        frame_con = duckdb.connect()
+        frame_con = quacklab.connect()
         for line in setup:
             frame_con.execute(line)
         frame = frame_con.execute(statement).df()
@@ -790,7 +790,7 @@ class TestStatementKinds:
 
     def test_executemany_answers_the_last_set(self, duckdb_cursor):
         # The DB-API keeps the last parameter set's result, so Arrow answers what fetchall does.
-        reference = duckdb.connect()
+        reference = quacklab.connect()
         reference.executemany("SELECT ? AS v", [[1], [2]])
         expected = reference.fetchall()
         duckdb_cursor.executemany("SELECT ? AS v", [[1], [2]])
@@ -800,7 +800,7 @@ class TestStatementKinds:
     def test_executemany_of_a_write_keeps_the_accumulated_rowcount(self, form, duckdb_cursor):
         # The Arrow answers the last set's rows, as fetchall does, while rowcount keeps the total
         # over every set.
-        reference = duckdb.connect()
+        reference = quacklab.connect()
         for con in (reference, duckdb_cursor):
             con.execute("CREATE TABLE t (i INTEGER)")
             con.executemany("INSERT INTO t VALUES (?)", [[1], [2], [3]])
@@ -848,7 +848,7 @@ class TestFailures:
         duckdb_cursor.execute("SET threads = 1")
         duckdb_cursor.execute(self.LATE_ERROR)
         method = getattr(duckdb_cursor, form)
-        with unwarned(), pytest.raises(duckdb.InvalidInputException, match="late"):
+        with unwarned(), pytest.raises(quacklab.InvalidInputException, match="late"):
             method()
         assert duckdb_cursor.execute("SELECT 42").fetchall() == [(42,)]
 
@@ -856,7 +856,7 @@ class TestFailures:
         duckdb_cursor.execute("SET threads = 1")
         duckdb_cursor.execute(self.LATE_ERROR)
         description = duckdb_cursor.description
-        with unwarned(), pytest.raises(duckdb.InvalidInputException, match="late"):
+        with unwarned(), pytest.raises(quacklab.InvalidInputException, match="late"):
             duckdb_cursor.to_arrow_table()
         assert duckdb_cursor.fetchall() == []
         assert duckdb_cursor.description == description
@@ -875,7 +875,7 @@ class TestFailures:
         timer.daemon = True
         timer.start()
         try:
-            with unwarned(), pytest.raises(duckdb.InterruptException):
+            with unwarned(), pytest.raises(quacklab.InterruptException):
                 method()
         finally:
             timer.cancel()
@@ -886,14 +886,14 @@ class TestFailures:
         assert duckdb_cursor.execute("SELECT 42").fetchall() == [(42,)]
 
     @staticmethod
-    def with_an_aborted_transaction() -> duckdb.DuckDBPyConnection:
-        con = duckdb.connect()
+    def with_an_aborted_transaction() -> quacklab.DuckDBPyConnection:
+        con = quacklab.connect()
         con.execute("CREATE TABLE t (i INTEGER)")
         con.execute("BEGIN")
         # A completed result leaves the connection free, so the failing statement can run beside it
         # and invalidate the transaction the result still sits in.
         con.execute("CALL pragma_table_info('t')")
-        with pytest.raises(duckdb.ParserException):
+        with pytest.raises(quacklab.ParserException):
             con.sql("INSERT INTO t VALUES (1); SELEC 2")
         return con
 
@@ -916,7 +916,7 @@ class TestFailures:
         reader = self.beside_an_open_relation_reader(duckdb_cursor)
         method = getattr(duckdb_cursor, form)
         try:
-            with unwarned(), pytest.raises(duckdb.ResourceInUseException, match=OPEN_RESULT):
+            with unwarned(), pytest.raises(quacklab.ResourceInUseException, match=OPEN_RESULT):
                 method()
             assert duckdb_cursor.fetchall() == [(i,) for i in range(5)]
         finally:
@@ -927,7 +927,7 @@ class TestFailures:
         reader = self.beside_an_open_relation_reader(duckdb_cursor)
         method = getattr(duckdb_cursor, form)
         try:
-            with unwarned(), pytest.raises(duckdb.ResourceInUseException, match=OPEN_RESULT):
+            with unwarned(), pytest.raises(quacklab.ResourceInUseException, match=OPEN_RESULT):
                 method()
         finally:
             reader.close()
@@ -941,7 +941,7 @@ class TestFailures:
         # stay fetchable, for the same reason a bad batch size is refused before the take.
         con = self.with_an_aborted_transaction()
         method = getattr(con, form)
-        with unwarned(), pytest.raises(duckdb.TransactionException, match="aborted"):
+        with unwarned(), pytest.raises(quacklab.TransactionException, match="aborted"):
             method()
         assert len(con.fetchall()) == 1
 
@@ -952,13 +952,13 @@ class TestRefusals:
     @pytest.mark.parametrize("form", FORMS)
     def test_no_open_result_is_refused(self, form, duckdb_cursor):
         method = getattr(duckdb_cursor, form)
-        with unwarned(), pytest.raises(duckdb.InvalidInputException, match=NO_RESULT):
+        with unwarned(), pytest.raises(quacklab.InvalidInputException, match=NO_RESULT):
             method()
 
     @pytest.mark.parametrize("form", FORMS)
     def test_a_module_form_without_a_result_is_refused(self, form, duckdb_cursor):
-        method = getattr(duckdb, form)
-        with unwarned(), pytest.raises(duckdb.InvalidInputException, match=NO_RESULT):
+        method = getattr(quacklab, form)
+        with unwarned(), pytest.raises(quacklab.InvalidInputException, match=NO_RESULT):
             method(connection=duckdb_cursor)
 
     @pytest.mark.parametrize("form", FORMS)
@@ -967,11 +967,11 @@ class TestRefusals:
         # "No open result set", which is what a row fetch answers because close() emptied the slot
         # and the fetch never reaches a connection check. A reader built before the close reads on.
         # The match is loose because the client and the engine word the refusal differently.
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("SELECT 42 AS a")
         con.close()
         method = getattr(con, form)
-        with pytest.raises(duckdb.InvalidInputException, match=NO_RESULT):
+        with pytest.raises(quacklab.InvalidInputException, match=NO_RESULT):
             con.fetchall()
-        with unwarned(), pytest.raises(duckdb.ConnectionException, match=CLOSED):
+        with unwarned(), pytest.raises(quacklab.ConnectionException, match=CLOSED):
             method()

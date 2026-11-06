@@ -6,16 +6,16 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-import duckdb
-from duckdb._expression import col, count_all, fn, lit, row_number
+import quacklab
+from quacklab._expression import col, count_all, fn, lit, row_number
 
 if TYPE_CHECKING:
-    from duckdb._expression import Expr
+    from quacklab._expression import Expr
 
 
 @pytest.fixture(scope="module")
-def con() -> duckdb.DuckDBPyConnection:
-    connection = duckdb.connect()
+def con() -> quacklab.DuckDBPyConnection:
+    connection = quacklab.connect()
     connection.execute(
         "CREATE TABLE t AS SELECT * FROM (VALUES "
         "(1, 3, 'a'), (1, 1, 'b'), (1, 2, NULL), (1, NULL, 'd'), (2, 5, 'c'), (2, 5, 'c')"
@@ -25,11 +25,11 @@ def con() -> duckdb.DuckDBPyConnection:
     connection.close()
 
 
-def grouped(con: duckdb.DuckDBPyConnection, expression: Expr, where: str = "") -> list[tuple]:
+def grouped(con: quacklab.DuckDBPyConnection, expression: Expr, where: str = "") -> list[tuple]:
     return con.execute(f"SELECT g, {expression.fragment()} FROM t {where} GROUP BY g ORDER BY g").fetchall()
 
 
-def answers(con: duckdb.DuckDBPyConnection, sql: str, where: str = "") -> list[tuple]:
+def answers(con: quacklab.DuckDBPyConnection, sql: str, where: str = "") -> list[tuple]:
     return con.execute(f"SELECT g, {sql} FROM t {where} GROUP BY g ORDER BY g").fetchall()
 
 
@@ -123,24 +123,24 @@ class TestRefusals:
         with pytest.raises(TypeError, match="at least one key"):
             col("x").first(order_by=[])
 
-    def test_what_only_the_binder_knows_fails_at_run_time(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_what_only_the_binder_knows_fails_at_run_time(self, con: quacklab.DuckDBPyConnection) -> None:
         """A scalar call, a window-only function, a DISTINCT key outside the arguments and a star all build."""
         scalar = fn("upper", col("x")).order_by(col("t"))
         assert scalar.fragment() == 'upper("x" ORDER BY "t")'
-        with pytest.raises(duckdb.InvalidInputException, match="Scalar Function"):
+        with pytest.raises(quacklab.InvalidInputException, match="Scalar Function"):
             con.execute(f"SELECT {scalar.fragment()} FROM t")
-        with pytest.raises(duckdb.BinderException):
+        with pytest.raises(quacklab.BinderException):
             con.execute(f"SELECT {row_number().order_by(col('t')).fragment()} FROM t")
-        with pytest.raises(duckdb.BinderException, match="DISTINCT aggregate"):
+        with pytest.raises(quacklab.BinderException, match="DISTINCT aggregate"):
             con.execute(f"SELECT {col('x').n_unique().order_by(col('t')).fragment()} FROM t")
-        with pytest.raises(duckdb.BinderException, match="STAR"):
+        with pytest.raises(quacklab.BinderException, match="STAR"):
             con.execute(f"SELECT {count_all().order_by(col('t')).fragment()} FROM t")
 
 
 class TestAnswers:
     """Each ordered call answers what the same SQL answers, on groups with NULLs in the key and in the value."""
 
-    def test_first_and_last(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_first_and_last(self, con: quacklab.DuckDBPyConnection) -> None:
         assert grouped(con, col("x").first().order_by(col("t"))) == [(1, "b"), (2, "c")]
         assert grouped(con, col("x").last().order_by(col("t"))) == [(1, "d"), (2, "c")]
         assert grouped(con, col("x").first().order_by(col("t").nulls_first())) == [(1, "d"), (2, "c")]
@@ -148,36 +148,36 @@ class TestAnswers:
         assert grouped(con, col("x").first().order_by(col("t").desc())) == [(1, "a"), (2, "c")]
         assert grouped(con, col("x").first().order_by(col("t").desc().nulls_first())) == [(1, "d"), (2, "c")]
 
-    def test_a_null_value_is_a_value(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_null_value_is_a_value(self, con: quacklab.DuckDBPyConnection) -> None:
         picked = col("x").first().order_by(col("t")).where(col("t") > 1)
         assert grouped(con, picked) == answers(con, "first(x ORDER BY t) FILTER (WHERE t > 1)")
         assert grouped(con, picked) == [(1, None), (2, "c")]
 
-    def test_a_second_key_breaks_a_tie(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_a_second_key_breaks_a_tie(self, con: quacklab.DuckDBPyConnection) -> None:
         # In group 1 three rows tie on `x IS NULL`; the second key decides which of them is first.
         lowest = col("t").first().order_by(col("x").is_null(), col("t"))
         highest = col("t").first().order_by(col("x").is_null(), col("t").desc())
         assert grouped(con, lowest) == answers(con, "first(t ORDER BY x IS NULL, t)") == [(1, 1), (2, 5)]
         assert grouped(con, highest) == answers(con, "first(t ORDER BY x IS NULL, t DESC)") == [(1, 3), (2, 5)]
 
-    def test_string_agg_and_array_agg(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_string_agg_and_array_agg(self, con: quacklab.DuckDBPyConnection) -> None:
         joined = col("x").string_agg(lit(",")).order_by(col("t"))
         assert grouped(con, joined) == [(1, "b,a,d"), (2, "c,c")]
         listed = col("x").array_agg().order_by(col("t").desc())
         assert grouped(con, listed) == [(1, ["a", None, "b", "d"]), (2, ["c", "c"])]
 
-    def test_with_distinct(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_with_distinct(self, con: quacklab.DuckDBPyConnection) -> None:
         ordered = col("x").n_unique().order_by(col("x"))
         assert grouped(con, ordered) == answers(con, "count(DISTINCT x ORDER BY x)")
         assert grouped(con, ordered) == [(1, 3), (2, 1)]
 
-    def test_as_a_window(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_as_a_window(self, con: quacklab.DuckDBPyConnection) -> None:
         windowed = col("x").first().order_by(col("t")).over(partition_by=col("g"))
         assert windowed.fragment() == '"first"("x" ORDER BY "t") OVER (PARTITION BY "g")'
         rows = con.execute(f"SELECT {windowed.fragment()} FROM t ORDER BY g, t").fetchall()
         assert [r[0] for r in rows] == ["b", "b", "b", "b", "c", "c"]
 
-    def test_as_a_window_ignoring_nulls(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_as_a_window_ignoring_nulls(self, con: quacklab.DuckDBPyConnection) -> None:
         keys = col("x").nulls_first()
         with_nulls = fn("first_value", col("x")).order_by(keys).over(partition_by=col("g"))
         without = fn("first_value", col("x")).order_by(keys).ignore_nulls().over(partition_by=col("g"))
@@ -185,7 +185,7 @@ class TestAnswers:
         assert [r[0] for r in con.execute(f"SELECT {with_nulls.fragment()}{source}").fetchall()][:4] == [None] * 4
         assert [r[0] for r in con.execute(f"SELECT {without.fragment()}{source}").fetchall()] == ["a"] * 4 + ["c"] * 2
 
-    def test_over_an_empty_group(self, con: duckdb.DuckDBPyConnection) -> None:
+    def test_over_an_empty_group(self, con: quacklab.DuckDBPyConnection) -> None:
         assert grouped(con, col("x").first().order_by(col("t")), "WHERE false") == []
         empty = con.execute(f"SELECT {col('x').first().order_by(col('t')).fragment()} FROM t WHERE false").fetchall()
         assert empty == [(None,)]

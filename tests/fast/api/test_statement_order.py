@@ -7,7 +7,7 @@ import textwrap
 
 import pytest
 
-import duckdb
+import quacklab
 
 ROWS = 1_000_000
 UNFINISHED_EXECUTE = "unfinished result from execute"
@@ -36,7 +36,7 @@ WITH_PARAMETERS = [
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     # One thread bounds how far a statement runs before it is read.
     connection.execute("SET threads = 1")
     yield connection
@@ -90,12 +90,12 @@ INTERRUPTED_SCAN = """
             import signal
             import threading
             import time
-            import duckdb
+            import quacklab
             import fsspec
-            from duckdb.sqltypes import BIGINT
+            from quacklab.sqltypes import BIGINT
             # A background job starts with SIGINT ignored, which would turn the simulated Ctrl-C into nothing
             signal.signal(signal.SIGINT, signal.default_int_handler)
-            con = duckdb.connect(config={"threads": 1})
+            con = quacklab.connect(config={"threads": 1})
             calls = []
             data = b"1\\n" * 2000000
 
@@ -105,7 +105,7 @@ INTERRUPTED_SCAN = """
                         try:
                             con.execute("SELECT 99")
                             print("close ran", flush=True)
-                        except duckdb.Error as error:
+                        except quacklab.Error as error:
                             print("close refused:", type(error).__name__, flush=True)
                     super().close()
 
@@ -192,9 +192,9 @@ class TestAnErrorStopsTheScriptAtItsStatement:
     @pytest.mark.parametrize(
         ("failing", "error"),
         [
-            pytest.param("SELEC 1", duckdb.ParserException, id="syntax"),
-            pytest.param("PRAGMA import_database('{missing}')", duckdb.IOException, id="expansion"),
-            pytest.param("SELECT * FROM missing", duckdb.CatalogException, id="binder"),
+            pytest.param("SELEC 1", quacklab.ParserException, id="syntax"),
+            pytest.param("PRAGMA import_database('{missing}')", quacklab.IOException, id="expansion"),
+            pytest.param("SELECT * FROM missing", quacklab.CatalogException, id="binder"),
         ],
     )
     @pytest.mark.parametrize("run", [runner("execute"), runner("sql")])
@@ -216,18 +216,18 @@ class TestAnErrorStopsTheScriptAtItsStatement:
     @pytest.mark.parametrize("run", [runner("execute"), runner("sql"), runner("executemany")])
     def test_a_parse_error_shows_its_place_in_the_query_as_the_engine_does(self, con, run):
         # get_table_names parses through the engine's own path, which adds the place of the error
-        with pytest.raises(duckdb.ParserException) as from_the_engine:
+        with pytest.raises(quacklab.ParserException) as from_the_engine:
             con.get_table_names("SELEC 2")
-        with pytest.raises(duckdb.ParserException) as alone:
+        with pytest.raises(quacklab.ParserException) as alone:
             run(con, "SELEC 2")
         assert str(alone.value) == str(from_the_engine.value)
-        with pytest.raises(duckdb.ParserException, match=re.escape("LINE 1: SELECT 1; SELEC 2")):
+        with pytest.raises(quacklab.ParserException, match=re.escape("LINE 1: SELECT 1; SELEC 2")):
             run(con, "SELECT 1; SELEC 2")
 
     @pytest.mark.parametrize("run", [runner("execute"), runner("sql"), runner("executemany")])
     def test_a_parse_error_follows_errors_as_json(self, con, run):
         con.execute("SET errors_as_json = true")
-        with pytest.raises(duckdb.ParserException) as error:
+        with pytest.raises(quacklab.ParserException) as error:
             run(con, "SELECT 1; SELEC 2")
         details = json.loads(str(error.value).split("Parser Error: ", 1)[1])
         assert details["error_subtype"] == "SYNTAX_ERROR"
@@ -235,7 +235,7 @@ class TestAnErrorStopsTheScriptAtItsStatement:
 
     def test_an_unterminated_string_anywhere_stops_the_whole_script(self, con):
         # The engine tokenizes the whole string before it parses the first statement.
-        with pytest.raises(duckdb.ParserException, match="unterminated"):
+        with pytest.raises(quacklab.ParserException, match="unterminated"):
             con.execute("CREATE TABLE before (i INT); SELECT 'unterminated")
         assert tables(con) == []
 
@@ -246,11 +246,11 @@ class TestTheLastStatement:
         assert con.execute("SELECT i FROM p").fetchall() == [(7,)]
 
     def test_a_syntax_error_after_a_placeholder_wins_over_the_refusal(self, con):
-        with pytest.raises(duckdb.ParserException, match="syntax error"):
+        with pytest.raises(quacklab.ParserException, match="syntax error"):
             con.execute("SELECT ?; SELEC 2", [1])
 
     def test_a_placeholder_before_the_last_statement_errors_after_the_statements_in_front_of_it(self, con):
-        with pytest.raises(duckdb.NotImplementedException, match="only supported for the last statement"):
+        with pytest.raises(quacklab.NotImplementedException, match="only supported for the last statement"):
             con.execute("CREATE TABLE p (i INT); INSERT INTO p VALUES (?); SELECT 1", [7])
         assert con.execute("SELECT count(*) FROM p").fetchall() == [(0,)]
 
@@ -258,19 +258,19 @@ class TestTheLastStatement:
     def test_parameters_without_a_statement_to_take_them_are_refused(self, con, tmp_path, run):
         empty = (tmp_path / "empty").as_posix()
         con.execute(f"EXPORT DATABASE '{empty}'")
-        with pytest.raises(duckdb.InvalidInputException, match=NO_STATEMENT_TAKES_PARAMETERS):
+        with pytest.raises(quacklab.InvalidInputException, match=NO_STATEMENT_TAKES_PARAMETERS):
             run(con, f"SELECT 42; IMPORT DATABASE '{empty}'", [1])
 
     @pytest.mark.parametrize("run", WITH_PARAMETERS)
     def test_parameters_for_a_query_without_statements_are_refused(self, con, run):
-        with pytest.raises(duckdb.InvalidInputException, match=NO_STATEMENT_TAKES_PARAMETERS):
+        with pytest.raises(quacklab.InvalidInputException, match=NO_STATEMENT_TAKES_PARAMETERS):
             run(con, "", [1])
 
     @pytest.mark.parametrize("run", WITH_PARAMETERS)
     def test_parameters_for_a_statement_that_expands_into_several_are_refused_by_the_engine(self, con, run):
         con.execute("CREATE TABLE p AS SELECT * FROM (VALUES ('a', 1), ('b', 2), ('a', 3)) t(k, v)")
         with pytest.raises(
-            duckdb.InvalidInputException, match="not supported for a statement that expands into several"
+            quacklab.InvalidInputException, match="not supported for a statement that expands into several"
         ):
             run(con, "PIVOT p ON k USING sum(v + ?)", [1])
 
@@ -279,7 +279,7 @@ class TestTheLastStatement:
     ):
         con.execute("CREATE TABLE p AS SELECT * FROM (VALUES ('a', 1), ('b', 2), ('a', 3)) t(k, v)")
         with pytest.raises(
-            duckdb.InvalidInputException, match="not supported for a statement that expands into several"
+            quacklab.InvalidInputException, match="not supported for a statement that expands into several"
         ):
             con.executemany("PIVOT p ON k USING sum(v)", [[1]])
 
@@ -358,7 +358,7 @@ class TestTheLastStatement:
     def test_executemany_refuses_malformed_parameter_sets_before_running_anything(
         self, con, script, parameter_sets, error
     ):
-        with pytest.raises(duckdb.InvalidInputException, match=error):
+        with pytest.raises(quacklab.InvalidInputException, match=error):
             con.executemany(script, parameter_sets)
         assert tables(con) == []
 
@@ -370,7 +370,7 @@ class TestTheLastStatement:
         # The first statement is known as parsed, before it expands, so the list is checked as for any statement
         empty = (tmp_path / "empty").as_posix()
         con.execute(f"EXPORT DATABASE '{empty}'")
-        with pytest.raises(duckdb.InvalidInputException, match="requires a non-empty list"):
+        with pytest.raises(quacklab.InvalidInputException, match="requires a non-empty list"):
             con.executemany(f"IMPORT DATABASE '{empty}'", [])
 
     def test_executemany_runs_a_statement_before_one_that_expands_to_nothing_once(self, con, tmp_path):
@@ -505,7 +505,7 @@ class TestTheGroupResult:
         con.execute("CREATE TABLE first_table AS SELECT range AS i FROM range(5)")
         con.execute("CREATE TABLE second_table AS SELECT range AS i FROM range(3)")
         con.execute(f"EXPORT DATABASE '{export}'")
-        importing = duckdb.connect()
+        importing = quacklab.connect()
         importing.execute(f"IMPORT DATABASE '{export}'")
         assert importing.rowcount == -1
         assert importing.fetchall() == []
@@ -542,9 +542,9 @@ class TestAnErrorInAnExplicitTransaction:
     @pytest.mark.parametrize(
         ("failing", "error"),
         [
-            pytest.param("SELEC 1", duckdb.ParserException, id="syntax"),
-            pytest.param("SELECT 'unterminated", duckdb.ParserException, id="tokenizer"),
-            pytest.param("PRAGMA import_database('{missing}')", duckdb.IOException, id="expansion"),
+            pytest.param("SELEC 1", quacklab.ParserException, id="syntax"),
+            pytest.param("SELECT 'unterminated", quacklab.ParserException, id="tokenizer"),
+            pytest.param("PRAGMA import_database('{missing}')", quacklab.IOException, id="expansion"),
         ],
     )
     @pytest.mark.parametrize(
@@ -555,7 +555,7 @@ class TestAnErrorInAnExplicitTransaction:
         con.execute("BEGIN")
         with pytest.raises(error):
             run(con, before + failing.format(missing=(tmp_path / "missing").as_posix()))
-        with pytest.raises(duckdb.TransactionException, match=ABORTED):
+        with pytest.raises(quacklab.TransactionException, match=ABORTED):
             con.execute("SELECT 42")
         con.execute("ROLLBACK")
         assert tables(con) == []
@@ -563,15 +563,15 @@ class TestAnErrorInAnExplicitTransaction:
     def test_a_placeholder_before_the_last_statement_aborts_the_transaction(self, con):
         con.execute("CREATE TABLE p (i INT)")
         con.execute("BEGIN")
-        with pytest.raises(duckdb.NotImplementedException, match="only supported for the last statement"):
+        with pytest.raises(quacklab.NotImplementedException, match="only supported for the last statement"):
             con.execute("INSERT INTO p VALUES (1); INSERT INTO p VALUES (?); SELECT 1", [7])
-        with pytest.raises(duckdb.TransactionException, match=ABORTED):
+        with pytest.raises(quacklab.TransactionException, match=ABORTED):
             con.execute("SELECT 42")
         con.execute("ROLLBACK")
         assert con.execute("SELECT count(*) FROM p").fetchall() == [(0,)]
 
     def test_outside_a_transaction_a_parse_error_leaves_the_connection_usable(self, con):
-        with pytest.raises(duckdb.ParserException):
+        with pytest.raises(quacklab.ParserException):
             con.execute("SELEC 1")
         assert con.execute("SELECT 42").fetchall() == [(42,)]
 
@@ -579,15 +579,15 @@ class TestAnErrorInAnExplicitTransaction:
         empty = (tmp_path / "empty").as_posix()
         con.execute(f"EXPORT DATABASE '{empty}'")
         con.execute("BEGIN")
-        with pytest.raises(duckdb.InvalidInputException, match=NO_STATEMENT_TAKES_PARAMETERS):
+        with pytest.raises(quacklab.InvalidInputException, match=NO_STATEMENT_TAKES_PARAMETERS):
             con.execute(f"SELECT 42; IMPORT DATABASE '{empty}'", [1])
-        with pytest.raises(duckdb.TransactionException, match=ABORTED):
+        with pytest.raises(quacklab.TransactionException, match=ABORTED):
             con.execute("SELECT 42")
         con.execute("ROLLBACK")
 
     def test_extract_statements_leaves_the_transaction_valid(self, con):
         con.execute("BEGIN")
-        with pytest.raises(duckdb.ParserException):
+        with pytest.raises(quacklab.ParserException):
             con.extract_statements("SELEC 1")
         assert con.execute("SELECT 42").fetchall() == [(42,)]
 
@@ -608,7 +608,7 @@ class TestAnOpenResult:
         assert advanced < ROWS
 
     def test_a_rollback_after_the_first_statement_drains_the_open_result_first(self, open_result):
-        with pytest.raises(duckdb.InvalidInputException, match="late"):
+        with pytest.raises(quacklab.InvalidInputException, match="late"):
             open_result.execute("SELECT 1; ROLLBACK")
 
     @pytest.mark.parametrize("script", ["", ";", "/* only a comment */"])
@@ -616,13 +616,13 @@ class TestAnOpenResult:
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
         assert con.execute(script) is None
-        with pytest.raises(duckdb.InvalidInputException, match="No open result set"):
+        with pytest.raises(quacklab.InvalidInputException, match="No open result set"):
             con.fetchone()
 
     def test_a_parse_error_in_the_first_statement_leaves_the_open_result(self, con):
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.ParserException):
+        with pytest.raises(quacklab.ParserException):
             con.execute("SELEC 1; CREATE TABLE t (i INT)")
         assert con.fetchone() == (1,)
         assert tables(con) == []
@@ -631,39 +631,39 @@ class TestAnOpenResult:
         pytest.importorskip("pyarrow")
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.ParserException):
+        with pytest.raises(quacklab.ParserException):
             con.execute("SELEC 1")
-        with pytest.raises(duckdb.TransactionException, match=ABORTED), pytest.warns(UserWarning, match="extra copy"):
+        with pytest.raises(quacklab.TransactionException, match=ABORTED), pytest.warns(UserWarning, match="extra copy"):
             con.to_arrow_table()
         assert con.execute("SELECT 42").fetchall() == [(42,)]
 
     def test_a_parse_error_in_a_later_statement_comes_after_the_open_result_made_way(self, con):
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.ParserException):
+        with pytest.raises(quacklab.ParserException):
             con.execute("CREATE TABLE t (i INT); SELEC 1")
-        with pytest.raises(duckdb.InvalidInputException, match="No open result set"):
+        with pytest.raises(quacklab.InvalidInputException, match="No open result set"):
             con.fetchone()
         assert tables(con) == ["t"]
 
     def test_an_expansion_error_in_the_first_statement_comes_after_the_open_result_made_way(self, con, tmp_path):
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.IOException):
+        with pytest.raises(quacklab.IOException):
             con.execute(f"PRAGMA import_database('{(tmp_path / 'missing').as_posix()}')")
-        with pytest.raises(duckdb.InvalidInputException, match="No open result set"):
+        with pytest.raises(quacklab.InvalidInputException, match="No open result set"):
             con.fetchone()
 
     def test_an_import_runs_in_its_own_transaction_once_the_open_result_made_way(self, con, tmp_path):
         export = (tmp_path / "export").as_posix()
-        source = duckdb.connect()
+        source = quacklab.connect()
         source.execute("CREATE TABLE a AS SELECT 1 AS i")
         source.execute("CREATE TABLE b AS SELECT 2 AS i")
         source.execute(f"EXPORT DATABASE '{export}'")
         con.execute("CREATE TABLE b (i INT)")
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.CatalogException, match="already exists"):
+        with pytest.raises(quacklab.CatalogException, match="already exists"):
             con.execute(f"IMPORT DATABASE '{export}'")
         assert tables(con) == ["b"]
         policy = con.execute("SELECT current_setting('current_transaction_invalidation_policy')").fetchall()
@@ -674,14 +674,14 @@ class TestAnOpenResult:
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
         # The parser splits this into adding the column and adding its constraint, which the existing row violates
-        with pytest.raises(duckdb.ConstraintException):
+        with pytest.raises(quacklab.ConstraintException):
             con.execute("ALTER TABLE t ADD COLUMN b INT NOT NULL")
         assert [row[0] for row in con.execute("DESCRIBE t").fetchall()] == ["a"]
 
     def test_sql_refuses_the_statements_before_the_last_while_execute_holds_a_result(self, con):
         con.execute(f"SELECT * FROM range({ROWS})")
         con.fetchone()
-        with pytest.raises(duckdb.ResourceInUseException, match=UNFINISHED_EXECUTE):
+        with pytest.raises(quacklab.ResourceInUseException, match=UNFINISHED_EXECUTE):
             con.sql("CREATE TABLE w (i INT); SELECT 1")
         assert con.fetchone() == (1,)
         assert tables(con) == []
@@ -690,7 +690,7 @@ class TestAnOpenResult:
 class TestExtractStatements:
     def test_extract_statements_returns_statements_as_parsed_and_runs_nothing(self, con):
         statements = con.extract_statements("CREATE TABLE x (i INT); PRAGMA table_info('x')")
-        assert [s.type for s in statements] == [duckdb.StatementType.CREATE, duckdb.StatementType.PRAGMA]
+        assert [s.type for s in statements] == [quacklab.StatementType.CREATE, quacklab.StatementType.PRAGMA]
         assert tables(con) == []
 
     def test_extract_statements_reads_no_export_a_pragma_names(self, con, tmp_path):
@@ -698,7 +698,7 @@ class TestExtractStatements:
         script = f"EXPORT DATABASE '{missing}'; DROP TABLE integers; PRAGMA import_database('{missing}')"
         statements = con.extract_statements(script)
         assert [s.type for s in statements] == [
-            duckdb.StatementType.EXPORT,
-            duckdb.StatementType.DROP,
-            duckdb.StatementType.PRAGMA,
+            quacklab.StatementType.EXPORT,
+            quacklab.StatementType.DROP,
+            quacklab.StatementType.PRAGMA,
         ]

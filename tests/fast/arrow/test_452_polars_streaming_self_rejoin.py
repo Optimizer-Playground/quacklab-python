@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-import duckdb
+import quacklab
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -54,8 +54,8 @@ def test_452_polars_streaming_self_rejoin_does_not_drop_rows(tmp_path: Path) -> 
 
     ref = build(pl.scan_parquet(left_path), pl.scan_parquet(right_path)).collect()
 
-    db_l = duckdb.connect(":memory:")
-    db_r = duckdb.connect(":memory:")
+    db_l = quacklab.connect(":memory:")
+    db_r = quacklab.connect(":memory:")
     try:
         left_lf = db_l.sql(f"select * from read_parquet('{left_path}')").pl(lazy=True)
         right_lf = db_r.sql(f"select * from read_parquet('{right_path}')").pl(lazy=True)

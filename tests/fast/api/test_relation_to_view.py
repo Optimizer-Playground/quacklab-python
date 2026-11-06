@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 
 class TestRelationToView:
@@ -9,7 +9,7 @@ class TestRelationToView:
         res = rel.fetchall()
         assert res == [("test", "this is a long string")]
 
-        with pytest.raises(duckdb.InvalidInputException, match=r"register\("):
+        with pytest.raises(quacklab.InvalidInputException, match=r"register\("):
             rel.to_view("vw1")
 
     def test_relation_to_view(self, duckdb_cursor):
@@ -27,9 +27,9 @@ class TestRelationToView:
     def test_registered_relation(self, duckdb_cursor):
         rel = duckdb_cursor.sql("select 'test', 'this is a long string'")
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         # Two in-memory connections are two databases, so a relation of one cannot be read on the other.
-        with pytest.raises(duckdb.InvalidInputException, match=r"(?s)in-memory database.*another database"):
+        with pytest.raises(quacklab.InvalidInputException, match=r"(?s)in-memory database.*another database"):
             con.register("cross_connection", rel)
 
         # Register on the same connection just creates a view

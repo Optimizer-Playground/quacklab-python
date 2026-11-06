@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-import duckdb
+import quacklab
 
 # Dynamic-predicate pushdown to IO sources starts at Polars 1.39; below that the
 # bug is unreachable, so skip rather than xfail.
@@ -28,7 +28,7 @@ pytest.importorskip("pyarrow")
 @pytest.mark.parametrize("engine", ["streaming", "in-memory"])
 def test_460_lazy_sort_limit_does_not_panic(engine: str) -> None:
     df = pl.DataFrame({"x": [3, 1, 2]})
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     try:
         conn.register("df_registered", df)
         lf = conn.sql("SELECT * FROM df_registered").pl(lazy=True)
@@ -48,7 +48,7 @@ def test_460_user_filter_combined_with_dynamic_predicate_is_not_dropped(engine: 
     # min-x row (x=1) fails the y>15 filter, so dropping the filter yields a
     # different (wrong) row.
     df = pl.DataFrame({"x": [3, 1, 2], "y": [100, 5, 50]})
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     try:
         conn.register("t", df)
         lf = conn.sql("SELECT * FROM t").pl(lazy=True)
@@ -65,7 +65,7 @@ def test_460_user_filter_combined_with_dynamic_predicate_is_not_dropped(engine: 
 
 import json  # noqa: E402
 
-from duckdb.polars_io import _strip_dynamic_predicates  # noqa: E402
+from quacklab.polars_io import _strip_dynamic_predicates  # noqa: E402
 
 _DYN = {"Display": {"inputs": [{"Column": "x"}], "fmt_str": "dynamic_pred: abc-123"}}
 

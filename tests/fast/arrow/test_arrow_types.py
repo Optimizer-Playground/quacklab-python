@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 ds = pytest.importorskip("pyarrow.dataset")
@@ -12,7 +12,7 @@ class TestArrowTypes:
         inputs = [pa.array([None, None, None], type=pa.null())]
         arrow_table = pa.Table.from_arrays(inputs, schema=schema)
         duckdb_cursor.register("testarrow", arrow_table)
-        rel = duckdb.from_arrow(arrow_table).to_arrow_table()
+        rel = quacklab.from_arrow(arrow_table).to_arrow_table()
         # NULL type now round-trips faithfully (previously it was coerced to int32)
         assert rel["data"] == arrow_table["data"]
 
@@ -36,7 +36,7 @@ class TestArrowTypes:
 
         arrow_table = pa.Table.from_arrays([sparse_union_array], schema=pa.schema([("data", sparse_union_array.type)]))
         with pytest.raises(
-            duckdb.InvalidInputException,
+            quacklab.InvalidInputException,
             match="Attempted to convert a UNION with no fields to DuckDB which is not supported",
         ):
             duckdb_cursor.register("invalid_union", arrow_table)

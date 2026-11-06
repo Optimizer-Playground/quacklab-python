@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 def _parse_json_func(error_prefix: str):
@@ -22,28 +22,28 @@ def _parse_json_func(error_prefix: str):
 
 
 def test_json_syntax_error():
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     conn.execute("SET errors_as_json='true'")
-    with pytest.raises(duckdb.ParserException, match="SYNTAX_ERROR", check=_parse_json_func("Parser Error: ")):
+    with pytest.raises(quacklab.ParserException, match="SYNTAX_ERROR", check=_parse_json_func("Parser Error: ")):
         conn.execute("syntax error")
 
 
 def test_json_catalog_error():
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     conn.execute("SET errors_as_json='true'")
-    with pytest.raises(duckdb.CatalogException, match="MISSING_ENTRY", check=_parse_json_func("Catalog Error: ")):
+    with pytest.raises(quacklab.CatalogException, match="MISSING_ENTRY", check=_parse_json_func("Catalog Error: ")):
         conn.execute("SELECT * FROM nonexistent_table")
 
 
 def test_json_syntax_error_extract_statements():
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     conn.execute("SET errors_as_json='true'")
-    with pytest.raises(duckdb.ParserException, match="SYNTAX_ERROR", check=_parse_json_func("Parser Error: ")):
+    with pytest.raises(quacklab.ParserException, match="SYNTAX_ERROR", check=_parse_json_func("Parser Error: ")):
         conn.extract_statements("syntax error")
 
 
 def test_json_syntax_error_get_table_names():
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     conn.execute("SET errors_as_json='true'")
-    with pytest.raises(duckdb.ParserException, match="SYNTAX_ERROR", check=_parse_json_func("Parser Error: ")):
+    with pytest.raises(quacklab.ParserException, match="SYNTAX_ERROR", check=_parse_json_func("Parser Error: ")):
         conn.get_table_names("syntax error")

@@ -2,12 +2,12 @@
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     connection.execute(
         "CREATE TABLE orders AS SELECT * FROM (VALUES "
         "(1, 'ann', 'nl', 100), (2, 'bob', 'nl', 200), (3, 'ann', 'be', 300), (4, 'cid', 'be', 300)"
@@ -42,17 +42,17 @@ def same_as(con, rel, sql):
 
 class TestWithColumns:
     def test_a_new_column_goes_last(self, con):
-        rel = con.table("orders").with_columns(half=duckdb.ColumnExpression("total") / 2)
+        rel = con.table("orders").with_columns(half=quacklab.ColumnExpression("total") / 2)
         assert same_as(con, rel, "SELECT *, total / 2 AS half FROM orders")[0] == (1, "ann", "nl", 100, 50.0)
 
     def test_a_replaced_column_keeps_its_place(self, con):
-        rel = con.table("orders").with_columns(total=duckdb.ColumnExpression("total") + 1)
+        rel = con.table("orders").with_columns(total=quacklab.ColumnExpression("total") + 1)
         assert rel.columns == ["id", "who", "land", "total"]
         assert same_as(con, rel, "SELECT * REPLACE (total + 1 AS total) FROM orders")[0] == (1, "ann", "nl", 101)
 
     def test_every_expression_reads_the_columns_as_they_were(self, con):
         rel = con.table("orders").with_columns(
-            total=duckdb.ColumnExpression("total") + 1, copy=duckdb.ColumnExpression("total")
+            total=quacklab.ColumnExpression("total") + 1, copy=quacklab.ColumnExpression("total")
         )
         assert rel.fetchall()[0] == (1, "ann", "nl", 101, 100)
 
@@ -80,7 +80,7 @@ class TestDropAndRename:
         ],
     )
     def test_a_column_that_is_not_there_is_refused(self, con, build):
-        with pytest.raises(duckdb.Error, match="nope"):
+        with pytest.raises(quacklab.Error, match="nope"):
             build(con.table("orders"))
 
 

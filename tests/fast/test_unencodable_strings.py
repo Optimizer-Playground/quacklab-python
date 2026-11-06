@@ -8,10 +8,10 @@ import re
 
 import pytest
 
-import duckdb
+import quacklab
 import numpy as np
 import pandas as pd
-from duckdb.sqltypes import BIGINT, VARCHAR
+from quacklab.sqltypes import BIGINT, VARCHAR
 
 
 def execute_positional(con, text):
@@ -33,7 +33,7 @@ def execute_named(con, text):
 
 
 def value_parameter(con, text):
-    return con.execute("SELECT ?", [duckdb.Value(text, VARCHAR)]).fetchone()[0]
+    return con.execute("SELECT ?", [quacklab.Value(text, VARCHAR)]).fetchone()[0]
 
 
 def list_element(con, text):
@@ -45,7 +45,7 @@ def dict_field(con, text):
 
 
 def struct_typed_value(con, text):
-    value = duckdb.Value({"f": text}, duckdb.struct_type({"f": VARCHAR}))
+    value = quacklab.Value({"f": text}, quacklab.struct_type({"f": VARCHAR}))
     return con.execute("SELECT ?", [value]).fetchone()[0]["f"]
 
 
@@ -59,7 +59,7 @@ def map_key(con, text):
 
 
 def constant_expression(con, text):
-    return con.sql("SELECT 1").select(duckdb.ConstantExpression(text)).fetchall()[0][0]
+    return con.sql("SELECT 1").select(quacklab.ConstantExpression(text)).fetchall()[0][0]
 
 
 def udf_result(con, text):
@@ -171,8 +171,8 @@ def conversion_cases():
 
 @pytest.mark.parametrize(("convert", "position"), conversion_cases())
 def test_surrogate_is_refused(convert, position):
-    con = duckdb.connect()
-    with pytest.raises(duckdb.InvalidInputException, match=refusal("\\ud800", position)):
+    con = quacklab.connect()
+    with pytest.raises(quacklab.InvalidInputException, match=refusal("\\ud800", position)):
         convert(con, "\ud800")
     assert con.execute("SELECT 42").fetchone() == (42,)
 
@@ -181,8 +181,8 @@ def test_surrogate_is_refused(convert, position):
 def test_csv_option_with_surrogate_is_refused(option, tmp_path):
     path = tmp_path / "in.csv"
     path.write_text("a,b\n1,NA\n")
-    con = duckdb.connect()
-    with pytest.raises(duckdb.InvalidInputException, match=refusal("\\ud800", 0)):
+    con = quacklab.connect()
+    with pytest.raises(quacklab.InvalidInputException, match=refusal("\\ud800", 0)):
         option(con, str(path), "\ud800")
     assert con.execute("SELECT 42").fetchone() == (42,)
 
@@ -190,15 +190,15 @@ def test_csv_option_with_surrogate_is_refused(option, tmp_path):
 def test_csv_quotechar_with_surrogate_is_refused(tmp_path):
     path = tmp_path / "in.csv"
     path.write_text("a,b\n1,NA\n")
-    con = duckdb.connect()
-    with pytest.raises(duckdb.InvalidInputException, match=refusal("\\ud800", 0)):
+    con = quacklab.connect()
+    with pytest.raises(quacklab.InvalidInputException, match=refusal("\\ud800", 0)):
         con.read_csv(str(path), quotechar="\ud800")
     assert con.execute("SELECT 42").fetchone() == (42,)
 
 
 def test_csv_path_with_surrogate_is_refused():
-    con = duckdb.connect()
-    with pytest.raises(duckdb.InvalidInputException, match=refusal("\\ud800", 0)):
+    con = quacklab.connect()
+    with pytest.raises(quacklab.InvalidInputException, match=refusal("\\ud800", 0)):
         con.read_csv("\ud800")
     assert con.execute("SELECT 42").fetchone() == (42,)
 
@@ -213,22 +213,22 @@ def test_csv_path_with_surrogate_is_refused():
 )
 @pytest.mark.parametrize("convert", [execute_positional, pandas_from_df])
 def test_refusal_names_the_first_surrogate(convert, text, escaped_char, position):
-    con = duckdb.connect()
-    with pytest.raises(duckdb.InvalidInputException, match=refusal(escaped_char, position)):
+    con = quacklab.connect()
+    with pytest.raises(quacklab.InvalidInputException, match=refusal(escaped_char, position)):
         convert(con, text)
 
 
 @pytest.mark.parametrize("text", ["a\x00b", "\U0001f600"], ids=["embedded_nul", "non_bmp"])
 @pytest.mark.parametrize("convert", CONVERSIONS)
 def test_encodable_str_round_trips(convert, text):
-    assert convert(duckdb.connect(), text) == text
+    assert convert(quacklab.connect(), text) == text
 
 
 @pytest.mark.parametrize(
     "text", ["\u00eb", "\u4e2d", "\U0001f600"], ids=["one_byte_kind", "two_byte_kind", "four_byte_kind"]
 )
 def test_object_column_of_each_str_kind_round_trips(text):
-    assert pandas_from_df(duckdb.connect(), text) == text
+    assert pandas_from_df(quacklab.connect(), text) == text
 
 
 KIND_MARKERS = {
@@ -240,7 +240,7 @@ UTF8_BOUNDARIES = [0x7F, 0x80, 0x7FF, 0x800, 0xD7FF, 0xE000, 0xFFFF, 0x10000, 0x
 
 
 def scan_encoded(text):
-    return pandas_from_df(duckdb.connect(), text)
+    return pandas_from_df(quacklab.connect(), text)
 
 
 @pytest.mark.parametrize(
@@ -266,4 +266,4 @@ def test_object_column_round_trips_inline_and_heap_lengths(kind, encoded_bytes):
 
 
 def test_value_construction_does_not_check():
-    assert duckdb.Value("\ud800", VARCHAR).object == "\ud800"
+    assert quacklab.Value("\ud800", VARCHAR).object == "\ud800"

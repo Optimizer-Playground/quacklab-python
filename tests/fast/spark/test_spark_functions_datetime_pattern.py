@@ -2,7 +2,7 @@ import sys
 
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 from datetime import date, datetime, timezone
 
@@ -15,8 +15,8 @@ from spark_namespace.errors import (
 )
 from spark_namespace.sql import functions as F
 
-import duckdb
-from duckdb.experimental.spark.exception import ContributionsAcceptedError
+import quacklab
+from quacklab.experimental.spark.exception import ContributionsAcceptedError
 
 if USE_ACTUAL_SPARK:
     import pyspark
@@ -29,7 +29,9 @@ else:
 
 # Spark 4 runs with ANSI mode on, so to_timestamp and to_date raise on text the pattern does not match, as
 # DuckDB's strptime does, with a ConversionException for a date that does not exist; Spark 3.5 returns NULL instead.
-PARSE_ERROR = (DateTimeException,) if USE_ACTUAL_SPARK else (duckdb.InvalidInputException, duckdb.ConversionException)
+PARSE_ERROR = (
+    (DateTimeException,) if USE_ACTUAL_SPARK else (quacklab.InvalidInputException, quacklab.ConversionException)
+)
 
 PARSED = [
     ("yyyy-MM-dd", "2024-02-29", datetime(2024, 2, 29)),

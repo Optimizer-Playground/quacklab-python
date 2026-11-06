@@ -3,14 +3,14 @@ from decimal import Decimal
 
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 from spark_namespace import USE_ACTUAL_SPARK
 from spark_namespace.errors import ParseException, PySparkTypeError
 from spark_namespace.sql import functions as F
 from spark_namespace.sql.types import IntegerType, Row, StringType
 
-import duckdb
+import quacklab
 import numpy as np
 
 if USE_ACTUAL_SPARK:
@@ -68,7 +68,7 @@ class TestSparkUDF:
             with pytest.raises(ParseException):
                 spark.udf.register("lacking_typed", lambda _: None, type_string)
             return
-        from duckdb.experimental.spark.exception import ContributionsAcceptedError
+        from quacklab.experimental.spark.exception import ContributionsAcceptedError
 
         # Spark's grammar reads the first type before the text turns out to be DuckDB's, and the module lacks it.
         with pytest.raises(ContributionsAcceptedError, match="not supported"):
@@ -181,7 +181,7 @@ class TestSparkUDF:
             return
         # DuckDB takes every parameter of a Python function, defaults included.
         assert spark.sql("select plus_optional(1, 2) as b").collect() == [Row(b=3)]
-        with pytest.raises(duckdb.BinderException):
+        with pytest.raises(quacklab.BinderException):
             spark.sql("select plus_optional(1) as a")
 
     def test_udf_named_like_a_builtin(self, spark):
@@ -211,17 +211,17 @@ class TestSparkUDF:
             (1, "float", None, 1.0),
             (1.5, "int", None, 2),
             ("1", "int", None, 1),
-            (True, "int", None, duckdb.TypeMismatchException),
+            (True, "int", None, quacklab.TypeMismatchException),
             (1, "boolean", None, True),
             (Decimal("1.5"), "double", None, 1.5),
             (1, "decimal(10,2)", None, Decimal("1.00")),
             (1, "string", "1", "1"),
             (1.5, "string", "1.5", "1.5"),
-            (True, "string", "true", duckdb.TypeMismatchException),
+            (True, "string", "true", quacklab.TypeMismatchException),
             ([1, "a"], "string", "[1, a]", "[1, a]"),
             ({"a": 1}, "string", "{a=1}", "{'a': 1}"),
-            (2**40, "int", 0, duckdb.InvalidInputException),
-            (300, "tinyint", 44, duckdb.InvalidInputException),
+            (2**40, "int", 0, quacklab.InvalidInputException),
+            (300, "tinyint", 44, quacklab.InvalidInputException),
             ([1.5, 2], "array<int>", [None, 2], [2, 2]),
             ({"a": 1.5}, "map<string,int>", {"a": None}, {"a": 2}),
             ((1.5, "x"), "struct<a:int,b:string>", Row(a=None, b="x"), Row(a=2, b="x")),
@@ -234,7 +234,7 @@ class TestSparkUDF:
         # text for a string; DuckDB converts the value as it converts any Python value, or raises.
         registered = spark.udf.register("typed_result", lambda _: value, type_string)
         res = spark.range(1).select(registered("id").alias("v"))
-        if not USE_ACTUAL_SPARK and isinstance(duckdb_value, type) and issubclass(duckdb_value, duckdb.Error):
+        if not USE_ACTUAL_SPARK and isinstance(duckdb_value, type) and issubclass(duckdb_value, quacklab.Error):
             with pytest.raises(duckdb_value):
                 res.collect()
             return
@@ -265,7 +265,7 @@ class TestSparkUDF:
             assert spark.range(1).select(nested("id").alias("t")).collect() == [Row(t=[noon])]
         else:
             # DuckDB converts a datetime to a timestamp with a time zone only if it has one.
-            with pytest.raises(duckdb.ConversionException):
+            with pytest.raises(quacklab.ConversionException):
                 spark.range(1).select(nested("id")).collect()
 
     def test_udf_arguments_are_those_of_the_call(self, spark):
@@ -324,7 +324,7 @@ class TestSparkUDF:
             # Spark reads an object's attributes by field name.
             assert spark.range(1).select(registered("id").alias("v")).collect() == [Row(v=Row(a=1, b="x"))]
         else:
-            with pytest.raises(duckdb.NotImplementedException):
+            with pytest.raises(quacklab.NotImplementedException):
                 spark.range(1).select(registered("id")).collect()
         registered = spark.udf.register("struct_result", lambda _: "x", "a string")
         error = "UNEXPECTED_TUPLE_WITH_STRUCT" if USE_ACTUAL_SPARK else "can't be cast to the destination type STRUCT"

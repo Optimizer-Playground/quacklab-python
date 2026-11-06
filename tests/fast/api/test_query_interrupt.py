@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-import duckdb
+import quacklab
 
 
 def drain(res):
@@ -26,7 +26,7 @@ class TestQueryInterruption:
         reason="Emscripten builds cannot use threads",
     )
     def test_query_interruption(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         thread = threading.Thread(target=send_keyboard_interrupt)
         # Start the thread
         thread.start()
@@ -46,7 +46,7 @@ class TestQueryInterruption:
     )
     @pytest.mark.timeout(120)
     def test_streaming_fetch_interruption(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("SET max_streaming_buffer_size='1MB'")
         con.execute("select i from range(8000000000) t(i)")
         assert con.fetchone() == (0,)
@@ -65,7 +65,7 @@ class TestQueryInterruption:
     )
     @pytest.mark.timeout(120)
     def test_materializing_fetch_interruption(self):
-        con = duckdb.connect()
+        con = quacklab.connect()
         rel = con.sql("select count(*) from range(8000000000)")
         interrupter = threading.Thread(target=send_keyboard_interrupt)
         interrupter.start()

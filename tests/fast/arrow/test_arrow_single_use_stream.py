@@ -19,7 +19,7 @@ from collections import Counter
 
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 ds = pytest.importorskip("pyarrow.dataset")
@@ -34,7 +34,7 @@ SELF_JOIN_ROWS = 6
 
 CONCURRENT_SCANS = f"""
 import io, json, threading
-import duckdb, pyarrow as pa
+import quacklab, pyarrow as pa
 
 table = pa.table({{"id": [1, 2, 2, None, 5], "value": ["one", None, "two", "four", "five"]}})
 sink = io.BytesIO()
@@ -42,7 +42,7 @@ with pa.ipc.new_stream(sink, table.schema) as writer:
     for _ in range(2000):
         writer.write_table(table)
 reader = pa.ipc.open_stream(sink.getvalue())
-database = duckdb.connect()
+database = quacklab.connect()
 barrier = threading.Barrier(2, timeout=30)
 results = []
 
@@ -52,7 +52,7 @@ def scan():
     barrier.wait()
     try:
         results.append(list(cursor.execute("SELECT count(*), count(id), count(value) FROM src").fetchone()))
-    except duckdb.Error as error:
+    except quacklab.Error as error:
         results.append([type(error).__name__, {CONSUMED!r} in str(error)])
 
 threads = [threading.Thread(target=scan) for _ in range(2)]
@@ -69,7 +69,7 @@ print(json.dumps({{"rows": rows, "errors": errors}}))
 PYARROW_OUT_OF_SYS_MODULES = f"""
 import io, sys
 from unittest import mock
-import duckdb
+import quacklab
 
 with mock.patch.dict(sys.modules):
     import pyarrow as pa
@@ -79,13 +79,13 @@ with mock.patch.dict(sys.modules):
         writer.write_table(table)
     reader = pa.ipc.open_stream(sink.getvalue())
 print("pyarrow listed", "pyarrow" in sys.modules)
-con = duckdb.connect()
+con = quacklab.connect()
 con.register("src", reader)
 print("first", len(con.execute("SELECT * FROM src").fetchall()))
 try:
     con.execute("SELECT * FROM src").fetchall()
     print("second returned rows")
-except duckdb.InvalidInputException as error:
+except quacklab.InvalidInputException as error:
     print("second raised", {CONSUMED!r} in str(error))
 """
 
@@ -95,7 +95,7 @@ except duckdb.InvalidInputException as error:
 NEGATIVES_WITHOUT_PYARROW = """
 import sys
 from unittest import mock
-import duckdb
+import quacklab
 
 with mock.patch.dict(sys.modules):
     import pyarrow as pa
@@ -128,7 +128,7 @@ for level in range(25):
     left, right = type(f"A{level + 1}", (left, right), {}), type(f"B{level + 1}", (left, right), {})
 Diamond = type("Diamond", (left, right), {"__arrow_c_stream__": stream})
 
-con = duckdb.connect()
+con = quacklab.connect()
 for source in (RecordBatchReader(), ListMroSource(), Diamond()):
     rel = con.from_arrow(source)
     print(type(source).__name__, len(rel.fetchall()), len(rel.fetchall()))
@@ -136,11 +136,11 @@ for source in (RecordBatchReader(), ListMroSource(), Diamond()):
 
 CONCURRENT_FIRST_SCANS = f"""
 import json, threading
-import duckdb, pyarrow as pa
+import quacklab, pyarrow as pa
 
 table = pa.table({{"id": [1, 2, 3]}})
 readers = [pa.RecordBatchReader.from_batches(table.schema, table.to_batches()) for _ in range(2)]
-connections = [duckdb.connect() for _ in range(2)]
+connections = [quacklab.connect() for _ in range(2)]
 barrier = threading.Barrier(2, timeout=30)
 results = [None, None]
 
@@ -152,7 +152,7 @@ def scan(index):
     try:
         con.execute("SELECT * FROM src").fetchall()
         second = "rows"
-    except duckdb.InvalidInputException as error:
+    except quacklab.InvalidInputException as error:
         second = {CONSUMED!r} in str(error)
     results[index] = [first, second]
 
@@ -170,18 +170,18 @@ from unittest import mock
 import pyarrow as pa
 
 with mock.patch.dict(sys.modules):
-    import duckdb
+    import quacklab
 table = pa.table({{"id": [1, 2, 3]}})
 sink = io.BytesIO()
 with pa.ipc.new_stream(sink, table.schema) as writer:
     writer.write_table(table)
-con = duckdb.connect()
+con = quacklab.connect()
 con.register("src", pa.ipc.open_stream(sink.getvalue()))
 print("first", len(con.execute("SELECT * FROM src").fetchall()))
 try:
     con.execute("SELECT * FROM src").fetchall()
     print("second returned rows")
-except duckdb.InvalidInputException as error:
+except quacklab.InvalidInputException as error:
     print("second raised", {CONSUMED!r} in str(error))
 """
 
@@ -222,7 +222,7 @@ def make_reader(request):
     sources = []
 
     def duckdb_result_reader(batches=1):
-        source = duckdb.connect()
+        source = quacklab.connect()
         sources.append(source)
         return source.from_arrow(pa.concat_tables([TABLE] * batches)).to_arrow_reader()
 
@@ -235,7 +235,7 @@ def make_reader(request):
             try:
                 source.close()
                 break
-            except duckdb.ResourceInUseException:
+            except quacklab.ResourceInUseException:
                 if time.monotonic() > deadline:
                     raise
                 time.sleep(0.001)
@@ -436,18 +436,18 @@ class TestSingleUseReaderScannedTwice:
     @pytest.mark.parametrize("entry", ["register", "replacement"])
     def test_union_all_raises(self, duckdb_cursor, make_reader, entry):
         scan = ENTRY_POINTS[entry](duckdb_cursor, make_reader())
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             scan.run("SELECT id FROM src UNION ALL SELECT id + 1 FROM src")
 
     @pytest.mark.parametrize("entry", ["register", "replacement"])
     def test_self_join_raises(self, duckdb_cursor, make_reader, entry):
         scan = ENTRY_POINTS[entry](duckdb_cursor, make_reader())
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             scan.run("SELECT * FROM src a JOIN src b USING (id)")
 
     def test_scalar_subqueries_raise(self, duckdb_cursor, make_reader):
         scan = Replaced(duckdb_cursor, make_reader())
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             scan.run("SELECT (SELECT count(*) FROM src), (SELECT count(*) FROM src)")
 
     def test_recursive_cte_raises(self, duckdb_cursor, make_reader):
@@ -459,20 +459,20 @@ class TestSingleUseReaderScannedTwice:
             )
             SELECT count(*) FROM r
         """
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             scan.run(sql)
 
     def test_rerun_raises(self, duckdb_cursor, make_reader, entry_point):
         scan = entry_point(duckdb_cursor, make_reader())
         assert Counter(scan.run("SELECT * FROM src")) == ROWS
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             scan.run("SELECT * FROM src")
         assert duckdb_cursor.execute("SELECT 42").fetchall() == [(42,)]
 
     def test_relation_fetched_twice_raises(self, duckdb_cursor, make_reader):
         rel = duckdb_cursor.from_arrow(make_reader())
         assert Counter(rel.fetchall()) == ROWS
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             rel.fetchall()
 
     # Not with duckdb_result: its source connection can stay busy right after a LIMIT scan, single-use or not.
@@ -480,28 +480,28 @@ class TestSingleUseReaderScannedTwice:
     def test_limit_then_full_scan_raises(self, duckdb_cursor, make_reader, entry_point):
         scan = entry_point(duckdb_cursor, make_reader(batches=400))
         assert len(scan.run("SELECT * FROM src LIMIT 1")) == 1
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             scan.run("SELECT * FROM src")
 
     def test_explain_analyze_counts_as_a_scan(self, duckdb_cursor, make_reader):
         scan = Replaced(duckdb_cursor, make_reader())
         scan.run("EXPLAIN ANALYZE SELECT * FROM src")
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             scan.run("SELECT * FROM src")
 
     def test_show_counts_as_a_scan(self, duckdb_cursor, make_reader, capsys):
         rel = duckdb_cursor.from_arrow(make_reader())
         rel.show()
         assert "five" in capsys.readouterr().out
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             rel.fetchall()
 
     def test_second_connection_raises(self, duckdb_cursor, make_reader):
         src = make_reader()  # noqa: F841
         assert Counter(duckdb_cursor.execute("SELECT * FROM src").fetchall()) == ROWS
-        other = duckdb.connect()
+        other = quacklab.connect()
         try:
-            with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+            with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
                 other.execute("SELECT * FROM src").fetchall()
         finally:
             other.close()
@@ -525,36 +525,36 @@ class TestSingleUseReaderScannedTwice:
         src = make_reader()
         assert Counter(duckdb_cursor.from_arrow(src).fetchall()) == ROWS
         duckdb_cursor.register("again", src)
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             duckdb_cursor.execute("SELECT * FROM again").fetchall()
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             duckdb_cursor.execute("SELECT * FROM src").fetchall()
 
     def test_failed_export_does_not_consume(self, duckdb_cursor):
         src = ExportFailsOnce(_ipc_bytes(1))  # noqa: F841
-        with pytest.raises(duckdb.Error, match="the first export fails"):
+        with pytest.raises(quacklab.Error, match="the first export fails"):
             duckdb_cursor.execute("SELECT * FROM src").fetchall()
         assert Counter(duckdb_cursor.execute("SELECT * FROM src").fetchall()) == ROWS
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             duckdb_cursor.execute("SELECT * FROM src").fetchall()
 
     def test_empty_reader_scanned_twice_raises(self, duckdb_cursor):
         scan = Replaced(duckdb_cursor, pa.RecordBatchReader.from_batches(SCHEMA, []))
         assert scan.run("SELECT * FROM src") == []
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             scan.run("SELECT * FROM src")
 
     def test_default_connection_union_all_raises(self):
         sql = "SELECT id FROM arrow_stream UNION ALL SELECT id + 1 FROM arrow_stream"
         with pa.ipc.open_stream(_ipc_bytes(1)) as reader:
-            duckdb.register("arrow_stream", reader)
+            quacklab.register("arrow_stream", reader)
             try:
-                with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
-                    duckdb.sql(sql).fetchall()
-                with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
-                    duckdb.sql(sql).fetchall()
+                with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
+                    quacklab.sql(sql).fetchall()
+                with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
+                    quacklab.sql(sql).fetchall()
             finally:
-                duckdb.unregister("arrow_stream")
+                quacklab.unregister("arrow_stream")
 
 
 class TestConsumedReaderRecord:
@@ -574,7 +574,7 @@ class TestConsumedReaderRecord:
     def test_unhashable_reader_scans_once(self, duckdb_cursor):
         scan = Replaced(duckdb_cursor, UnhashableReader(_ipc_bytes(1)))
         assert Counter(scan.run("SELECT * FROM src")) == ROWS
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             scan.run("SELECT * FROM src")
 
     def test_equal_readers_are_tracked_apart(self, duckdb_cursor):
@@ -583,7 +583,7 @@ class TestConsumedReaderRecord:
         assert first.source == second.source
         assert Counter(first.run("SELECT * FROM src")) == ROWS
         assert Counter(second.run("SELECT * FROM src")) == ROWS
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             first.run("SELECT * FROM src")
 
     def test_reader_made_while_pyarrow_was_out_of_sys_modules(self):
@@ -621,23 +621,23 @@ class TestSingleUseSourcesThatAlreadyRaise:
     def test_scanner_from_batches_rescan_raises(self, duckdb_cursor):
         src = ds.Scanner.from_batches(ipc_stream_reader())  # noqa: F841
         assert Counter(duckdb_cursor.execute("SELECT * FROM src").fetchall()) == ROWS
-        with pytest.raises(duckdb.InvalidInputException, match="OneShotFragment was already scanned"):
+        with pytest.raises(quacklab.InvalidInputException, match="OneShotFragment was already scanned"):
             duckdb_cursor.execute("SELECT * FROM src").fetchall()
 
     def test_scanner_from_batches_union_all_raises(self, duckdb_cursor):
         src = ds.Scanner.from_batches(ipc_stream_reader())  # noqa: F841
-        with pytest.raises(duckdb.InvalidInputException, match="OneShotFragment was already scanned"):
+        with pytest.raises(quacklab.InvalidInputException, match="OneShotFragment was already scanned"):
             duckdb_cursor.execute("SELECT * FROM src UNION ALL SELECT * FROM src").fetchall()
 
     def test_bare_capsule_union_all_raises(self, duckdb_cursor):
         src = ipc_stream_reader().__arrow_c_stream__()  # noqa: F841
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             duckdb_cursor.execute("SELECT * FROM src UNION ALL SELECT * FROM src").fetchall()
 
     def test_registered_bare_capsule_rerun_raises(self, duckdb_cursor):
         duckdb_cursor.register("src", ipc_stream_reader().__arrow_c_stream__())
         assert Counter(duckdb_cursor.execute("SELECT * FROM src").fetchall()) == ROWS
-        with pytest.raises(duckdb.InvalidInputException, match=CONSUMED):
+        with pytest.raises(quacklab.InvalidInputException, match=CONSUMED):
             duckdb_cursor.execute("SELECT * FROM src").fetchall()
 
 

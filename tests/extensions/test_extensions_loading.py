@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-import duckdb
+import quacklab
 
 pytestmark = pytest.mark.skipif(
     platform.system() == "Emscripten",
@@ -57,10 +57,10 @@ def empty_extension_repository(tmp_path):
 
 @pytest.mark.timeout(120)
 def test_install_non_existent_extension(empty_extension_repository):
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     conn.execute(f"set custom_extension_repository = '{empty_extension_repository}'")
 
-    with pytest.raises(duckdb.HTTPException) as exc:
+    with pytest.raises(quacklab.HTTPException) as exc:
         conn.install_extension("non-existent")
 
     value = exc.value
@@ -71,10 +71,10 @@ def test_install_non_existent_extension(empty_extension_repository):
 
 
 def test_install_from_local_repository(tmp_path):
-    conn = duckdb.connect()
+    conn = quacklab.connect()
     conn.execute(f"set custom_extension_repository = '{tmp_path.as_posix()}'")
 
-    with pytest.raises(duckdb.IOException, match='no access to the file at PATH "'):
+    with pytest.raises(quacklab.IOException, match='no access to the file at PATH "'):
         conn.install_extension("non-existent")
 
 
@@ -82,36 +82,36 @@ def test_install_rejects_a_file_that_is_not_an_extension(tmp_path):
     not_an_extension = tmp_path / "not-an-extension.duckdb_extension"
     not_an_extension.write_bytes(b"\0" * 2048)
 
-    conn = duckdb.connect()
-    with pytest.raises(duckdb.IOException, match="not a DuckDB extension"):
+    conn = quacklab.connect()
+    with pytest.raises(quacklab.IOException, match="not a DuckDB extension"):
         conn.install_extension(not_an_extension.as_posix())
 
 
 def test_load_non_existent_extension(tmp_path):
-    conn = duckdb.connect()
+    conn = quacklab.connect()
 
     # Reaching the missing file at all is the point: without the
     # loadable_extensions library LOAD refuses before it looks for one.
-    with pytest.raises(duckdb.IOException, match="not found"):
+    with pytest.raises(quacklab.IOException, match="not found"):
         conn.load_extension((tmp_path / "non-existent.duckdb_extension").as_posix())
 
 
 def test_install_misuse_errors(duckdb_cursor):
     with pytest.raises(
-        duckdb.InvalidInputException,
+        quacklab.InvalidInputException,
         match="Both 'repository' and 'repository_url' are set which is not allowed, please pick one or the other",
     ):
         duckdb_cursor.install_extension("name", repository="hello", repository_url="hello.com")
 
     with pytest.raises(
-        duckdb.InvalidInputException, match="The provided 'repository' or 'repository_url' can not be empty!"
+        quacklab.InvalidInputException, match="The provided 'repository' or 'repository_url' can not be empty!"
     ):
         duckdb_cursor.install_extension("name", repository_url="")
 
     with pytest.raises(
-        duckdb.InvalidInputException, match="The provided 'repository' or 'repository_url' can not be empty!"
+        quacklab.InvalidInputException, match="The provided 'repository' or 'repository_url' can not be empty!"
     ):
         duckdb_cursor.install_extension("name", repository="")
 
-    with pytest.raises(duckdb.InvalidInputException, match="The provided 'version' can not be empty!"):
+    with pytest.raises(quacklab.InvalidInputException, match="The provided 'version' can not be empty!"):
         duckdb_cursor.install_extension("name", version="")

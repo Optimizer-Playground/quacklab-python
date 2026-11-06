@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 ds = pytest.importorskip("pyarrow.dataset")
@@ -251,7 +251,7 @@ class TestPyCapsuleConsumed:
         capsule = tbl.__arrow_c_stream__()  # noqa: F841
         duckdb_cursor.sql("SELECT * FROM capsule").fetchall()
         # The replacement scan refuses the released stream while it classifies the capsule.
-        with pytest.raises(duckdb.InvalidInputException, match="The ArrowArrayStream was already released"):
+        with pytest.raises(quacklab.InvalidInputException, match="The ArrowArrayStream was already released"):
             duckdb_cursor.sql("SELECT * FROM capsule")
 
     def test_pycapsule_interface_not_affected(self, duckdb_cursor):
@@ -282,8 +282,8 @@ class TestSameConnectionRecordBatchReader:
         Run in subprocess to prevent hanging the test suite if it deadlocks.
         """
         code = """\
-import duckdb
-conn = duckdb.connect("")
+import quacklab
+conn = quacklab.connect("")
 reader = conn.sql("FROM range(5) T(a)").to_arrow_reader()
 result = conn.sql("FROM reader").fetchall()
 assert result != [(i,) for i in range(5)], "Expected no data due to lock contention"
@@ -297,16 +297,16 @@ assert result != [(i,) for i in range(5)], "Expected no data due to lock content
 
     def test_different_connection_works(self, duckdb_cursor):
         """RecordBatchReader from connection A scanned on connection B works fine."""
-        conn_a = duckdb.connect()
-        conn_b = duckdb.connect()
+        conn_a = quacklab.connect()
+        conn_b = quacklab.connect()
         reader = conn_a.sql("FROM range(5) T(a)").to_arrow_reader()  # noqa: F841
         result = conn_b.sql("FROM reader").fetchall()
         assert result == [(i,) for i in range(5)]
 
     def test_arrow_method_different_connection(self, duckdb_cursor):
         """The .arrow() method (which returns RecordBatchReader) works cross-connection."""
-        conn_a = duckdb.connect()
-        conn_b = duckdb.connect()
+        conn_a = quacklab.connect()
+        conn_b = quacklab.connect()
         arrow_reader = conn_a.sql("FROM range(5) T(a)").arrow()  # noqa: F841
         result = conn_b.sql("FROM arrow_reader").fetchall()
         assert result == [(i,) for i in range(5)]
@@ -335,7 +335,7 @@ class TestPyCapsuleInterfaceNoPyarrowDataset:
         """PyCapsuleInterface objects can be scanned without pyarrow.dataset."""
         self._run_in_subprocess("""\
 import pyarrow as pa
-import duckdb
+import quacklab
 
 class MyStream:
     def __init__(self, tbl):
@@ -346,7 +346,7 @@ class MyStream:
         return self.tbl.schema.__arrow_c_schema__()
 
 obj = MyStream(pa.table({"a": [1, 2, 3], "b": [10, 20, 30]}))
-result = duckdb.sql("SELECT * FROM obj").fetchall()
+result = quacklab.sql("SELECT * FROM obj").fetchall()
 assert sorted(result) == [(1, 10), (2, 20), (3, 30)], f"Unexpected: {result}"
 """)
 
@@ -354,7 +354,7 @@ assert sorted(result) == [(1, 10), (2, 20), (3, 30)], f"Unexpected: {result}"
         """DuckDB applies projection post-scan when pyarrow.dataset unavailable."""
         self._run_in_subprocess("""\
 import pyarrow as pa
-import duckdb
+import quacklab
 
 class MyStream:
     def __init__(self, tbl):
@@ -365,7 +365,7 @@ class MyStream:
         return self.tbl.schema.__arrow_c_schema__()
 
 obj = MyStream(pa.table({"a": [1, 2, 3], "b": [10, 20, 30], "c": ["x", "y", "z"]}))
-result = duckdb.sql("SELECT a FROM obj").fetchall()
+result = quacklab.sql("SELECT a FROM obj").fetchall()
 assert result == [(1,), (2,), (3,)], f"Unexpected: {result}"
 """)
 
@@ -373,7 +373,7 @@ assert result == [(1,), (2,), (3,)], f"Unexpected: {result}"
         """DuckDB applies filter post-scan when pyarrow.dataset unavailable."""
         self._run_in_subprocess("""\
 import pyarrow as pa
-import duckdb
+import quacklab
 
 class MyStream:
     def __init__(self, tbl):
@@ -384,6 +384,6 @@ class MyStream:
         return self.tbl.schema.__arrow_c_schema__()
 
 obj = MyStream(pa.table({"a": [1, 2, 3, 4, 5], "b": [10, 20, 30, 40, 50]}))
-result = duckdb.sql("SELECT a, b FROM obj WHERE a > 3").fetchall()
+result = quacklab.sql("SELECT a, b FROM obj WHERE a > 3").fetchall()
 assert sorted(result) == [(4, 40), (5, 50)], f"Unexpected: {result}"
 """)

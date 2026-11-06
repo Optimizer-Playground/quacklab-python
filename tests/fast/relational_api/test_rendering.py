@@ -5,8 +5,8 @@ import re
 
 import pytest
 
-import duckdb
-from duckdb import ColumnExpression, ConstantExpression
+import quacklab
+from quacklab import ColumnExpression, ConstantExpression
 
 # The engine's error and nothing the library appends: no wording about scope or closed SELECTs anywhere in it.
 ENGINE_ONLY = r"(?s)\A(?!.*(?:out of scope|opened a new SELECT|qualify by|closed SELECT))"
@@ -14,7 +14,7 @@ ENGINE_ONLY = r"(?s)\A(?!.*(?:out of scope|opened a new SELECT|qualify by|closed
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     connection.execute("CREATE TABLE t AS SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (3, 'c'), (3, 'c')) v(i, x)")
     connection.execute("CREATE TABLE r AS SELECT * FROM (VALUES (2, 'B'), (3, 'C'), (4, 'D')) v(i, y)")
     connection.execute("CREATE TABLE pairs AS SELECT * FROM (VALUES (1, 10), (1, 20)) v(x, y)")
@@ -228,7 +228,7 @@ class TestTheShape:
     def test_an_input_alias_in_the_order_after_the_projection_is_the_engine_s_error(self, con):
         # The ORDER BY closed the SELECT, so r.y is out of scope.
         joined = con.table("t").join(con.table("r"), "t.i = r.i").filter("t.i > 2").project("t.x, r.y")
-        with pytest.raises(duckdb.BinderException, match=ENGINE_ONLY + r'.*Referenced table "r" not found'):
+        with pytest.raises(quacklab.BinderException, match=ENGINE_ONLY + r'.*Referenced table "r" not found'):
             joined.order("r.y")
 
     def test_a_set_operation_over_a_join_starts_a_new_cte(self, con):

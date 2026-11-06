@@ -2,8 +2,8 @@
 
 import pytest
 
-import duckdb
-from duckdb import ColumnExpression
+import quacklab
+from quacklab import ColumnExpression
 
 KINDS = [
     pytest.param("inner", "INNER", id="inner"),
@@ -17,7 +17,7 @@ KINDS = [
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     connection.execute(
         "CREATE TABLE l AS SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (2, 'b'), (3, 'c'), (NULL, 'n')) v(i, x)"
     )
@@ -144,7 +144,7 @@ class TestScopeOfTheSides:
         assert_same(con, rel, "SELECT * FROM (FROM l WHERE i > 1) AS l JOIN r ON l.i = r.i")
 
     def test_the_same_alias_on_both_sides_is_refused(self, con):
-        with pytest.raises(duckdb.InvalidInputException, match="same alias"):
+        with pytest.raises(quacklab.InvalidInputException, match="same alias"):
             con.table("l").join(con.table("l"), "i")
 
     def test_two_relations_built_from_the_same_text_can_join(self, con):
@@ -282,7 +282,7 @@ class TestQualifiedNamesAfterTheJoin:
     )
     def test_a_side_after_the_select_closed_is_the_engine_s_error(self, con, step):
         # The input aliases are out of scope once the SELECT closed, and the call itself raises.
-        with pytest.raises(duckdb.BinderException, match=r'Referenced table "[lr]" not found'):
+        with pytest.raises(quacklab.BinderException, match=r'Referenced table "[lr]" not found'):
             step(con.table("l").join(con.table("r"), "l.i = r.i", how="left"))
 
     def test_a_step_over_a_projection_reads_the_projected_names(self, con):
@@ -370,7 +370,7 @@ class TestConditionsAKindRefuses:
     )
     def test_a_condition_is_refused(self, con, how, condition):
         # Every join argument mistake is an InvalidInputException, as the shipping client had it.
-        with pytest.raises(duckdb.InvalidInputException, match="takes no condition"):
+        with pytest.raises(quacklab.InvalidInputException, match="takes no condition"):
             con.table("l").join(con.table("r"), condition, how=how)
 
 

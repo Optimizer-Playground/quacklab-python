@@ -1,6 +1,6 @@
 import pytest
 
-import duckdb
+import quacklab
 
 pa = pytest.importorskip("pyarrow")
 
@@ -11,7 +11,7 @@ pytestmark = pytest.mark.skipif(
 
 # Compares with manually constructed arrow tables
 def RoundTripStringView(query, array):
-    con = duckdb.connect()
+    con = quacklab.connect()
     con.execute("SET produce_arrow_string_view=True")
     arrow_tbl = con.sql(query).to_arrow_table()
     # Assert that we spit the same as the defined array
@@ -32,7 +32,7 @@ def RoundTripStringView(query, array):
 
 
 def RoundTripDuckDBInternal(query):
-    con = duckdb.connect()
+    con = quacklab.connect()
     con.execute("SET produce_arrow_string_view=True")
     arrow_tbl = con.sql(query).to_arrow_table()
     arrow_tbl.validate(full=True)
@@ -141,7 +141,7 @@ class TestArrowStringView:
     def test_large_string_polars(self):
         pass
         # pl = pytest.importorskip('polars')
-        # con = duckdb.connect()
+        # con = quacklab.connect()
         # con.execute("SET produce_arrow_string_view=True")
         # query = '''select * from (SELECT i::varchar str FROM range(10000) tbl(i) UNION SELECT 'Imaverybigstringmuchbiggerthanfourbytes'||i::varchar str FROM range(10000) tbl(i) UNION select null)  order by str'''  # noqa: E501
         # polars_df = con.execute(query).pl()
@@ -164,7 +164,7 @@ def _view_typed(con, sql, view_type):
 @pytest.mark.parametrize("view_type", ["string_view", "binary_view"])
 def test_join_on_a_view_typed_key_matches_native(source, view_type, build_side):
     """A hash join's runtime filters on a view typed key are applied by DuckDB; the rows match a native join."""
-    con = duckdb.connect()
+    con = quacklab.connect()
     key_type = "VARCHAR" if view_type == "string_view" else "BLOB"
     con.execute(
         "CREATE TABLE probe_native AS SELECT CASE WHEN i % 997 = 0 THEN NULL "

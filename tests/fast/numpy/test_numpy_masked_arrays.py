@@ -9,7 +9,7 @@ from typing import NamedTuple
 
 import pytest
 
-import duckdb
+import quacklab
 import numpy as np
 import pandas as pd
 
@@ -181,7 +181,7 @@ def test_object_type_ignores_masked_values(duckdb_cursor, cells, expected_type):
 @pytest.mark.parametrize("mask", [[0, 0, 0], [0, 1, 0]], ids=["unmasked", "masked"])
 def test_unsupported_dtype_fails_with_or_without_a_mask(duckdb_cursor, dtype, message, mask):
     source = np.ma.masked_array(np.zeros(3, dtype=dtype), mask=np.array(mask, dtype=bool))
-    with pytest.raises(duckdb.NotImplementedException, match=message):
+    with pytest.raises(quacklab.NotImplementedException, match=message):
         _scan(duckdb_cursor, "variable", source).fetchall()
 
 
@@ -322,7 +322,7 @@ try:
 except ImportError:
     pass
 
-import duckdb
+import quacklab
 import numpy as np
 
 
@@ -337,7 +337,7 @@ def as_python(value):
     return None if isinstance(value, float) and value != value else value
 
 
-con = duckdb.connect()
+con = quacklab.connect()
 fetched = con.sql(f"SELECT x FROM (VALUES ({sys.argv[1]}), (NULL)) t(x)").fetchnumpy()
 column = fetched["x"]
 # Only the first value comes from the result, which reads back in its numpy type; the NULL row is fixed by the query.

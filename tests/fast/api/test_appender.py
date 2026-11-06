@@ -8,12 +8,12 @@ import warnings
 
 import pytest
 
-import duckdb
-from duckdb.sqltypes import BIGINT, INTEGER, SQLNULL, VARCHAR
+import quacklab
+from quacklab.sqltypes import BIGINT, INTEGER, SQLNULL, VARCHAR
 
-WRONG_ARITY = duckdb.InvalidInputException
-CONCURRENT_USE = duckdb.ResourceInUseException
-CLOSED = duckdb.ConnectionException
+WRONG_ARITY = quacklab.InvalidInputException
+CONCURRENT_USE = quacklab.ResourceInUseException
+CLOSED = quacklab.ConnectionException
 
 UNFINISHED_EXECUTE = "unfinished result from execute"
 BUSY = "is busy with another call"
@@ -25,7 +25,7 @@ ENGINE_FLUSH_COUNT = 100 * VECTOR
 
 @pytest.fixture
 def con():
-    connection = duckdb.connect()
+    connection = quacklab.connect()
     connection.execute("CREATE TABLE t (k INTEGER PRIMARY KEY, v VARCHAR)")
     yield connection
     connection.close()
@@ -113,7 +113,7 @@ def run_isolated(script, timeout=15):
 
 def attach_read_only(con, path):
     file = (path / "ro.db").as_posix()
-    with duckdb.connect(file) as writer:
+    with quacklab.connect(file) as writer:
         writer.execute("CREATE TABLE t (k INTEGER)")
     con.execute(f"ATTACH '{file}' AS ro (READ_ONLY)")
 
@@ -144,7 +144,7 @@ def interrupt_the_held_flush(app, con, held):
     thread = threading.Thread(target=interrupt_while_held)
     thread.start()
     try:
-        with pytest.raises(duckdb.InterruptException):
+        with pytest.raises(quacklab.InterruptException):
             app.flush()
     finally:
         thread.join(10)
@@ -153,17 +153,17 @@ def interrupt_the_held_flush(app, con, held):
 REFUSED_TABLES = pytest.mark.parametrize(
     ("setup", "name", "error"),
     [
-        pytest.param(lambda con, path: None, "missing", duckdb.CatalogException, id="missing"),
+        pytest.param(lambda con, path: None, "missing", quacklab.CatalogException, id="missing"),
         pytest.param(
-            lambda con, path: con.execute("CREATE VIEW v AS SELECT 1 AS k"), "v", duckdb.CatalogException, id="view"
+            lambda con, path: con.execute("CREATE VIEW v AS SELECT 1 AS k"), "v", quacklab.CatalogException, id="view"
         ),
-        pytest.param(attach_read_only, "ro.t", duckdb.InvalidInputException, id="read_only"),
+        pytest.param(attach_read_only, "ro.t", quacklab.InvalidInputException, id="read_only"),
         pytest.param(
             lambda con, path: con.execute(
                 "ATTACH ':memory:' AS s; CREATE SCHEMA s; CREATE TABLE memory.s.t (k INTEGER)"
             ),
             "s.t",
-            duckdb.BinderException,
+            quacklab.BinderException,
             id="ambiguous",
         ),
     ],
@@ -295,7 +295,7 @@ class TestDefaultInsert:
     )
     def test_a_bad_column_subset_is_refused(self, con, columns):
         con.execute("CREATE TABLE g (a INTEGER, b INTEGER GENERATED ALWAYS AS (a * 2), c VARCHAR)")
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             con.appender("g", columns=columns)
 
     def test_subset_names_resolve_ignoring_case(self, con):
@@ -311,8 +311,8 @@ class TestDefaultInsert:
     def test_the_columns_list_is_read_once_at_creation(self):
         code, output = run_isolated(
             """
-            import duckdb
-            con = duckdb.connect()
+            import quacklab
+            con = quacklab.connect()
             con.execute("CREATE TABLE t2 (a INTEGER, b INTEGER)")
             columns = []
             class Column:
@@ -332,20 +332,20 @@ class TestDefaultInsert:
         assert "rows: [(1, 2)]" in output
 
     def test_a_table_name_that_does_not_parse_is_refused(self, con):
-        with pytest.raises(duckdb.ParserException):
+        with pytest.raises(quacklab.ParserException):
             con.appender("a..b")
 
     def test_the_module_level_function_takes_a_connection(self, con):
-        app = duckdb.appender("t", connection=con)
+        app = quacklab.appender("t", connection=con)
         app.append_row(1, "a")
         app.flush()
         assert table_rows(con) == [(1, "a")]
 
     def test_the_module_level_function_defaults_to_the_default_connection(self):
-        default = duckdb.default_connection()
+        default = quacklab.default_connection()
         default.execute("CREATE TABLE appender_default_target (k INTEGER)")
         try:
-            app = duckdb.appender("appender_default_target")
+            app = quacklab.appender("appender_default_target")
             app.append_row(1)
             app.flush()
             assert table_rows(default, "appender_default_target") == [(1,)]
@@ -370,7 +370,7 @@ class TestTableActions:
     )
     def test_upsert_without_exactly_one_unique_constraint_is_refused_at_creation(self, con, ddl):
         con.execute(ddl)
-        with pytest.raises(duckdb.BinderException):
+        with pytest.raises(quacklab.BinderException):
             con.appender("plain", action="upsert")
 
     def test_upsert_of_a_column_subset_writes_only_those_columns(self, con):
@@ -384,7 +384,7 @@ class TestTableActions:
     def test_an_upsert_that_leaves_out_the_key_is_accepted_and_its_flush_fails(self, con):
         app = con.appender("t", action="upsert", columns=["v"])
         app.append_row("no key")
-        with pytest.raises(duckdb.ConstraintException):
+        with pytest.raises(quacklab.ConstraintException):
             app.flush()
 
     def test_an_upsert_of_only_the_key_inserts_new_keys_and_leaves_existing_rows_alone(self, con):
@@ -479,7 +479,7 @@ class TestTableActions:
         ],
     )
     def test_a_bad_action_is_refused_at_creation(self, con, options, reason):
-        with pytest.raises(duckdb.InvalidInputException, match=re.escape(reason)):
+        with pytest.raises(quacklab.InvalidInputException, match=re.escape(reason)):
             con.appender("t", **options)
 
     @pytest.mark.parametrize("action", ["update", "delete"])
@@ -492,13 +492,13 @@ class TestTableActions:
         ],
     )
     def test_an_empty_or_repeated_key_is_refused(self, con, action, key, reason):
-        with pytest.raises(duckdb.InvalidInputException, match=reason):
+        with pytest.raises(quacklab.InvalidInputException, match=reason):
             con.appender("t", action=action, key=key)
 
     @pytest.mark.parametrize("action", ["update", "delete"])
     def test_a_generated_key_column_is_refused(self, con, action):
         con.execute("CREATE TABLE g (a INTEGER, b INTEGER GENERATED ALWAYS AS (a * 2), c VARCHAR)")
-        with pytest.raises(duckdb.InvalidInputException, match="b is a generated column"):
+        with pytest.raises(quacklab.InvalidInputException, match="b is a generated column"):
             con.appender("g", action=action, key=["b"])
 
     def test_the_key_must_be_a_list(self, con):
@@ -579,7 +579,7 @@ class TestTableActions:
 
     def test_the_module_level_function_takes_an_action_and_a_key(self, con):
         con.execute("INSERT INTO t VALUES (1, 'a'), (2, 'b')")
-        app = duckdb.appender("t", action="delete", key=["k"], connection=con)
+        app = quacklab.appender("t", action="delete", key=["k"], connection=con)
         app.append_row(1)
         app.flush()
         assert table_rows(con) == [(2, "b")]
@@ -588,7 +588,7 @@ class TestTableActions:
         con.execute("CREATE TABLE plain (k INTEGER, v VARCHAR)")
         con.execute("BEGIN")
         con.execute("INSERT INTO t VALUES (1, 'a')")
-        with pytest.raises(duckdb.BinderException):
+        with pytest.raises(quacklab.BinderException):
             con.appender("plain", action="upsert")
         con.execute("INSERT INTO t VALUES (2, 'b')")
         con.execute("COMMIT")
@@ -597,8 +597,8 @@ class TestTableActions:
     def test_the_key_list_is_read_once_at_creation(self):
         code, output = run_isolated(
             """
-            import duckdb
-            con = duckdb.connect()
+            import quacklab
+            con = quacklab.connect()
             con.execute("CREATE TABLE u (k INTEGER PRIMARY KEY, v VARCHAR)")
             con.execute("INSERT INTO u VALUES (1, 'a')")
             key = []
@@ -672,10 +672,10 @@ class TestCustomColumns:
     @pytest.mark.parametrize(
         ("declared", "error"),
         [
-            pytest.param("NULL", duckdb.InvalidInputException, id="null_text"),
-            pytest.param(SQLNULL, duckdb.InvalidInputException, id="null_sqltype"),
-            pytest.param("no_such_type", duckdb.CatalogException, id="unknown"),
-            pytest.param("DECIMAL(40, 2)", duckdb.BinderException, id="out_of_range"),
+            pytest.param("NULL", quacklab.InvalidInputException, id="null_text"),
+            pytest.param(SQLNULL, quacklab.InvalidInputException, id="null_sqltype"),
+            pytest.param("no_such_type", quacklab.CatalogException, id="unknown"),
+            pytest.param("DECIMAL(40, 2)", quacklab.BinderException, id="out_of_range"),
         ],
     )
     def test_a_type_that_cannot_hold_values_is_refused_at_creation(self, con, declared, error):
@@ -690,7 +690,7 @@ class TestCustomColumns:
         ],
     )
     def test_names_differing_only_in_case_are_refused(self, con, dml, columns):
-        with pytest.raises(duckdb.BinderException):
+        with pytest.raises(quacklab.BinderException):
             con.query_appender(dml, columns)
 
     def test_names_are_identifiers_not_sql(self, con):
@@ -707,7 +707,7 @@ class TestCustomColumns:
     @pytest.mark.parametrize(
         ("columns", "error"),
         [
-            pytest.param({}, duckdb.InvalidInputException, id="empty"),
+            pytest.param({}, quacklab.InvalidInputException, id="empty"),
             pytest.param(["k", "v"], TypeError, id="a_list"),
         ],
     )
@@ -716,7 +716,7 @@ class TestCustomColumns:
             con.query_appender("INSERT INTO t FROM appender_data", columns)
 
     def test_an_empty_column_name_is_refused(self, con):
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             con.query_appender("INSERT INTO t (k) FROM appender_data", {"": int})
 
     def test_the_columns_are_read_once_at_creation(self, con):
@@ -736,7 +736,7 @@ class TestCustomColumns:
         assert table_rows(con, "pair") == [(1, 2)]
 
     def test_the_module_level_query_appender_takes_a_connection(self, con):
-        app = duckdb.query_appender("INSERT INTO t FROM appender_data", KV, connection=con)
+        app = quacklab.query_appender("INSERT INTO t FROM appender_data", KV, connection=con)
         app.append_row(1, "a")
         app.flush()
         assert table_rows(con) == [(1, "a")]
@@ -822,7 +822,7 @@ class TestStatementKinds:
     )
     def test_any_other_statement_is_refused_at_creation(self, con, tmp_path, dml):
         dml = dml.format(out=(tmp_path / "out.csv").as_posix())
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             con.query_appender(dml, KV)
 
     @pytest.mark.parametrize(
@@ -839,7 +839,7 @@ class TestStatementKinds:
         ],
     )
     def test_returning_is_refused_at_creation(self, con, dml):
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             con.query_appender(dml, KV)
 
     @pytest.mark.parametrize(
@@ -858,7 +858,7 @@ class TestStatementKinds:
         ],
     )
     def test_a_parameter_is_refused_at_creation(self, con, source, dml):
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             con.query_appender(dml, KV, source=source)
 
     @pytest.mark.parametrize(
@@ -868,7 +868,7 @@ class TestStatementKinds:
     )
     def test_a_cte_of_the_dml_named_like_ours_is_refused_at_creation(self, con, name):
         dml = f"WITH {name} AS (SELECT 1 AS k, 'x' AS v) INSERT INTO t FROM appender_data"
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             con.query_appender(dml, KV)
 
     def test_a_dml_that_never_reads_the_buffer_is_allowed(self, con):
@@ -919,7 +919,7 @@ class TestStatementKinds:
         ],
     )
     def test_a_source_that_is_not_one_query_returning_rows_is_refused(self, con, source):
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             con.query_appender("INSERT INTO t FROM appender_data", KV, source=source)
 
 
@@ -929,29 +929,29 @@ BIND_ERRORS = pytest.mark.parametrize(
         pytest.param(
             "SELECT * FROM appender_buffer",
             "INSERT INTO missing FROM appender_data",
-            duckdb.CatalogException,
+            quacklab.CatalogException,
             id="table",
         ),
         pytest.param(
             "SELECT nte AS k, v FROM appender_buffer",
             "INSERT INTO t FROM appender_data",
-            duckdb.BinderException,
+            quacklab.BinderException,
             id="column",
         ),
         pytest.param(
             "SELECT k, v, k AS w FROM appender_buffer",
             "INSERT INTO t FROM appender_data",
-            duckdb.BinderException,
+            quacklab.BinderException,
             id="arity",
         ),
         pytest.param(
             "SELECT no_such_function(k) AS k, v FROM appender_buffer",
             "INSERT INTO t FROM appender_data",
-            duckdb.CatalogException,
+            quacklab.CatalogException,
             id="function",
         ),
         pytest.param(
-            "SELEC k FROM appender_buffer", "INSERT INTO t FROM appender_data", duckdb.ParserException, id="syntax"
+            "SELEC k FROM appender_buffer", "INSERT INTO t FROM appender_data", quacklab.ParserException, id="syntax"
         ),
     ],
 )
@@ -984,10 +984,10 @@ class TestCheckedAtCreation:
             pytest.param(
                 "SELECT v::INTEGER AS k, v FROM appender_buffer",
                 (1, "not a number"),
-                duckdb.ConversionException,
+                quacklab.ConversionException,
                 id="cast",
             ),
-            pytest.param("SELECT * FROM appender_buffer", (1, "again"), duckdb.ConstraintException, id="primary_key"),
+            pytest.param("SELECT * FROM appender_buffer", (1, "again"), quacklab.ConstraintException, id="primary_key"),
         ],
     )
     def test_casts_and_constraints_fail_only_at_flush(self, con, source, row, error):
@@ -1001,7 +1001,7 @@ class TestCheckedAtCreation:
         attach_read_only(con, tmp_path)
         app = con.query_appender("INSERT INTO ro.t FROM appender_data", {"k": "INTEGER"})
         app.append_row(1)
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             app.flush()
 
     @pytest.mark.parametrize(
@@ -1031,9 +1031,9 @@ class TestCheckedAtCreation:
     )
     def test_creation_inside_an_aborted_transaction_is_refused(self, con, create):
         con.begin()
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             con.execute("SELECT error('boom')")
-        with pytest.raises(duckdb.TransactionException):
+        with pytest.raises(quacklab.TransactionException):
             create(con)
         con.rollback()
         create(con)
@@ -1043,12 +1043,12 @@ class TestCheckedAtCreation:
     )
     def test_an_aborted_transaction_is_reported_before_a_bad_action(self, con, options):
         con.begin()
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             con.execute("SELECT error('boom')")
-        with pytest.raises(duckdb.TransactionException):
+        with pytest.raises(quacklab.TransactionException):
             con.appender("t", **options)
         con.rollback()
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             con.appender("t", **options)
 
 
@@ -1066,7 +1066,7 @@ class TestRows:
         con.execute("CREATE TABLE w (a INTEGER, b SMALLINT)")
         app = con.appender("w")
         app.append_row(1, 1)
-        with pytest.raises(duckdb.ConversionException):
+        with pytest.raises(quacklab.ConversionException):
             app.append_row(2, 100_000)
         app.flush()
         assert table_rows(con, "w") == [(1, 1)]
@@ -1075,7 +1075,7 @@ class TestRows:
         con.execute("CREATE TABLE w (a INTEGER, b SMALLINT)")
         app = con.appender("w")
         app.append_row(1, 1)
-        with pytest.raises(duckdb.ConversionException):
+        with pytest.raises(quacklab.ConversionException):
             app.append_row(None, 100_000)
         app.append_row(3, 3)
         app.flush()
@@ -1085,10 +1085,10 @@ class TestRows:
         ("bad", "error"),
         [
             pytest.param((3,), WRONG_ARITY, id="arity"),
-            pytest.param(("x", "c"), duckdb.ConversionException, id="value"),
-            pytest.param("12", duckdb.InvalidInputException, id="str"),
-            pytest.param(b"12", duckdb.InvalidInputException, id="bytes"),
-            pytest.param({3: "x", 4: "y"}, duckdb.InvalidInputException, id="dict"),
+            pytest.param(("x", "c"), quacklab.ConversionException, id="value"),
+            pytest.param("12", quacklab.InvalidInputException, id="str"),
+            pytest.param(b"12", quacklab.InvalidInputException, id="bytes"),
+            pytest.param({3: "x", 4: "y"}, quacklab.InvalidInputException, id="dict"),
         ],
     )
     def test_append_rows_stops_at_the_first_bad_row_and_keeps_the_rows_before_it(self, con, bad, error):
@@ -1164,7 +1164,7 @@ class TestAppendingRunsNothing:
         app = con.appender("t")
         outcome = []
         thread = threading.Thread(
-            target=contend, args=(running, release, lambda: app.append_row(1, "a"), outcome, duckdb.Error)
+            target=contend, args=(running, release, lambda: app.append_row(1, "a"), outcome, quacklab.Error)
         )
         thread.start()
         con.execute("SELECT hold(i) FROM range(1) t(i)").fetchall()
@@ -1312,7 +1312,7 @@ class TestFlush:
         con.execute("DROP TABLE prices")
         prices = pd.DataFrame({"k": [1], "price": [-1]})  # noqa: F841
         app.append_row(1)
-        with pytest.raises(duckdb.CatalogException):
+        with pytest.raises(quacklab.CatalogException):
             app.flush()
         assert table_rows(con, "priced") == []
 
@@ -1415,7 +1415,7 @@ class TestFlush:
             KV,
         )
         app.append_rows([(1, "first"), (1, "second")])
-        with pytest.raises(duckdb.InvalidInputException, match="more than once"):
+        with pytest.raises(quacklab.InvalidInputException, match="more than once"):
             app.flush()
 
 
@@ -1426,7 +1426,7 @@ class TestFlushFailures:
         con.execute("INSERT INTO t VALUES (1, 'a')")
         app.append_row(2, "b")
         open_result(con)
-        with pytest.raises(duckdb.ResourceInUseException, match=UNFINISHED_EXECUTE):
+        with pytest.raises(quacklab.ResourceInUseException, match=UNFINISHED_EXECUTE):
             app.flush()
         con.fetchall()
         app.flush()
@@ -1439,7 +1439,7 @@ class TestFlushFailures:
         app.append_row(1, "a")
         outcome = []
         thread = threading.Thread(
-            target=contend, args=(running, release, app.flush, outcome, duckdb.ResourceInUseException)
+            target=contend, args=(running, release, app.flush, outcome, quacklab.ResourceInUseException)
         )
         thread.start()
         con.execute("SELECT hold(i) FROM range(1) t(i)").fetchall()
@@ -1481,7 +1481,7 @@ class TestFlushFailures:
         con.execute("BEGIN")
         app.append_row(1, "a")
         interrupt_the_held_flush(app, con, held)
-        with pytest.raises(duckdb.TransactionException):
+        with pytest.raises(quacklab.TransactionException):
             app.flush()
         con.execute("ROLLBACK")
         app.flush()
@@ -1494,11 +1494,11 @@ class TestFlushFailures:
             import signal
             import threading
             import time
-            import duckdb
-            from duckdb.sqltypes import BIGINT
+            import quacklab
+            from quacklab.sqltypes import BIGINT
             # A background job starts with SIGINT ignored, which would turn the simulated Ctrl-C into nothing
             signal.signal(signal.SIGINT, signal.default_int_handler)
-            con = duckdb.connect()
+            con = quacklab.connect()
             con.execute("SET threads = 4")
             con.execute("CREATE TABLE t (k INTEGER, v VARCHAR)")
             con.execute("CREATE TABLE big AS SELECT range AS i FROM range(2000000)")
@@ -1545,7 +1545,7 @@ class TestFlushFailures:
         app = con.appender("t")
         app.append_row(2, "b")
         app.append_row(*row)
-        with pytest.raises(duckdb.ConstraintException):
+        with pytest.raises(quacklab.ConstraintException):
             app.flush()
         app.append_row(3, "c")
         app.flush()
@@ -1557,9 +1557,9 @@ class TestFlushFailures:
         con.execute("BEGIN")
         con.execute("INSERT INTO t VALUES (2, 'b')")
         app.append_row(1, "again")
-        with pytest.raises(duckdb.ConstraintException):
+        with pytest.raises(quacklab.ConstraintException):
             app.flush()
-        with pytest.raises(duckdb.TransactionException):
+        with pytest.raises(quacklab.TransactionException):
             con.execute("SELECT 1")
         con.execute("ROLLBACK")
         assert table_rows(con) == [(1, "a")]
@@ -1567,10 +1567,10 @@ class TestFlushFailures:
     def test_a_flush_inside_an_aborted_transaction_drops_the_rows(self, con):
         app = con.appender("t")
         con.execute("BEGIN")
-        with pytest.raises(duckdb.InvalidInputException):
+        with pytest.raises(quacklab.InvalidInputException):
             con.execute("SELECT error('boom')")
         app.append_row(1, "a")
-        with pytest.raises(duckdb.TransactionException):
+        with pytest.raises(quacklab.TransactionException):
             app.flush()
         con.execute("ROLLBACK")
         app.flush()
@@ -1580,7 +1580,7 @@ class TestFlushFailures:
 class TestBuffer:
     @pytest.fixture
     def tight(self):
-        connection = duckdb.connect()
+        connection = quacklab.connect()
         connection.execute("SET memory_limit = '16MB'")
         connection.execute("SET temp_directory = ''")
         connection.execute("CREATE TABLE s (k INTEGER, v VARCHAR)")
@@ -1590,13 +1590,13 @@ class TestBuffer:
     def test_a_failed_write_into_the_buffer_breaks_the_appender_until_clear(self, tight):
         app = tight.appender("s")
         # Rows reach the limited memory a whole chunk at a time, so one chunk must outgrow the limit.
-        with pytest.raises(duckdb.OutOfMemoryException):
+        with pytest.raises(quacklab.OutOfMemoryException):
             append_until_full(app, (0, "x" * (16 << 10)), 4 * VECTOR)
-        with pytest.raises(duckdb.InvalidInputException, match="clear"):
+        with pytest.raises(quacklab.InvalidInputException, match="clear"):
             app.append_row(1, "a")
-        with pytest.raises(duckdb.InvalidInputException, match="clear"):
+        with pytest.raises(quacklab.InvalidInputException, match="clear"):
             app.append_rows([(1, "a")])
-        with pytest.raises(duckdb.InvalidInputException, match="clear"):
+        with pytest.raises(quacklab.InvalidInputException, match="clear"):
             app.flush()
         app.clear()
         app.append_row(1, "a")
@@ -1604,7 +1604,7 @@ class TestBuffer:
         assert table_rows(tight, "s") == [(1, "a")]
 
     def test_a_buffer_larger_than_the_memory_limit_spills_and_arrives_whole(self, tmp_path):
-        connection = duckdb.connect((tmp_path / "spill.db").as_posix())
+        connection = quacklab.connect((tmp_path / "spill.db").as_posix())
         try:
             # The flush itself needs about 10 MiB beyond what it can evict, and more on macOS x86_64, where 16 MB ran
             # out of memory on CI. 32 MB leaves headroom while staying well below the buffer's 64 MiB.
@@ -1697,13 +1697,13 @@ class TestWithBlock:
 
     def test_a_failed_flush_on_normal_exit_propagates(self, con):
         con.execute("INSERT INTO t VALUES (1, 'a')")
-        with pytest.raises(duckdb.ConstraintException), con.appender("t") as app:
+        with pytest.raises(quacklab.ConstraintException), con.appender("t") as app:
             app.append_row(1, "again")
 
     def test_a_refused_flush_on_normal_exit_propagates_and_keeps_the_rows(self, con):
         app = con.appender("t")
         open_result(con)
-        with pytest.raises(duckdb.ResourceInUseException, match=UNFINISHED_EXECUTE), app:
+        with pytest.raises(quacklab.ResourceInUseException, match=UNFINISHED_EXECUTE), app:
             app.append_row(1, "a")
         con.fetchall()
         app.flush()
@@ -1761,15 +1761,15 @@ class TestOneCallerAtATime:
     def test_a_callback_during_its_flush_is_refused(self, call):
         code, output = run_isolated(
             f"""
-            import duckdb
-            from duckdb.sqltypes import BIGINT
-            con = duckdb.connect()
+            import quacklab
+            from quacklab.sqltypes import BIGINT
+            con = quacklab.connect()
             con.execute("CREATE TABLE t (k INTEGER PRIMARY KEY, v VARCHAR)")
             def reenter(x):
                 try:
                     {call}
                     print("ran", flush=True)
-                except duckdb.Error as error:
+                except quacklab.Error as error:
                     print("refused:", type(error).__name__, flush=True)
                 return x
             con.create_function("reenter", reenter, [BIGINT], BIGINT, side_effects=True)
@@ -1830,15 +1830,15 @@ class TestClosedConnection:
     def test_reconnecting_to_the_file_works_while_an_appender_lives(self, tmp_path):
         code, output = run_isolated(
             f"""
-            import duckdb
+            import quacklab
             path = {(tmp_path / "db.duckdb").as_posix()!r}
-            con = duckdb.connect(path)
+            con = quacklab.connect(path)
             con.execute("CREATE TABLE t (k INTEGER PRIMARY KEY, v VARCHAR)")
             app = con.appender("t")
             app.append_row(1, "a")
             con.close()
             print("started", flush=True)
-            again = duckdb.connect(path)
+            again = quacklab.connect(path)
             print("rows:", again.execute("SELECT * FROM t").fetchall())
             """
         )
@@ -1848,10 +1848,10 @@ class TestClosedConnection:
     def test_a_transaction_open_at_close_is_released_while_an_appender_lives(self, tmp_path):
         code, output = run_isolated(
             f"""
-            import duckdb
+            import quacklab
             path = {(tmp_path / "db.duckdb").as_posix()!r}
-            con = duckdb.connect(path)
-            other = duckdb.connect(path)
+            con = quacklab.connect(path)
+            other = quacklab.connect(path)
             con.execute("CREATE TABLE t (k INTEGER PRIMARY KEY, v VARCHAR)")
             app = con.appender("t")
             app.append_row(1, "a")
@@ -1870,8 +1870,8 @@ class TestClosedConnection:
     def test_closing_the_connection_inside_a_row_raises_instead_of_crashing(self, call):
         code, output = run_isolated(
             f"""
-            import duckdb
-            con = duckdb.connect()
+            import quacklab
+            con = quacklab.connect()
             con.execute("CREATE TABLE t (a BIGINT, b BIGINT)")
             app = con.appender("t")
             class Row:
@@ -1887,12 +1887,12 @@ class TestClosedConnection:
             try:
                 app.append_rows([Row()])
                 print("append_rows: returned")
-            except duckdb.Error as error:
+            except quacklab.Error as error:
                 print("append_rows:", type(error).__name__)
             try:
                 {call}
                 print("next call: returned")
-            except duckdb.Error as error:
+            except quacklab.Error as error:
                 print("next call:", type(error).__name__)
             """
         )
@@ -1903,23 +1903,23 @@ class TestClosedConnection:
     def test_reconnecting_from_inside_the_rows_iterator_raises_at_the_next_row(self, tmp_path):
         code, output = run_isolated(
             f"""
-            import duckdb
+            import quacklab
             path = {(tmp_path / "db.duckdb").as_posix()!r}
-            con = duckdb.connect(path)
+            con = quacklab.connect(path)
             con.execute("CREATE TABLE t (i INTEGER)")
             app = con.appender("t")
             def rows():
                 yield (1,)
                 con.close()
-                duckdb.connect(path).close()
+                quacklab.connect(path).close()
                 yield (2,)
             print("started", flush=True)
             try:
                 app.append_rows(rows())
                 print("append_rows: returned")
-            except duckdb.Error as error:
+            except quacklab.Error as error:
                 print("append_rows:", type(error).__name__)
-            print("rows:", duckdb.connect(path).execute("SELECT * FROM t").fetchall())
+            print("rows:", quacklab.connect(path).execute("SELECT * FROM t").fetchall())
             """
         )
         assert code == 0, output
@@ -1936,22 +1936,22 @@ class TestClosedConnection:
     def test_reconnecting_while_a_column_name_converts_raises_at_creation(self, tmp_path, create):
         code, output = run_isolated(
             f"""
-            import duckdb
+            import quacklab
             path = {(tmp_path / "db.duckdb").as_posix()!r}
-            con = duckdb.connect(path)
+            con = quacklab.connect(path)
             con.execute("CREATE TABLE t (i INTEGER)")
             class Column:
                 def __str__(self):
                     con.close()
-                    duckdb.connect(path).close()
+                    quacklab.connect(path).close()
                     return "i"
             print("started", flush=True)
             try:
                 {create}
                 print("creation: returned")
-            except duckdb.Error as error:
+            except quacklab.Error as error:
                 print("creation:", type(error).__name__)
-            print("rows:", duckdb.connect(path).execute("SELECT * FROM t").fetchall())
+            print("rows:", quacklab.connect(path).execute("SELECT * FROM t").fetchall())
             """
         )
         assert code == 0, output

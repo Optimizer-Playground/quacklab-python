@@ -2,7 +2,7 @@ import pytest
 from spark_namespace.sql import functions as F
 from spark_namespace.sql.types import Row
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 
 class TestSparkFunctionsExpr:

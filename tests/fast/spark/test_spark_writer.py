@@ -3,12 +3,12 @@ import re
 
 import pytest
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 
 from spark_namespace import USE_ACTUAL_SPARK
 from spark_namespace.errors import AnalysisException, IllegalArgumentException, error_condition
 
-from duckdb.experimental.spark.exception import ContributionsAcceptedError
+from quacklab.experimental.spark.exception import ContributionsAcceptedError
 
 if USE_ACTUAL_SPARK:
     import pyspark

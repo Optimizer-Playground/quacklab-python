@@ -78,9 +78,9 @@ def test_duckdb_runs_a_query(tmp_path):
     run_blocked(
         tmp_path,
         """
-        import duckdb
+        import quacklab
 
-        assert duckdb.sql("SELECT 42 AS answer").fetchall() == [(42,)]
+        assert quacklab.sql("SELECT 42 AS answer").fetchall() == [(42,)]
         """,
     )
 
@@ -89,9 +89,9 @@ def test_spark_basic_use(tmp_path):
     run_blocked(
         tmp_path,
         """
-        from duckdb.experimental.spark.sql import SparkSession
-        from duckdb.experimental.spark.sql import functions as F
-        from duckdb.experimental.spark.sql.types import Row
+        from quacklab.experimental.spark.sql import SparkSession
+        from quacklab.experimental.spark.sql import functions as F
+        from quacklab.experimental.spark.sql.types import Row
 
         spark = SparkSession.builder.getOrCreate()
         df = spark.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "a", 30)], ["id", "k", "v"])
@@ -127,7 +127,7 @@ def test_spark_conversion_names_the_missing_package(tmp_path, method, package, b
     run_blocked(
         tmp_path,
         f"""
-        from duckdb.experimental.spark.sql import SparkSession
+        from quacklab.experimental.spark.sql import SparkSession
 
         df = SparkSession.builder.getOrCreate().createDataFrame([(1, "a")], ["id", "k"])
         try:
@@ -148,7 +148,7 @@ def test_spark_timestamps(tmp_path):
         """
         import datetime
 
-        from duckdb.experimental.spark.sql import SparkSession
+        from quacklab.experimental.spark.sql import SparkSession
 
         spark = SparkSession.builder.getOrCreate()
         value = datetime.datetime(2024, 1, 2, 3, 4, 5)
@@ -171,7 +171,7 @@ def test_spark_timestamps_to_pandas(tmp_path):
         """
         import datetime
 
-        from duckdb.experimental.spark.sql import SparkSession
+        from quacklab.experimental.spark.sql import SparkSession
 
         spark = SparkSession.builder.getOrCreate()
         value = datetime.datetime(2024, 1, 2, 3, 4, 5)
@@ -188,13 +188,13 @@ def test_spark_udf_needs_numpy(tmp_path, blocked):
     run_blocked(
         tmp_path,
         """
-        import duckdb
-        from duckdb.experimental.spark.sql import SparkSession
+        import quacklab
+        from quacklab.experimental.spark.sql import SparkSession
 
         spark = SparkSession.builder.getOrCreate()
         try:
             spark.udf.register("plus_one", lambda n: n + 1, "int")
-        except duckdb.InvalidInputException as error:
+        except quacklab.InvalidInputException as error:
             assert "'numpy' is required" in str(error), repr(error)
         else:
             raise AssertionError("registering a UDF without numpy did not raise")
@@ -213,8 +213,8 @@ def test_spark_udf_with_a_timestamp_needs_no_package(tmp_path):
         import datetime
         import sys
 
-        import duckdb
-        from duckdb.experimental.spark.sql import SparkSession
+        import quacklab
+        from quacklab.experimental.spark.sql import SparkSession
 
         spark = SparkSession.builder.getOrCreate()
         plus_one = spark.udf.register("plus_one", lambda n: n + 1, "int")
@@ -237,9 +237,9 @@ def test_timestamptz_fetch_needs_no_package(tmp_path):
         import sys
         import zoneinfo
 
-        import duckdb
+        import quacklab
 
-        con = duckdb.connect()
+        con = quacklab.connect()
         con.execute("SET TimeZone = 'Europe/Amsterdam'")
         value = con.execute("SELECT TIMESTAMPTZ '2024-07-01 00:00:00+00'").fetchone()[0]
         assert value == datetime.datetime(2024, 7, 1, 2, tzinfo=zoneinfo.ZoneInfo("Europe/Amsterdam"))

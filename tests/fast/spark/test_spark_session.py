@@ -5,7 +5,7 @@ from spark_namespace import USE_ACTUAL_SPARK
 from spark_namespace.errors import AnalysisException, IllegalArgumentException, PySparkNotImplementedError
 from spark_namespace.sql.types import Row, StructType
 
-_ = pytest.importorskip("duckdb.experimental.spark")
+_ = pytest.importorskip("quacklab.experimental.spark")
 from spark_namespace.sql import SparkSession
 
 
