@@ -1,16 +1,15 @@
 import gc
 import tempfile
 
+import pandas as pd
 import pytest
-from conftest import ArrowPandas, NumpyPandas
 
 import quacklab
 
 
 class TestPandasUnregister:
-    @pytest.mark.parametrize("pandas", [NumpyPandas(), ArrowPandas()])
-    def test_pandas_unregister1(self, duckdb_cursor, pandas):
-        df = pandas.DataFrame([[1, 2, 3], [4, 5, 6]])
+    def test_pandas_unregister1(self, duckdb_cursor):
+        df = pd.DataFrame([[1, 2, 3], [4, 5, 6]])
         connection = quacklab.connect(":memory:")
         connection.register("dataframe", df)
 
@@ -22,13 +21,12 @@ class TestPandasUnregister:
             connection.execute("DROP VIEW dataframe;")
         connection.execute("DROP VIEW IF EXISTS dataframe;")
 
-    @pytest.mark.parametrize("pandas", [NumpyPandas(), ArrowPandas()])
-    def test_pandas_unregister2(self, duckdb_cursor, pandas):
+    def test_pandas_unregister2(self, duckdb_cursor):
         with tempfile.NamedTemporaryFile() as tmp:
             db = tmp.name
 
         connection = quacklab.connect(db)
-        df = pandas.DataFrame([[1, 2, 3], [4, 5, 6]])
+        df = pd.DataFrame([[1, 2, 3], [4, 5, 6]])
 
         connection.register("dataframe", df)
         connection.unregister("dataframe")  # Attempting to unregister.
